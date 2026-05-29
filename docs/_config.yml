@@ -19,8 +19,8 @@ html:
     config:
       html_theme: "sphinx_book_theme"
       html_theme_options:
-        repository_url: "https://github.com/phanish-suryanarayana/atom"
-        repository_branch: "main"
+        repository_url: "https://github.com/tjdonley/atom-dft-mlxc"
+        repository_branch: "master"
         path_to_docs: "docs"
         use_repository_button: true
         use_edit_page_button: true
@@ -41,8 +41,8 @@ html:
       # Thebe configuration - enables interactive code execution
       thebe_config:
         repository:
-          url: "https://github.com/phanish-suryanarayana/atom"
-          branch: "main"
+          url: "https://github.com/tjdonley/atom-dft-mlxc"
+          branch: "master"
         binderhub_url: "https://mybinder.org"
         # Requirements file for Binder (relative to repository root)
         requirements_file: "docs/requirements-binder.txt"

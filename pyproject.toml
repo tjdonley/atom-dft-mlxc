@@ -88,10 +88,10 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/tjdonley/atom-dft-mcsh"
-Documentation = "https://github.com/tjdonley/atom-dft-mcsh#readme"
-Repository = "https://github.com/tjdonley/atom-dft-mcsh"
-Issues = "https://github.com/tjdonley/atom-dft-mcsh/issues"
+Homepage = "https://github.com/tjdonley/atom-dft-mlxc"
+Documentation = "https://tjdonley.github.io/atom-dft-mlxc/"
+Repository = "https://github.com/tjdonley/atom-dft-mlxc"
+Issues = "https://github.com/tjdonley/atom-dft-mlxc/issues"
 
 [tool.setuptools]
 [tool.setuptools.packages.find]
