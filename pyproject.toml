@@ -59,7 +59,7 @@ threadpool = [
 
 # Documentation dependencies - for building Jupyter Book
 docs = [
-    "jupyter-book>=0.15.0",
+    "jupyter-book>=0.15.0,<2.0",
     "sphinx-book-theme>=1.0.0",
     "myst-nb>=0.17.0",
     "sphinx>=5.0.0",
@@ -79,7 +79,7 @@ all = [
     "scikit-learn>=0.24.0",
     "matplotlib>=3.3.0",
     "threadpoolctl>=2.0.0",
-    "jupyter-book>=0.15.0",
+    "jupyter-book>=0.15.0,<2.0",
     "sphinx-book-theme>=1.0.0",
     "myst-nb>=0.17.0",
     "sphinx>=5.0.0",
