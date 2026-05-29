@@ -5,6 +5,7 @@ title: "ATOM: Atomic DFT with finite elements and ML-XC density descriptors"
 version: "0.1.0"
 date-released: "2026-05-29"
 license: MIT
+doi: "10.5281/zenodo.20452121"
 repository-code: "https://github.com/tjdonley/atom-dft-mlxc"
 url: "https://tjdonley.github.io/atom-dft-mlxc/"
 authors:

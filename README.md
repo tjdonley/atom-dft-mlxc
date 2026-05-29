@@ -6,6 +6,7 @@
 
 [![CI](https://github.com/tjdonley/atom-dft-mlxc/actions/workflows/ci.yml/badge.svg)](https://github.com/tjdonley/atom-dft-mlxc/actions/workflows/ci.yml)
 [![Docs](https://github.com/tjdonley/atom-dft-mlxc/actions/workflows/docs.yml/badge.svg)](https://github.com/tjdonley/atom-dft-mlxc/actions/workflows/docs.yml)
+[![DOI](https://zenodo.org/badge/1195626331.svg)](https://zenodo.org/badge/latestdoi/1195626331)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **ATOM is actively developed research software for reproducible atomic DFT and machine-learned exchange-correlation experiments. Feedback, issues, and external use are welcome.**
@@ -224,6 +225,7 @@ If you use this code in your research, please cite the repository:
   author = {Qihao Cheng and Shubhang Trivedi and Phanish Suryanarayana},
   title = {{ATOM}: Atomic DFT with finite elements and ML-XC density descriptors},
   url = {https://github.com/tjdonley/atom-dft-mlxc},
+  doi = {10.5281/zenodo.20452121},
   version = {0.1.0},
   year = {2026},
 }

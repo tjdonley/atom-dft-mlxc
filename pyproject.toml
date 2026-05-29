@@ -92,6 +92,7 @@ Homepage = "https://github.com/tjdonley/atom-dft-mlxc"
 Documentation = "https://tjdonley.github.io/atom-dft-mlxc/"
 Repository = "https://github.com/tjdonley/atom-dft-mlxc"
 Issues = "https://github.com/tjdonley/atom-dft-mlxc/issues"
+DOI = "https://doi.org/10.5281/zenodo.20452121"
 
 [tool.setuptools]
 [tool.setuptools.packages.find]
