@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use ATOM in your research, please cite this software."
+type: software
+title: "ATOM: Atomic DFT with finite elements and ML-XC density descriptors"
+version: "0.1.0"
+date-released: "2026-05-29"
+license: MIT
+repository-code: "https://github.com/tjdonley/atom-dft-mlxc"
+url: "https://tjdonley.github.io/atom-dft-mlxc/"
+authors:
+  - family-names: Cheng
+    given-names: Qihao
+    email: qcheng61@gatech.edu
+  - family-names: Trivedi
+    given-names: Shubhang
+    email: strivedi44@gatech.edu
+  - family-names: Suryanarayana
+    given-names: Phanish
+    email: phanish.suryanarayana@ce.gatech.edu
+keywords:
+  - density-functional-theory
+  - finite-element-method
+  - exchange-correlation
+  - machine-learning
+  - computational-chemistry
+  - materials-science

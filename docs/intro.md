@@ -47,8 +47,8 @@ print(f"Number of iterations: {result.n_iterations}")
 
 ## Getting Help
 
-- **GitHub Issues**: [Report bugs or request features](https://github.com/tjdonley/atom-dft-mcsh/issues)
-- **Repository**: [View source code](https://github.com/tjdonley/atom-dft-mcsh)
+- **GitHub Issues**: [Report bugs or request features](https://github.com/tjdonley/atom-dft-mlxc/issues)
+- **Repository**: [View source code](https://github.com/tjdonley/atom-dft-mlxc)
 
 ## Authors
 

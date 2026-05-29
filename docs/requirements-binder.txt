@@ -8,4 +8,4 @@ jupyter
 ipykernel
 
 # Install atom package from the repository
--e git+https://github.com/phanish-suryanarayana/atom.git@main#egg=atom
+-e git+https://github.com/tjdonley/atom-dft-mlxc.git@master#egg=atom-dft

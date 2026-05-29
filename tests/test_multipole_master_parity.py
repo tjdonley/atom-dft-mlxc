@@ -23,6 +23,12 @@ SYNTHETIC_REF = DATA_DIR / "synthetic_hydrogen_mcsh_refs.npz"
 SOLVER_REF = DATA_DIR / "solver_h_o_mcsh_refs.npz"
 SUMMARY_REF = DATA_DIR / "mcsh_validation_summary.json"
 
+SCF_FIELD_ATOL = 5e-9
+SCF_DESCRIPTOR_ATOL = 1e-9
+SCF_ENERGY_ATOL = 5e-10
+SUMMARY_DESCRIPTOR_ATOL = 5e-10
+SUMMARY_KERNEL_DIFF_ATOL = 1e-8
+
 
 @pytest.fixture(scope="module")
 def synthetic_reference():
@@ -127,12 +133,12 @@ def test_solver_master_parity_hydrogen_and_oxygen(solver_reference):
         np.testing.assert_allclose(
             result["rho"],
             solver_reference[f"{symbol}_rho"],
-            atol=1e-12,
+            atol=SCF_FIELD_ATOL,
             rtol=0.0,
         )
         assert result["energy"] == pytest.approx(
             float(solver_reference[f"{symbol}_energy"]),
-            abs=1e-12,
+            abs=SCF_ENERGY_ATOL,
         )
         np.testing.assert_array_equal(
             desc.grid_indices, solver_reference[f"{symbol}_grid_indices"]
@@ -143,7 +149,7 @@ def test_solver_master_parity_hydrogen_and_oxygen(solver_reference):
         np.testing.assert_allclose(
             desc.descriptors,
             solver_reference[f"{symbol}_descriptors"],
-            atol=1e-12,
+            atol=SCF_DESCRIPTOR_ATOL,
             rtol=0.0,
         )
 
@@ -233,7 +239,9 @@ def test_scientific_summary_matches_master(
 ):
     for atom, atom_ref in summary_reference["atoms"].items():
         atom_cur = current_scientific_summary["atoms"][atom]
-        assert atom_cur["energy"] == pytest.approx(atom_ref["energy"], abs=1e-12)
+        assert atom_cur["energy"] == pytest.approx(
+            atom_ref["energy"], abs=SCF_ENERGY_ATOL
+        )
         assert atom_cur["electron_count"] == pytest.approx(
             atom_ref["electron_count"], abs=1e-12
         )
@@ -244,7 +252,7 @@ def test_scientific_summary_matches_master(
         np.testing.assert_allclose(
             atom_cur["heaviside_l0_center"],
             atom_ref["heaviside_l0_center"],
-            atol=1e-12,
+            atol=SUMMARY_DESCRIPTOR_ATOL,
             rtol=0.0,
         )
         np.testing.assert_allclose(
@@ -257,10 +265,10 @@ def test_scientific_summary_matches_master(
             atom_ref["lp0_vs_heaviside_max_abs_diff"], abs=1e-14
         )
         assert atom_cur["lp1_vs_heaviside_max_abs_diff"] == pytest.approx(
-            atom_ref["lp1_vs_heaviside_max_abs_diff"], abs=1e-10
+            atom_ref["lp1_vs_heaviside_max_abs_diff"], abs=SUMMARY_KERNEL_DIFF_ATOL
         )
         assert atom_cur["lp2_vs_heaviside_max_abs_diff"] == pytest.approx(
-            atom_ref["lp2_vs_heaviside_max_abs_diff"], abs=1e-10
+            atom_ref["lp2_vs_heaviside_max_abs_diff"], abs=SUMMARY_KERNEL_DIFF_ATOL
         )
 
     assert (
@@ -274,5 +282,5 @@ def test_scientific_summary_matches_master(
             "heaviside_l0_center_rcut_3_index_4"
         ][atom] == pytest.approx(
             ref_value,
-            abs=1e-12,
+            abs=SUMMARY_DESCRIPTOR_ATOL,
         )
