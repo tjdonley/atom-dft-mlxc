@@ -1,57 +1,47 @@
 <div align="center">
-<img src="logo.png" alt="logo" width="250"></img>
+<img src="logo.png" alt="ATOM logo" width="250"></img>
 </div>
 
-> **Note:** This project is still in development.
+# ATOM - Atomic DFT and ML-XC density descriptors
 
-# ATOM — Atomic DFT with finite elements
+[![CI](https://github.com/tjdonley/atom-dft-mlxc/actions/workflows/ci.yml/badge.svg)](https://github.com/tjdonley/atom-dft-mlxc/actions/workflows/ci.yml)
+[![Docs](https://github.com/tjdonley/atom-dft-mlxc/actions/workflows/docs.yml/badge.svg)](https://github.com/tjdonley/atom-dft-mlxc/actions/workflows/docs.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-<!-- After making the repo public, use the dynamic badge: [![CI](https://github.com/tjdonley/atom-dft-mlxc/actions/workflows/ci.yaml/badge.svg)](https://github.com/tjdonley/atom-dft-mlxc/actions/workflows/ci.yaml) -->
+**ATOM is actively developed research software for reproducible atomic DFT and machine-learned exchange-correlation experiments. Feedback, issues, and external use are welcome.**
 
-[**Features**](#features)
+[**Documentation**](https://tjdonley.github.io/atom-dft-mlxc/)
+| [**Features**](#features)
 | [**MCSH descriptors**](#mcsh-descriptors)
 | [**Quick start**](#quick-start)
 | [**Installation**](#installation)
-| [**Change log**](ChangeLog)
-| [**Documentation**](docs/)
-
+| [**Citing ATOM**](#citing-atom)
 
 ## What is ATOM?
 
-**ATOM** is a Python library for atomic (spherical) density functional theory (DFT) with a finite-element discretization in real space. It is heavily optimized and aims for high numerical accuracy.
+ATOM is a Python toolkit for single-atom Kohn-Sham density functional theory (DFT) using finite elements in real space. It solves spherical atomic DFT problems, supports all-electron and norm-conserving pseudopotential calculations, and exposes density-derived descriptors for machine-learned exchange-correlation (ML-XC) research.
 
-ATOM solves the Kohn–Sham equations self-consistently and supports a wide range of exchange–correlation functionals. Calculations can be run in all-electron mode or by reading norm-conserving pseudopotential (PSP) files.
+ATOM is built for researchers and practitioners working on electronic-structure methods, computational chemistry and materials science, atomic reference calculations, density descriptors, and ML-for-DFT workflows.
 
-Advanced capabilities include the optimized effective potential (OEP) method, hybrid functionals with exact exchange (e.g. HF), RPA with parallelization, configurable parameters and advanced options, and more.
-
-This is a research code. Please try it out, [report issues](https://github.com/tjdonley/atom-dft-mlxc/issues), and share feedback.
+The project is useful when you need an inspectable atomic DFT environment that can generate validated densities, energies, eigenvalues, and descriptor data for experiments. Advanced capabilities include optimized effective potential (OEP), hybrid functionals with exact exchange, RPA support, ML-XC interfaces, and MCSH/generalized multipole descriptor generation.
 
 ```python
 from atom import AtomicDFTSolver
 
-# Single-atom DFT with GGA-PBE
-solver = AtomicDFTSolver(atomic_number=13, xc_functional="GGA_PBE")
+# Single-atom DFT with LDA-PZ
+solver = AtomicDFTSolver(
+    atomic_number=2,
+    xc_functional="LDA_PZ",
+    domain_size=12.0,
+    finite_element_number=6,
+    polynomial_order=8,
+    quadrature_point_number=19,
+    max_scf_iterations=50,
+)
 results = solver.solve()
 
-# Access total energy, density, eigenvalues, etc.
 print(results["energy"])
 ```
-
-### Contents
-
-- [ATOM — Atomic DFT with finite elements](#atom--atomic-dft-with-finite-elements)
-  - [What is ATOM?](#what-is-atom)
-    - [Contents](#contents)
-  - [Features](#features)
-  - [MCSH descriptors](#mcsh-descriptors)
-  - [Quick start](#quick-start)
-  - [Installation](#installation)
-    - [Requirements](#requirements)
-    - [Instructions](#instructions)
-  - [Project structure](#project-structure)
-  - [Optional dependencies](#optional-dependencies)
-  - [Citing ATOM](#citing-atom)
-  - [Reference documentation](#reference-documentation)
 
 
 ## Features
@@ -65,6 +55,14 @@ print(results["energy"])
 
 
 ## Quick start
+
+From a fresh checkout:
+
+```bash
+git clone https://github.com/tjdonley/atom-dft-mlxc.git
+cd atom-dft-mlxc
+python -m pip install -e .
+```
 
 ```python
 from atom import AtomicDFTSolver
@@ -88,7 +86,7 @@ results = solver.solve()
 
 ATOM can compute multipole descriptors from the self-consistent electron density. The current implementation supports the MCSH (Maxwell Cartesian Spherical Harmonic) angular basis as one concrete choice within that broader framework.
 
-For the full branch-specific usage and extension guide, see [`docs/tutorials/03_generalized_multipole_api.md`](docs/tutorials/03_generalized_multipole_api.md).
+For the full usage and extension guide, see [`docs/tutorials/03_generalized_multipole_api.md`](docs/tutorials/03_generalized_multipole_api.md).
 
 ### Basic usage
 
