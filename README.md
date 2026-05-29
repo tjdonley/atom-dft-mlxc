@@ -221,10 +221,10 @@ pip install -e .
 
 If you use this code in your research, please cite the repository:
 
-```
+```bibtex
 @software{atom2026,
   author = {Qihao Cheng and Shubhang Trivedi and Phanish Suryanarayana},
-  title = {{ATOM}: Atomic density functional theory with finite elements},
+  title = {{ATOM}: Atomic DFT with finite elements and ML-XC density descriptors},
   url = {https://github.com/tjdonley/atom-dft-mlxc},
   version = {0.1.0},
   year = {2026},
