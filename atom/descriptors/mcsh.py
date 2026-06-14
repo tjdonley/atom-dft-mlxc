@@ -54,12 +54,13 @@ class MCSHBasis(AngularBasis):
             if label == "001":
                 return dz
         if l == 2:
+            r_sq = dx * dx + dy * dy + dz * dz
             if label == "200":
-                return 3.0 * dx * dx - 1.0
+                return 3.0 * dx * dx - r_sq
             if label == "020":
-                return 3.0 * dy * dy - 1.0
+                return 3.0 * dy * dy - r_sq
             if label == "002":
-                return 3.0 * dz * dz - 1.0
+                return 3.0 * dz * dz - r_sq
             if label == "110":
                 return 3.0 * dx * dy
             if label == "101":

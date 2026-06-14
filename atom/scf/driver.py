@@ -1446,10 +1446,23 @@ class SCFDriver:
             return self._inner_loop(rho_initial, settings, orbitals_initial, intermediate_info = intermediate_info, save_full_spectrum = save_full_spectrum)
 
     
+    def _l_values_for_channel_lists(
+        self,
+        angular_momentum_cutoff: Optional[int] = None,
+    ) -> List[int]:
+        """
+        Return the l labels corresponding to per-channel eigenvalue lists.
+        """
+        if angular_momentum_cutoff is not None:
+            return list(range(angular_momentum_cutoff + 1))
+        return [int(l) for l in self.occupation_info.unique_l_values]
+
+
     def _reorder_eigenstates_by_occupation(
-        self, 
-        eigenvalues_all : List[np.ndarray], 
-        eigenvectors_all: List[np.ndarray]
+        self,
+        eigenvalues_all : List[np.ndarray],
+        eigenvectors_all: List[np.ndarray],
+        l_values_for_lists: Optional[Iterable[int]] = None,
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Reorder eigenvalues and eigenvectors from l-channel lists to match occupation order.
@@ -1465,11 +1478,15 @@ class SCFDriver:
         Parameters
         ----------
         eigenvalues_all : List[np.ndarray]
-            List of eigenvalue arrays, one per unique l value
+            List of eigenvalue arrays, one per solved l channel.
             eigenvalues_all[i] has shape (n_states_for_l[i],)
         eigenvectors_all : List[np.ndarray]
-            List of eigenvector arrays, one per unique l value
+            List of eigenvector arrays, one per solved l channel.
             eigenvectors_all[i] has shape (n_grid_points, n_states_for_l[i])
+        l_values_for_lists : Optional[Iterable[int]]
+            Actual angular-momentum labels for each per-channel list. When an
+            angular-momentum cutoff includes unoccupied skipped channels, list
+            indices are not always the same as occupied l labels.
         
         Returns
         -------
@@ -1489,16 +1506,25 @@ class SCFDriver:
         n_grid_points = eigenvectors_all[0].shape[0]
         eigenvalues = np.zeros(n_total_states)
         eigenvectors = np.zeros((n_grid_points, n_total_states))
-        
+
+        if l_values_for_lists is None:
+            l_values_for_lists = self._l_values_for_channel_lists()
+        l_values_for_lists = [int(l) for l in l_values_for_lists]
+        l_value_to_list_index = {
+            l_value: list_index
+            for list_index, l_value in enumerate(l_values_for_lists)
+        }
+
         # Fill arrays according to occupation list order
-        for i_l, l in enumerate(self.occupation_info.unique_l_values):
+        for l in self.occupation_info.unique_l_values:
+            list_index = l_value_to_list_index[int(l)]
             # Find all indices in occupation list where l matches
             sort_index = np.where(self.occupation_info.l_values == l)[0]
             n_states = len(sort_index)
-            
+
             # Place eigenstates at correct positions
-            eigenvalues[sort_index] = eigenvalues_all[i_l][:n_states]
-            eigenvectors[:, sort_index] = eigenvectors_all[i_l][:, :n_states]
+            eigenvalues[sort_index] = eigenvalues_all[list_index][:n_states]
+            eigenvectors[:, sort_index] = eigenvectors_all[list_index][:, :n_states]
         
         return eigenvalues, eigenvectors
 
@@ -1705,7 +1731,9 @@ class SCFDriver:
 
             # Reorder eigenstates to match occupation list order
             occ_eigenvalues, occ_eigenvectors = self._reorder_eigenstates_by_occupation(
-                occ_eigenvalues_list, occ_eigenvectors_list
+                occ_eigenvalues_list,
+                occ_eigenvectors_list,
+                l_values_for_lists = unique_l_values,
             )
             
 
@@ -1748,6 +1776,7 @@ class SCFDriver:
                         unocc_eigenvectors_list = unocc_eigenvectors_list,
                         symmetrize              = False,
                         angular_momentum_cutoff = self.angular_momentum_cutoff,
+                        l_values_for_lists      = unique_l_values,
                     )
                 dielectric_matrix = self.response_calculator.compute_dielectric_matrix(
                     full_eigenvalues,
@@ -2149,7 +2178,8 @@ class SCFDriver:
             occ_eigenvectors_list   = occ_eigenvectors_list,
             unocc_eigenvalues_list  = unocc_eigenvalues_list,
             unocc_eigenvectors_list = unocc_eigenvectors_list,
-            angular_momentum_cutoff = self.angular_momentum_cutoff
+            angular_momentum_cutoff = self.angular_momentum_cutoff,
+            l_values_for_lists      = unique_l_values,
         )
 
 
@@ -2287,6 +2317,7 @@ class SCFDriver:
         unocc_eigenvectors_list : List[np.ndarray],
         angular_momentum_cutoff : Optional[int] = None,
         eigenvectors_pad_width  : Optional[int] = 0, # number of points to pad on each side of the eigenvectors
+        l_values_for_lists      : Optional[Iterable[int]] = None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Construct full eigenvalues, eigenvectors and l terms for OEP, only needed for OEP and at final readout
@@ -2300,12 +2331,18 @@ class SCFDriver:
             angular_momentum_cutoff = angular_momentum_cutoff
         )
 
-        unique_l_values_number = len(self.occupation_info.unique_l_values) if angular_momentum_cutoff is None else angular_momentum_cutoff + 1
+        if l_values_for_lists is None:
+            l_values_for_lists = self._l_values_for_channel_lists(angular_momentum_cutoff)
+        l_values_for_lists = [int(l) for l in l_values_for_lists]
+        assert len(l_values_for_lists) == len(unocc_eigenvalues_list), \
+            "l_values_for_lists length must match per-channel eigenvalue lists"
 
 
         # Reorder eigenstates to match occupation list order
         occ_eigenvalues, occ_eigenvectors = self._reorder_eigenstates_by_occupation(
-            occ_eigenvalues_list, occ_eigenvectors_list
+            occ_eigenvalues_list,
+            occ_eigenvectors_list,
+            l_values_for_lists = l_values_for_lists,
         )
         
         full_eigenvalues  = np.concatenate([occ_eigenvalues,  *unocc_eigenvalues_list],  axis = 0)
@@ -2320,7 +2357,7 @@ class SCFDriver:
         # Compute angular momentum index for each entry in full_eigen_energies
         unocc_l_terms = np.concatenate([
             np.full(vals.shape[0], l, dtype=int)
-            for l, vals in zip(range(unique_l_values_number), unocc_eigenvalues_list)
+            for l, vals in zip(l_values_for_lists, unocc_eigenvalues_list)
             if vals.size > 0
         ]) if len(unocc_eigenvalues_list) > 0 else np.empty(0, dtype=int)
 
@@ -2337,6 +2374,7 @@ class SCFDriver:
         unocc_eigenvectors_list : List[np.ndarray],
         symmetrize              : bool = True,
         angular_momentum_cutoff : Optional[int] = None,
+        l_values_for_lists      : Optional[Iterable[int]] = None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Construct full eigenvalues, orbitals and l terms for OEP, only needed for OEP and at final readout
@@ -2349,6 +2387,7 @@ class SCFDriver:
                 unocc_eigenvalues_list  = unocc_eigenvalues_list,
                 unocc_eigenvectors_list = unocc_eigenvectors_list,
                 angular_momentum_cutoff = angular_momentum_cutoff,
+                l_values_for_lists      = l_values_for_lists,
                 eigenvectors_pad_width  = 0, # No need to pad eigenvectors here, because potentially, they will be padded in the next step.
             )
 
@@ -2513,7 +2552,9 @@ class SCFDriver:
         
         # Reorder eigenstates to match occupation list order
         occ_eigenvalues, occ_eigenvectors = self._reorder_eigenstates_by_occupation(
-            occ_eigenvalues_list, occ_eigenvectors_list
+            occ_eigenvalues_list,
+            occ_eigenvectors_list,
+            l_values_for_lists = self.occupation_info.unique_l_values,
         )
         
         # Interpolate eigenvectors to quadrature points, also symmetrize the eigenvectors
