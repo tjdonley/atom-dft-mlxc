@@ -67,6 +67,11 @@ _FUNCTIONAL_REQUIREMENTS: Dict[str, FunctionalRequirements] = {
         needs_tau=False,
         functional_type='LDA'
     ),
+    'LDA_SVWN': FunctionalRequirements(
+        needs_gradient=False,
+        needs_tau=False,
+        functional_type='LDA'
+    ),
     'LDA_PW': FunctionalRequirements(
         needs_gradient=False,
         needs_tau=False,

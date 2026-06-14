@@ -5,9 +5,11 @@ from __future__ import annotations
 import numpy as np
 
 from atom.descriptors.mcsh import MCSHBasis
-from atom.scf.driver import SCFDriver
+from atom.scf.driver import SCFDriver, SwitchesFlags
+from atom.solver import VALID_XC_FUNCTIONAL_LIST
 from atom.utils.occupation_states import OccupationInfo
 from atom.xc.evaluator import DensityData, create_xc_evaluator
+from atom.xc.functional_requirements import get_functional_requirements
 from atom.xc.lda import LDA_PZ, LDA_SVWN
 
 
@@ -168,3 +170,19 @@ def test_lda_pz_factory_returns_perdew_zunger_not_vwn():
 
     np.testing.assert_allclose(correlation.e_generic, expected_e_c, atol=1e-14)
     np.testing.assert_allclose(correlation.v_generic, expected_v_c, atol=1e-14)
+
+
+def test_lda_svwn_is_publicly_reachable_after_lda_pz_remap():
+    evaluator = create_xc_evaluator("LDA_SVWN")
+    assert isinstance(evaluator, LDA_SVWN)
+    assert evaluator.params.functional_name == "LDA_SVWN"
+
+    requirements = get_functional_requirements("LDA_SVWN")
+    assert requirements.is_lda
+    assert not requirements.needs_gradient
+    assert not requirements.needs_tau
+
+    switches = SwitchesFlags("LDA_SVWN")
+    assert not switches.use_metagga
+    assert not switches.use_oep
+    assert "LDA_SVWN" in VALID_XC_FUNCTIONAL_LIST

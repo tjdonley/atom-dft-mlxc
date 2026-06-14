@@ -651,7 +651,7 @@ def create_xc_evaluator(
     >>> pot_data = evaluator.compute_xc(density_data)
     """
     # Import functional implementations
-    from .lda import LDA_PZ, LDA_SPW
+    from .lda import LDA_PZ, LDA_SVWN, LDA_SPW
     from .gga_pbe import GGA_PBE
     from .meta_scan import SCAN, rSCAN, r2SCAN
     
@@ -659,6 +659,7 @@ def create_xc_evaluator(
     FUNCTIONAL_MAP = {
         # LDA functionals
         'LDA_PZ': LDA_PZ,
+        'LDA_SVWN': LDA_SVWN,
         'LDA_PW': LDA_SPW,
         
         # GGA functionals
