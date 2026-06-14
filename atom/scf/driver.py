@@ -347,7 +347,7 @@ class SwitchesFlags:
             self.use_metagga = True
         
         # LDA/GGA functionals: no special flags (default False)
-        elif xc_functional in ['LDA_PZ', 'LDA_PW', 'GGA_PBE']:
+        elif xc_functional in ['LDA_PZ', 'LDA_SVWN', 'LDA_PW', 'GGA_PBE']:
             pass
 
         # Invalid XC functional
@@ -380,7 +380,7 @@ class SwitchesFlags:
         if xc_functional in ['EXX', 'RPA']:
             assert use_oep is True, \
                 USE_OEP_NOT_TRUE_FOR_OEP_FUNCTIONAL_ERROR.format(xc_functional)
-        elif xc_functional in ['None', 'LDA_PZ', 'LDA_PW', 'GGA_PBE', 'SCAN', 'RSCAN', 'R2SCAN', 'HF']:
+        elif xc_functional in ['None', 'LDA_PZ', 'LDA_SVWN', 'LDA_PW', 'GGA_PBE', 'SCAN', 'RSCAN', 'R2SCAN', 'HF']:
             assert use_oep is False, \
                 USE_OEP_NOT_FALSE_FOR_NON_OEP_FUNCTIONAL_ERROR.format(xc_functional)
         else:

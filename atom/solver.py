@@ -103,6 +103,7 @@ from .scf import (
 VALID_XC_FUNCTIONAL_LIST = [
     'None'   , # No XC functional
     'LDA_PZ' , # LDA Perdew-Zunger
+    'LDA_SVWN', # LDA Slater + Vosko-Wilk-Nusair
     'LDA_PW' , # LDA Perdew-Wang
     'GGA_PBE', # GGA Perdew-Burke-Ernzerhof
     'SCAN'   , # SCAN functional, meta-GGA
@@ -456,7 +457,7 @@ class AtomicDFTSolver:
     atomic_number                     : float # Atomic number of the element to calculate (e.g., 13 for Aluminum), can be fractional
     n_electrons                       : float # Number of electrons in the system, can be fractional
     all_electron_flag                 : bool  # True for all-electron calculation, False for pseudopotential calculation
-    xc_functional                     : str   # XC functional type: 'GGA_PBE', 'RPA', 'EXX', 'LDA_PZ', 'LDA_PW', 'SCAN', 'RSCAN', 'R2SCAN'
+    xc_functional                     : str   # XC functional type: 'GGA_PBE', 'RPA', 'EXX', 'LDA_PZ', 'LDA_SVWN', 'LDA_PW', 'SCAN', 'RSCAN', 'R2SCAN'
     use_oep                           : bool  # Enable optimized effective potential (OEP) workflow in SCF
 
     # Grid, basis, and mesh parameters
