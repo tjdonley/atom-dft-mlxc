@@ -1,9 +1,8 @@
-"""Master-derived parity checks for the MCSH case in the generalized API.
+"""Golden parity checks for the MCSH case in the generalized API.
 
-These tests use small golden reference artifacts generated from the `master`
-branch, where the scientific behavior of the MCSH implementation was already
-validated. The generalized multipole API must reproduce those results when
-`angular_basis="mcsh"`.
+These tests use small golden reference artifacts for the corrected MCSH
+implementation. The generalized multipole API must reproduce those results
+when `angular_basis="mcsh"`.
 """
 
 from __future__ import annotations
