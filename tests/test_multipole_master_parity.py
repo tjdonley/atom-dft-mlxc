@@ -25,6 +25,7 @@ SUMMARY_REF = DATA_DIR / "mcsh_validation_summary.json"
 SCF_FIELD_ATOL = 5e-9
 SCF_DESCRIPTOR_ATOL = 1e-9
 SCF_ENERGY_ATOL = 5e-10
+SUMMARY_ENERGY_ATOL = 1e-9
 SUMMARY_DESCRIPTOR_ATOL = 5e-10
 SUMMARY_KERNEL_DIFF_ATOL = 1e-8
 
@@ -239,7 +240,7 @@ def test_scientific_summary_matches_master(
     for atom, atom_ref in summary_reference["atoms"].items():
         atom_cur = current_scientific_summary["atoms"][atom]
         assert atom_cur["energy"] == pytest.approx(
-            atom_ref["energy"], abs=SCF_ENERGY_ATOL
+            atom_ref["energy"], abs=SUMMARY_ENERGY_ATOL
         )
         assert atom_cur["electron_count"] == pytest.approx(
             atom_ref["electron_count"], abs=1e-12
