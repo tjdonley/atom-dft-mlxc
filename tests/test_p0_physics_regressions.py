@@ -121,6 +121,67 @@ def test_full_l_terms_use_actual_l_labels_for_skipped_channels():
     np.testing.assert_array_equal(full_l_terms, np.array([2, 0, 0, 0, 2]))
 
 
+def test_full_spectrum_preconditioner_lists_include_skipped_l_blocks():
+    info = OccupationInfo(
+        z_nuclear=26,
+        z_valence=8,
+        all_electron_flag=False,
+    )
+
+    driver = type("DriverStub", (), {})()
+    driver.occupation_info = info
+    driver.hamiltonian_builder = type("HamiltonianStub", (), {})()
+    driver.hamiltonian_builder.ops_builder = type("OpsStub", (), {})()
+    driver.hamiltonian_builder.ops_builder.physical_nodes = np.zeros(6)
+    driver._l_values_for_channel_lists = (
+        SCFDriver._l_values_for_channel_lists.__get__(driver, type(driver))
+    )
+    driver._check_occ_and_unocc_eigenvalues_and_eigenvectors_lists = (
+        SCFDriver._check_occ_and_unocc_eigenvalues_and_eigenvectors_lists.__get__(
+            driver,
+            type(driver),
+        )
+    )
+    driver._reorder_eigenstates_by_occupation = (
+        SCFDriver._reorder_eigenstates_by_occupation.__get__(driver, type(driver))
+    )
+
+    l_values_for_lists = driver._l_values_for_channel_lists(include_skipped=True)
+    assert l_values_for_lists == [0, 1, 2]
+
+    full_eigenvalues, _, full_l_terms = (
+        SCFDriver._construct_full_eigenvalues_and_eigenvectors_and_l_terms(
+            driver,
+            occ_eigenvalues_list=[np.array([0.0]), np.array([]), np.array([20.0])],
+            occ_eigenvectors_list=[
+                np.zeros((4, 1)),
+                np.zeros((4, 0)),
+                np.zeros((4, 1)),
+            ],
+            unocc_eigenvalues_list=[
+                np.array([1.0, 2.0, 3.0]),
+                np.array([10.0, 11.0, 12.0, 13.0]),
+                np.array([21.0, 22.0, 23.0]),
+            ],
+            unocc_eigenvectors_list=[
+                np.zeros((4, 3)),
+                np.zeros((4, 4)),
+                np.zeros((4, 3)),
+            ],
+            l_values_for_lists=l_values_for_lists,
+        )
+    )
+
+    np.testing.assert_array_equal(
+        full_eigenvalues,
+        np.array([20.0, 0.0, 1.0, 2.0, 3.0, 10.0, 11.0, 12.0, 13.0, 21.0, 22.0, 23.0]),
+    )
+    np.testing.assert_array_equal(
+        np.bincount(full_l_terms, minlength=3),
+        np.array([4, 4, 4]),
+    )
+
+
 def _pz81_unpolarized_correlation(rs: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     A = 0.0311
     B = -0.048

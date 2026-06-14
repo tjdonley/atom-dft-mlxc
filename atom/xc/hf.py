@@ -10,7 +10,7 @@ Reference implementation: datagen/tools/HF_EX.py
 from __future__ import annotations
 import numpy as np
 import scipy
-from typing import Dict, Optional, Tuple, List, Literal, TYPE_CHECKING
+from typing import Dict, Iterable, Optional, Tuple, List, Literal, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..utils.occupation_states import OccupationInfo
@@ -468,7 +468,8 @@ class HartreeFockExchange:
 
     def compute_exchange_matrices_dict(
         self,
-        orbitals: np.ndarray
+        orbitals: np.ndarray,
+        l_values: Optional[Iterable[int]] = None,
     ) -> Dict[int, np.ndarray]:
         """
         Compute Hartree-Fock exchange matrices for all l channels.
@@ -500,9 +501,13 @@ class HartreeFockExchange:
             ORBITALS_MUST_HAVE_N_ORBITALS_COLUMNS_ERROR.format(orbitals.shape[1])
         
 
-        # Compute HF exchange matrices for all l channels
+        if l_values is None:
+            l_values = self.occupation_info.unique_l_values
+
+        # Compute HF exchange matrices for all requested l channels
         H_hf_exchange_matrices_dict : Dict[int, np.ndarray] = {}
-        for l_value in self.occupation_info.unique_l_values:
+        for l_value in l_values:
+            l_value = int(l_value)
             H_hf_exchange_matrix = self._compute_exchange_matrix(l_value, orbitals)
             H_hf_exchange_matrices_dict[l_value] = H_hf_exchange_matrix
         
