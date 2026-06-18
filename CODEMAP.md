@@ -22,7 +22,7 @@ directly to the text is provided, with a test asserting `explicit ≈ production
 | Eq. | Code |
 |-----|------|
 | (sq) `s` from ℓ=1 | `derivatives.py:build_spectral_gradient_operator` + `reduced_gradient_from_grad`; used by `simple_xc.py`. Validated to ~1% (`test_scale_free_gradient.py`). |
-| (sq) `q` from ℓ=0 | `derivatives.py:build_spectral_laplacian_operator` + `reduced_laplacian_from_grad`. **Phase-D diagnosis:** does not recover ∇²ρ to ~1% in quick FD checks (high-mode noise grows with channel count); re-validate on real OEP grids. |
+| (sq) `q` from ℓ=0 | `derivatives.py:build_spectral_laplacian_operator` (stable per-channel; matrix-free `_SpectralLaplacian`) + `reduced_laplacian_from_grad`. Recovers ∇²ρ to ~1% in the core/valence of the cached real N density. The wired folded-matrix form was numerically unstable (~300×) and was replaced. Exact adjoint `L.T` (stiff → frozen-gradient dual loop, Phase D). |
 
 > Legacy moment/calibrated decoders have been **dropped**; `features.py` no longer
 > derives s/q (they come from the spectral operators on the density grid).
@@ -63,8 +63,14 @@ directly to the text is provided, with a test asserting `explicit ≈ production
   vs explicit, no SCF).
 
 ## Phase-D items (open)
-1. **`q` (spectral Laplacian)**: re-validate / diagnose ∇²ρ recovery on real OEP
-   grids (see Eq. (sq) row above).
-2. **`simple_xc.py` SIMPLE-PBE/SCAN** (Results §III B): 4 "reproduces standard
+1. **Frozen-gradient dual loop**: the q (ℓ=0) Laplacian adjoint that carries the
+   fourth-order GEA term [Eq. (fx)] is stiff; the dual loop (freeze the
+   gradient/Laplacian correction on the bare-hole potential through the outer loop)
+   must be wired + benchmarked.
+2. **Parameter-free GEA deformation in the hole**: `simple_hole.py` is currently the
+   bare HEG hole; the deterministic s,q deformation that realizes Eq. (fx) (GEA
+   coefficients 10/81, 146/2025, −73/405) is not yet in it (the deformation
+   machinery lived in the excluded learned-envelope module with *fit* coefficients).
+3. **`simple_xc.py` SIMPLE-PBE/SCAN** (Results §III B): 4 "reproduces standard
    functional" tests fail with the spectral gradient (the discrete-adjoint
    correctness tests pass). Re-benchmark vs PBE/r²SCAN and tune/diagnose.
