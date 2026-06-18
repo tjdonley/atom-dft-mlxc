@@ -48,7 +48,11 @@ from typing import Optional
 import numpy as np
 from scipy.special import spherical_jn
 
-from ..descriptors.simple.derivatives import build_window_operator
+from ..descriptors.simple.derivatives import (
+    build_spectral_gradient_operator,
+    build_spectral_laplacian_operator,
+    build_window_operator,
+)
 from .evaluator import DensityData, GenericXCResult, XCEvaluator, XCParameters, XCPotentialData
 
 
@@ -198,3 +202,164 @@ class SIMPLE_HOLE(XCEvaluator):
 
     def compute_correlation_generic(self, density_data: DensityData) -> GenericXCResult:
         raise NotImplementedError("SIMPLE_HOLE overrides compute_xc directly.")
+
+
+# =====================================================================
+# Deterministic fourth-order GEA deformation of the hole [Eq. (fx), (ex-gga)]
+# =====================================================================
+_SIX2_3 = (3.0 * np.pi ** 2) ** (2.0 / 3.0)
+# GEA enhancement-factor coefficients [Eq. (fx)]: F_x = 1 + a s^2 + b q^2 + c s^2 q
+_GEA_A, _GEA_B, _GEA_C = 10.0 / 81.0, 146.0 / 2025.0, -73.0 / 405.0
+_INV_BOUND = 4.0          # smooth saturation of the reduced gradient/Laplacian (tail safety)
+
+
+def _g0(x):
+    """Bare HEG amplitude g0(x) = 3 j_1(x)/x = j_0(x)+j_2(x) (g0(0)=1)."""
+    x = np.maximum(np.asarray(x, dtype=float), 1e-12)
+    return 3.0 * spherical_jn(1, x) / x
+
+
+def _bound(v):
+    """Smooth saturation v -> v/(1+|v|/M); returns (value, d/dv)."""
+    den = 1.0 + np.abs(v) / _INV_BOUND
+    return v / den, 1.0 / den ** 2
+
+
+@dataclass
+class SIMPLEHOLEGEAParameters(SIMPLEHOLEParameters):
+    """Settings for the deterministic GEA-deformed hole [Eq. (fx)]. ``mode`` is the
+    single envelope deformation mode (l, kappa) with l>=1 (phi(0)=0 keeps the on-top
+    value); its amplitude carries the GEA combination of invariants, with coefficients
+    fixed (not fit) by the gradient expansion."""
+    functional_name: str = "SIMPLE_HOLE_GEA"
+    mode: tuple = (1, 1.0)
+
+
+class SIMPLE_HOLE_GEA(SIMPLE_HOLE):
+    """Parameter-free exchange hole with the deterministic fourth-order GEA deformation
+    [Eq. (fx)]. The HEG envelope is deformed, S(x;c) = [g0(x) + c phi(x)]^2 with
+    phi = j_l(kappa x) (l>=1), and the single amplitude
+
+        c(r0) = (1/rho_resp) [ (10/81) s^2 + (146/2025) q^2 - (73/405) s^2 q ]
+
+    carries the gradient expansion: q = reduced Laplacian (l=0 spectral operator),
+    s^2 = reduced gradient squared (l=1). The prefactor rho_resp = dF_x/dc is a one-time
+    HEG calibration of the envelope response, so the small-(s,q) expansion of the
+    enhancement factor F_x = eps_x/eps_x^unif reproduces Eq. (fx) by construction (the
+    coefficients are imposed, not fit). The HEG limit (s,q -> 0 => c -> 0 => bare hole)
+    and Fermi-Amaldi limit (phi(0)=0 => on-top untouched) are preserved structurally.
+
+    PRELIMINARY (synced to the writeup; validated/tuned in Phase D): the q (l=0) adjoint
+    is stiff and is intended to run under the frozen-gradient dual loop in the SCF
+    (writeup App.); here the full single-loop adjoint is provided for the energy and the
+    direct potential."""
+
+    def __init__(self, derivative_matrix=None, r_quad=None,
+                 quadrature_weights=None, params: Optional[XCParameters] = None):
+        super().__init__(derivative_matrix=derivative_matrix, r_quad=r_quad,
+                         quadrature_weights=quadrature_weights, params=params)
+        p = self.params
+        ell, kappa = p.mode
+        # linearized envelope-deformation tables: dS(x) = 2 g0(x) phi(x), projected onto
+        # the monopole basis with (dalpha, u^2 du) and without (dbeta, u du) the 1/u weight.
+        xu, wu = np.polynomial.legendre.leggauss(max(400, p.n_window * 3))
+        u = 0.5 * p.r_c * (xu + 1.0)
+        wq = 0.5 * p.r_c * wu
+        Rb = np.array([_radial_basis(n, u, p.r_c) for n in range(p.n_channels)])
+        with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
+            dS = 2.0 * _g0(self.zetas[:, None] * u[None, :]) * \
+                spherical_jn(int(ell), kappa * self.zetas[:, None] * u[None, :])
+            self._dalpha = (dS * u ** 2) @ (Rb * wq).T          # (n_zeta, n_in)
+            self._dbeta = (dS * u) @ (Rb * wq).T
+        # gradient / Laplacian operators for the invariants [Eq. (sq)]
+        self._grad_op = build_spectral_gradient_operator(self._r_grid)
+        self._lap_op = build_spectral_laplacian_operator(self._r_grid)
+        self._rho_resp = self._calibrate_response()             # dF_x/dc at HEG
+
+    # -- deformed self-energy ------------------------------------------------ #
+    def _eps_def(self, C, cfield):
+        """eps_x per point with the deformed envelope: Q_S=alpha.C + c (dalpha.C),
+        Phi_S likewise; resolve zeta from Q_S(zeta)=2 (FA fallback), eps=-1/2 Phi_S/Q_S."""
+        Q = self._alpha @ C + cfield[None, :] * (self._dalpha @ C)   # (n_zeta, N)
+        Phi = self._beta @ C + cfield[None, :] * (self._dbeta @ C)
+        zetas = self.zetas
+        eps = np.empty(C.shape[1])
+        for i in range(C.shape[1]):
+            Qi, Phii = Q[:, i], Phi[:, i]
+            if Qi[0] <= 2.0:
+                eps[i] = -0.5 * Phii[0] / Qi[0] if Qi[0] > 1e-30 else 0.0
+            else:
+                z = np.interp(2.0, Qi[::-1], zetas[::-1])
+                eps[i] = -0.5 * np.interp(z, zetas, Phii) / 2.0
+        return eps
+
+    def _calibrate_response(self):
+        """One-time HEG calibration of rho_resp = dF_x/dc (the envelope response), so that
+        c = (1/rho_resp)(GEA combination) gives F_x matching Eq. (fx) to linear order."""
+        rho0 = np.full(self._r_grid.size, 0.1)
+        C = np.array([op @ rho0 for op in self._ops])
+        i = self._r_grid.size // 2                              # interior reference point
+        eps_unif = -0.75 * (3.0 / np.pi) ** (1.0 / 3.0) * rho0[i] ** (1.0 / 3.0)
+        h = 1e-4
+        cp = np.zeros(self._r_grid.size); cp[i] = h
+        cm = np.zeros(self._r_grid.size); cm[i] = -h
+        d_eps = (self._eps_def(C, cp)[i] - self._eps_def(C, cm)[i]) / (2.0 * h)
+        return d_eps / eps_unif
+
+    def _amplitude(self, rho, g, lap):
+        """Deformation amplitude c(r0) and its partials (dc/drho, dc/dg, dc/dlap),
+        carrying the GEA combination (10/81)s^2 + (146/2025)q^2 - (73/405)s^2 q."""
+        rho = np.maximum(rho, 1e-12)
+        d8 = 4.0 * _SIX2_3 * rho ** (8.0 / 3.0)
+        d5 = 4.0 * _SIX2_3 * rho ** (5.0 / 3.0)
+        s2, q = g * g / d8, lap / d5                            # reduced gradient^2, reduced Laplacian
+        s2b, ds2 = _bound(s2)
+        qb, dq = _bound(q)
+        # partials of the raw invariants
+        s2_rho, s2_g = -(8.0 / 3.0) * s2 / rho, 2.0 * g / d8
+        q_rho, q_lap = -(5.0 / 3.0) * q / rho, 1.0 / d5
+        inv = 1.0 / self._rho_resp
+        # c = inv (A s2b + B qb^2 + C s2b qb)
+        c = inv * (_GEA_A * s2b + _GEA_B * qb ** 2 + _GEA_C * s2b * qb)
+        dc_ds2b = inv * (_GEA_A + _GEA_C * qb)
+        dc_dqb = inv * (2.0 * _GEA_B * qb + _GEA_C * s2b)
+        dc_drho = dc_ds2b * ds2 * s2_rho + dc_dqb * dq * q_rho
+        dc_dg = dc_ds2b * ds2 * s2_g
+        dc_dlap = dc_dqb * dq * q_lap
+        return c, dc_drho, dc_dg, dc_dlap
+
+    def compute_xc(self, density_data: DensityData) -> XCPotentialData:
+        rho = np.maximum(np.asarray(density_data.rho, dtype=float), 1e-12)
+        ew = self.energy_weights
+        ewrho = ew * rho
+        C = np.array([op @ rho for op in self._ops])
+        g = self._grad_op @ rho
+        lap = self._lap_op @ rho
+        c, dc_drho, dc_dg, dc_dlap = self._amplitude(rho, g, lap)
+        eps = self._eps_def(C, c)
+
+        # monopole-channel adjoint (stable): deps/dC_n by FD [Eq. (adjoint-discrete)]
+        acc = np.zeros_like(rho)
+        for n in range(len(self._ops)):
+            h = 1e-6 * (np.abs(C[n]) + 1e-8)
+            Cp = C.copy(); Cp[n] += h
+            Cm = C.copy(); Cm[n] -= h
+            deps_dCn = (self._eps_def(Cp, c) - self._eps_def(Cm, c)) / (2.0 * h)
+            acc += self._ops[n].T @ (ewrho * deps_dCn)
+        # deformation-channel adjoint: deps/dc by FD, chained through c(rho,g,lap).
+        # The g/lap pieces (the GEA gradient terms) are the stiff channel -- in the SCF
+        # they run under the frozen-gradient dual loop (writeup App.; Phase D).
+        hc = 1e-6 * (np.abs(c) + 1e-8)
+        deps_dc = (self._eps_def(C, c + hc) - self._eps_def(C, c - hc)) / (2.0 * hc)
+        v_x = (eps + acc / ew
+               + deps_dc * dc_drho
+               + self._grad_op.T @ (ewrho * deps_dc * dc_dg) / ew
+               + self._lap_op.T @ (ewrho * deps_dc * dc_dlap) / ew)
+        if getattr(self.params, "gauge_fix", True):
+            v_x = self._apply_gauge(v_x, eps, rho)
+        zero = np.zeros_like(rho)
+        return XCPotentialData(v_x=v_x, v_c=zero, e_x=eps, e_c=zero,
+                               de_x_dtau=None, de_c_dtau=None)
+
+    def _default_params(self) -> SIMPLEHOLEGEAParameters:
+        return SIMPLEHOLEGEAParameters()

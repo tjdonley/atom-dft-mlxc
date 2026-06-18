@@ -40,7 +40,7 @@ directly to the text is provided, with a test asserting `explicit ≈ production
 | (exact-hole),(eps-x) | `xc/simple_hole_explicit.py:hole_solve` (direct `u`-integral) | `xc/simple_hole.py:_eps_from_coeffs` (precomputed `α,β` tables, monotonic on-top inversion) |
 | on-top `Q_S(ζ)=2` | `hole_solve` (`brentq`) | `_eps_from_coeffs` (`np.interp` on the monotonic `Q_S(ζ)` table — non-iterative, same machinery as `adaptive_radius`) |
 | (adjoint),(adjoint-discrete) | — | `simple_hole.py:compute_xc` (operator-transpose adjoint; `gauge_fix=False` = pure adjoint) |
-| (fx),(ex-gga) | `simple_hole_explicit.py:lda_exchange_per_particle` (ε_x^unif); enhancement factor F_x = ε_x/ε_x^unif | bare hole is parameter-free; the ℓ=1,0 deformation (GEA coeffs 10/81, 146/2025, −73/405) is the roadmap (App. hole), not in the bare functional |
+| (fx),(ex-gga) | `simple_hole_explicit.py:lda_exchange_per_particle` (ε_x^unif) | `simple_hole.py:SIMPLE_HOLE_GEA` — deterministic 4th-order GEA deformation: one envelope mode whose amplitude carries (10/81)s²+(146/2025)q²−(73/405)s²q, coefficients fixed by a HEG calibration of the envelope response (not fit). Preliminary; validate/tune in Phase D. |
 
 `tests/simple/test_simple_hole.py` asserts production `SIMPLE_HOLE` ≈ explicit
 `hole_solve` on the same density, and the discrete adjoint == FD of the energy.
@@ -67,10 +67,8 @@ directly to the text is provided, with a test asserting `explicit ≈ production
    fourth-order GEA term [Eq. (fx)] is stiff; the dual loop (freeze the
    gradient/Laplacian correction on the bare-hole potential through the outer loop)
    must be wired + benchmarked.
-2. **Parameter-free GEA deformation in the hole**: `simple_hole.py` is currently the
-   bare HEG hole; the deterministic s,q deformation that realizes Eq. (fx) (GEA
-   coefficients 10/81, 146/2025, −73/405) is not yet in it (the deformation
-   machinery lived in the excluded learned-envelope module with *fit* coefficients).
+2. **GEA-deformed hole `SIMPLE_HOLE_GEA`** (wired, preliminary): validate the
+   calibration and benchmark vs OEP/HF; tune the mode and the dual-loop SCF.
 3. **`simple_xc.py` SIMPLE-PBE/SCAN** (Results §III B): 4 "reproduces standard
    functional" tests fail with the spectral gradient (the discrete-adjoint
    correctness tests pass). Re-benchmark vs PBE/r²SCAN and tune/diagnose.

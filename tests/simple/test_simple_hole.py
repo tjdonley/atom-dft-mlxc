@@ -20,7 +20,14 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from atom.scf.density import DensityData  # noqa: E402
-from atom.xc.simple_hole import SIMPLE_HOLE, SIMPLEHOLEParameters  # noqa: E402
+from atom.xc.simple_hole import (  # noqa: E402
+    SIMPLE_HOLE,
+    SIMPLE_HOLE_GEA,
+    SIMPLEHOLEGEAParameters,
+    SIMPLEHOLEParameters,
+)
+
+_DATA = _REPO_ROOT / "tests" / "simple" / "data" / "n_atom_Z7_pbe_psp8.npz"
 
 
 def test_hole_potential_matches_fd():
@@ -54,6 +61,53 @@ def test_hole_potential_matches_fd():
     resid = np.abs(fd - target).max() / np.abs(target).max()
     assert resid < 5e-6, resid
     assert np.all(np.isfinite(out.e_x)) and np.all(np.isfinite(out.v_x))
+
+
+def test_gea_hole_calibrates_and_enhances():
+    """The deterministic GEA-deformed hole [Eq. (fx)] calibrates the envelope response,
+    runs on a real (decaying) pseudopotential density, gives a physical enhancement
+    factor F_x = eps_x/eps_x^unif in the core+valence, and stays finite. (Quantitative
+    GEA-coefficient and SCF validation is Phase D.)"""
+    d = np.load(_DATA)
+    r = np.asarray(d["r"], float); rho = np.asarray(d["rho"], float)
+    o = np.argsort(r); r, rho = r[o], rho[o]; w = np.gradient(r)
+    kw = dict(r_c=8.0, n_channels=16, n_zeta=48, n_window=80, n_angle=32, gauge_fix=False)
+    gea = SIMPLE_HOLE_GEA(derivative_matrix=np.zeros((1, r.size, 1)), r_quad=r,
+                          quadrature_weights=w, params=SIMPLEHOLEGEAParameters(**kw))
+    assert np.isfinite(gea._rho_resp) and abs(gea._rho_resp) > 1e-6   # calibration succeeded
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        out = gea.compute_xc(DensityData(rho=rho))
+    assert np.all(np.isfinite(out.e_x)) and np.all(np.isfinite(out.v_x))
+    eps_unif = -0.75 * (3.0 / np.pi) ** (1.0 / 3.0) * np.maximum(rho, 1e-12) ** (1.0 / 3.0)
+    m = (rho > 1e-2 * rho.max()) & (r > 0.3) & (r < 5.0)
+    Fx = out.e_x[m] / eps_unif[m]
+    assert np.all(Fx > 0.9) and np.all(Fx < 3.0), (Fx.min(), Fx.max())   # physical enhancement
+
+
+def test_gea_hole_reduces_to_bare_without_deformation():
+    """With the GEA coefficients zeroed the deformed hole reduces exactly to the bare
+    SIMPLE_HOLE energy (the deformation carries an overall amplitude)."""
+    import atom.xc.simple_hole as sh
+    r = np.linspace(0.05, 11.0, 110); w = np.full(r.size, r[1] - r[0])
+    kw = dict(r_c=8.0, n_channels=14, n_zeta=40, n_window=80, n_angle=32, gauge_fix=False)
+    bare = SIMPLE_HOLE(derivative_matrix=np.zeros((1, r.size, 1)), r_quad=r,
+                       quadrature_weights=w, params=SIMPLEHOLEParameters(**kw))
+    gea = SIMPLE_HOLE_GEA(derivative_matrix=np.zeros((1, r.size, 1)), r_quad=r,
+                          quadrature_weights=w, params=SIMPLEHOLEGEAParameters(**kw))
+    rho = np.exp(-(r / 3.0) ** 2)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        eb = bare.compute_xc(DensityData(rho=rho)).e_x
+        a, b, c = sh._GEA_A, sh._GEA_B, sh._GEA_C
+        try:
+            sh._GEA_A = sh._GEA_B = sh._GEA_C = 0.0
+            gea2 = SIMPLE_HOLE_GEA(derivative_matrix=np.zeros((1, r.size, 1)), r_quad=r,
+                                   quadrature_weights=w, params=SIMPLEHOLEGEAParameters(**kw))
+            eg = gea2.compute_xc(DensityData(rho=rho)).e_x
+        finally:
+            sh._GEA_A, sh._GEA_B, sh._GEA_C = a, b, c
+    assert np.abs(eg - eb).max() < 1e-10
 
 
 def _scf(z, params, **kw):

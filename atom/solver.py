@@ -108,6 +108,7 @@ VALID_XC_FUNCTIONAL_LIST = [
     'SIMPLE_GGA', # PBE correlation + SIMPLE-reconstructed exchange gradient
     'SIMPLE_SCAN', # PBE correlation + deorbitalized SCAN exchange from SIMPLE features
     'SIMPLE_HOLE', # exchange-only convolutional exchange hole (SIMPLE monopole descriptors)
+    'SIMPLE_HOLE_GEA', # exchange hole with the deterministic 4th-order GEA deformation
     'SCAN'   , # SCAN functional, meta-GGA
     'RSCAN'  , # RSCAN functional, meta-GGA
     'R2SCAN' , # R2SCAN functional, meta-GGA

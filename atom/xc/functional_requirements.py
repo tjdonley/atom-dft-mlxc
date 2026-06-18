@@ -105,6 +105,15 @@ _FUNCTIONAL_REQUIREMENTS: Dict[str, FunctionalRequirements] = {
         functional_type='GGA'
     ),
 
+    # SIMPLE-HOLE-GEA: exchange hole with the deterministic fourth-order GEA
+    # deformation; gradient/Laplacian are reconstructed internally via the SIMPLE
+    # spectral operators, so no external gradient/tau is required.
+    'SIMPLE_HOLE_GEA': FunctionalRequirements(
+        needs_gradient=False,
+        needs_tau=False,
+        functional_type='GGA'
+    ),
+
     # Hybrid GGA functionals
     'PBE0': FunctionalRequirements(
         needs_gradient=True,
