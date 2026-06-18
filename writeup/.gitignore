@@ -1,0 +1,19 @@
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+build.log
+b1.log
+b2.log
+b3.log
+bib.log
+
+# compiled main PDF (regeneratable via latexmk; figures/*.pdf are kept)
+/main.pdf
+
+# regeneratable data + Phase-D exploration outputs
+scripts/data/
