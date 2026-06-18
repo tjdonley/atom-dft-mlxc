@@ -254,6 +254,8 @@ class SIMPLE_HOLE_GEA(SIMPLE_HOLE):
     (writeup App.); here the full single-loop adjoint is provided for the energy and the
     direct potential."""
 
+    _USE_LAP = True   # SIMPLE_HOLE_GGA sets False (gradient-only; no stiff l=0 channel)
+
     def __init__(self, derivative_matrix=None, r_quad=None,
                  quadrature_weights=None, params: Optional[XCParameters] = None):
         super().__init__(derivative_matrix=derivative_matrix, r_quad=r_quad,
@@ -271,9 +273,12 @@ class SIMPLE_HOLE_GEA(SIMPLE_HOLE):
                 spherical_jn(int(ell), kappa * self.zetas[:, None] * u[None, :])
             self._dalpha = (dS * u ** 2) @ (Rb * wq).T          # (n_zeta, n_in)
             self._dbeta = (dS * u) @ (Rb * wq).T
-        # gradient / Laplacian operators for the invariants [Eq. (sq)]
+        # gradient / Laplacian operators for the invariants [Eq. (sq)]. The Laplacian
+        # (q) is built only for the full GEA; the gradient-only fallback omits it.
         self._grad_op = build_spectral_gradient_operator(self._r_grid)
-        self._lap_op = build_spectral_laplacian_operator(self._r_grid)
+        self._lap_op = build_spectral_laplacian_operator(self._r_grid) if self._USE_LAP else None
+        # GEA enhancement coefficients [Eq. (fx)]; gradient-only drops the q^2, s^2 q terms.
+        self._gea = (_GEA_A, _GEA_B, _GEA_C) if self._USE_LAP else (_GEA_A, 0.0, 0.0)
         self._rho_resp = self._calibrate_response()             # dF_x/dc at HEG
 
     # -- deformed self-energy ------------------------------------------------ #
@@ -318,11 +323,12 @@ class SIMPLE_HOLE_GEA(SIMPLE_HOLE):
         # partials of the raw invariants
         s2_rho, s2_g = -(8.0 / 3.0) * s2 / rho, 2.0 * g / d8
         q_rho, q_lap = -(5.0 / 3.0) * q / rho, 1.0 / d5
+        A, B, C = self._gea
         inv = 1.0 / self._rho_resp
         # c = inv (A s2b + B qb^2 + C s2b qb)
-        c = inv * (_GEA_A * s2b + _GEA_B * qb ** 2 + _GEA_C * s2b * qb)
-        dc_ds2b = inv * (_GEA_A + _GEA_C * qb)
-        dc_dqb = inv * (2.0 * _GEA_B * qb + _GEA_C * s2b)
+        c = inv * (A * s2b + B * qb ** 2 + C * s2b * qb)
+        dc_ds2b = inv * (A + C * qb)
+        dc_dqb = inv * (2.0 * B * qb + C * s2b)
         dc_drho = dc_ds2b * ds2 * s2_rho + dc_dqb * dq * q_rho
         dc_dg = dc_ds2b * ds2 * s2_g
         dc_dlap = dc_dqb * dq * q_lap
@@ -334,7 +340,7 @@ class SIMPLE_HOLE_GEA(SIMPLE_HOLE):
         ewrho = ew * rho
         C = np.array([op @ rho for op in self._ops])
         g = self._grad_op @ rho
-        lap = self._lap_op @ rho
+        lap = self._lap_op @ rho if self._lap_op is not None else np.zeros_like(rho)
         c, dc_drho, dc_dg, dc_dlap = self._amplitude(rho, g, lap)
         eps = self._eps_def(C, c)
 
@@ -353,8 +359,9 @@ class SIMPLE_HOLE_GEA(SIMPLE_HOLE):
         deps_dc = (self._eps_def(C, c + hc) - self._eps_def(C, c - hc)) / (2.0 * hc)
         v_x = (eps + acc / ew
                + deps_dc * dc_drho
-               + self._grad_op.T @ (ewrho * deps_dc * dc_dg) / ew
-               + self._lap_op.T @ (ewrho * deps_dc * dc_dlap) / ew)
+               + self._grad_op.T @ (ewrho * deps_dc * dc_dg) / ew)
+        if self._lap_op is not None:                            # the stiff l=0 channel
+            v_x = v_x + self._lap_op.T @ (ewrho * deps_dc * dc_dlap) / ew
         if getattr(self.params, "gauge_fix", True):
             v_x = self._apply_gauge(v_x, eps, rho)
         zero = np.zeros_like(rho)
@@ -363,3 +370,20 @@ class SIMPLE_HOLE_GEA(SIMPLE_HOLE):
 
     def _default_params(self) -> SIMPLEHOLEGEAParameters:
         return SIMPLEHOLEGEAParameters()
+
+
+@dataclass
+class SIMPLEHOLEGGAParameters(SIMPLEHOLEGEAParameters):
+    functional_name: str = "SIMPLE_HOLE_GGA"
+
+
+class SIMPLE_HOLE_GGA(SIMPLE_HOLE_GEA):
+    """Gradient-only GEA-deformed hole: matches the second-order gradient expansion
+    $(10/81)s^2$ [Eq. (fx)] and ignores the reduced Laplacian (the $q^2$ and $s^2q$
+    terms). A fallback for when the $\\ell=0$ Laplacian adjoint makes the full
+    SIMPLE_HOLE_GEA too stiff to converge: with no $q$ channel the stiff $\\ell=0$
+    adjoint (and the slow per-channel Laplacian) is absent entirely."""
+    _USE_LAP = False
+
+    def _default_params(self) -> SIMPLEHOLEGGAParameters:
+        return SIMPLEHOLEGGAParameters()
