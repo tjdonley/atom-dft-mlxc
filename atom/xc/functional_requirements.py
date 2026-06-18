@@ -79,7 +79,32 @@ _FUNCTIONAL_REQUIREMENTS: Dict[str, FunctionalRequirements] = {
         needs_tau=False,
         functional_type='GGA'
     ),
-    
+    # SIMPLE-GGA: PBE correlation (needs grad_rho) + SIMPLE-reconstructed
+    # exchange gradient; grad_rho still required for correlation.
+    'SIMPLE_GGA': FunctionalRequirements(
+        needs_gradient=True,
+        needs_tau=False,
+        functional_type='GGA'
+    ),
+
+    # SIMPLE-SCAN: deorbitalized SCAN exchange (SIMPLE gradient + Laplacian) +
+    # PBE correlation; a pure-KS local functional (no tau), grad_rho for the
+    # correlation. The Laplacian is reconstructed internally via SIMPLE operators.
+    'SIMPLE_SCAN': FunctionalRequirements(
+        needs_gradient=True,
+        needs_tau=False,
+        functional_type='GGA'
+    ),
+
+    # SIMPLE-HOLE: exchange-only convolutional exchange hole. A pure-KS local
+    # functional whose ingredients are the SIMPLE monopole coefficients, built
+    # internally via fixed windowed operators; no external gradient or tau.
+    'SIMPLE_HOLE': FunctionalRequirements(
+        needs_gradient=False,
+        needs_tau=False,
+        functional_type='GGA'
+    ),
+
     # Hybrid GGA functionals
     'PBE0': FunctionalRequirements(
         needs_gradient=True,

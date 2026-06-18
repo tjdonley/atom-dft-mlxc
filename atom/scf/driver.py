@@ -347,7 +347,7 @@ class SwitchesFlags:
             self.use_metagga = True
         
         # LDA/GGA functionals: no special flags (default False)
-        elif xc_functional in ['LDA_PZ', 'LDA_PW', 'GGA_PBE']:
+        elif xc_functional in ['LDA_PZ', 'LDA_PW', 'GGA_PBE', 'SIMPLE_GGA', 'SIMPLE_SCAN', 'SIMPLE_HOLE']:
             pass
 
         # Invalid XC functional
@@ -380,7 +380,7 @@ class SwitchesFlags:
         if xc_functional in ['EXX', 'RPA']:
             assert use_oep is True, \
                 USE_OEP_NOT_TRUE_FOR_OEP_FUNCTIONAL_ERROR.format(xc_functional)
-        elif xc_functional in ['None', 'LDA_PZ', 'LDA_PW', 'GGA_PBE', 'SCAN', 'RSCAN', 'R2SCAN', 'HF']:
+        elif xc_functional in ['None', 'LDA_PZ', 'LDA_PW', 'GGA_PBE', 'SIMPLE_GGA', 'SIMPLE_SCAN', 'SIMPLE_HOLE', 'SCAN', 'RSCAN', 'R2SCAN', 'HF']:
             assert use_oep is False, \
                 USE_OEP_NOT_FALSE_FOR_NON_OEP_FUNCTIONAL_ERROR.format(xc_functional)
         else:
@@ -1016,6 +1016,7 @@ class SCFDriver:
         enable_parallelization            : Optional[bool]                   = None,  # parameter for RPA calculations only
         ml_xc_calculator                  : Optional[MLXCCalculator]         = None,
         ml_each_scf_step                  : Optional[bool]                   = None,
+        xc_params                         : Optional[object]                = None,  # functional-specific params (e.g. SIMPLEGGAParameters)
     ):
         """
         Parameters
@@ -1083,6 +1084,7 @@ class SCFDriver:
         self.enable_parallelization            = enable_parallelization
         self.ml_xc_calculator                  = ml_xc_calculator
         self.ml_each_scf_step                  = ml_each_scf_step
+        self.xc_params                         = xc_params
         self._check_initialization()
 
 
@@ -1098,8 +1100,10 @@ class SCFDriver:
         
         # Initialize XC calculator internally based on functional
         self.xc_calculator : Optional[XCEvaluator] = self._initialize_xc_calculator(
-            derivative_matrix = density_calculator.derivative_matrix,
-            r_quad            = density_calculator.quadrature_nodes
+            derivative_matrix  = density_calculator.derivative_matrix,
+            r_quad             = density_calculator.quadrature_nodes,
+            quadrature_weights = density_calculator.quadrature_weights,
+            xc_params          = xc_params
         )
         
         # Initialize HF exchange calculator for hybrid functionals
@@ -1163,9 +1167,11 @@ class SCFDriver:
 
 
     def _initialize_xc_calculator(
-        self, 
-        derivative_matrix : np.ndarray,
-        r_quad            : np.ndarray
+        self,
+        derivative_matrix  : np.ndarray,
+        r_quad             : np.ndarray,
+        quadrature_weights : np.ndarray = None,
+        xc_params          : object     = None
         ) -> Optional[XCEvaluator]:
         """
         Initialize XC calculator based on the functional name.
@@ -1195,9 +1201,11 @@ class SCFDriver:
         """
         if self.switches.use_xc_functional:
             return create_xc_evaluator(
-                functional_name   = self.xc_functional,
-                derivative_matrix = derivative_matrix,
-                r_quad            = r_quad
+                functional_name    = self.xc_functional,
+                derivative_matrix  = derivative_matrix,
+                r_quad             = r_quad,
+                quadrature_weights = quadrature_weights,
+                xc_params          = xc_params
             )
         
     

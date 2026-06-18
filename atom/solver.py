@@ -105,6 +105,9 @@ VALID_XC_FUNCTIONAL_LIST = [
     'LDA_PZ' , # LDA Perdew-Zunger
     'LDA_PW' , # LDA Perdew-Wang
     'GGA_PBE', # GGA Perdew-Burke-Ernzerhof
+    'SIMPLE_GGA', # PBE correlation + SIMPLE-reconstructed exchange gradient
+    'SIMPLE_SCAN', # PBE correlation + deorbitalized SCAN exchange from SIMPLE features
+    'SIMPLE_HOLE', # exchange-only convolutional exchange hole (SIMPLE monopole descriptors)
     'SCAN'   , # SCAN functional, meta-GGA
     'RSCAN'  , # RSCAN functional, meta-GGA
     'R2SCAN' , # R2SCAN functional, meta-GGA
@@ -543,6 +546,7 @@ class AtomicDFTSolver:
         ml_xc_calculator                  : Optional[MLXCCalculator] = None,   # None by default
         ml_each_scf_step                  : Optional[bool]           = None,   # False by default
         descriptor_calculators            : Optional[list[DescriptorCalculator] | tuple[DescriptorCalculator, ...]] = None,   # Post-SCF descriptor calculators
+        xc_params                         : Optional[object]         = None,   # functional-specific XC params (e.g. SIMPLEGGAParameters)
 
         # deprecated parameters
         print_debug                       : Optional[bool]           = None,   # Now changed to verbose
@@ -710,6 +714,7 @@ class AtomicDFTSolver:
         self.ml_xc_calculator                  = ml_xc_calculator
         self.ml_each_scf_step                  = ml_each_scf_step
         self.descriptor_calculators            = descriptor_calculators
+        self.xc_params                         = xc_params
 
         # set the default parameters, if not provided
         self.set_and_check_initial_parameters()
@@ -1645,8 +1650,9 @@ class AtomicDFTSolver:
             enable_parallelization            = self.enable_parallelization,
             ml_xc_calculator                  = self.ml_xc_calculator,
             ml_each_scf_step                  = self.ml_each_scf_step,
+            xc_params                         = self.xc_params,
         )
-        
+
         # Get XC calculator and HF calculator from scf_driver
         xc_calculator  = self.scf_driver.xc_calculator  if hasattr(self.scf_driver, 'xc_calculator')  else None
         hf_calculator  = self.scf_driver.hf_calculator  if hasattr(self.scf_driver, 'hf_calculator')  else None

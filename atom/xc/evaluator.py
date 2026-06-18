@@ -609,9 +609,11 @@ class XCEvaluator(ABC):
 
 
 def create_xc_evaluator(
-    functional_name: str, 
+    functional_name: str,
     derivative_matrix: Optional[np.ndarray] = None,
-    r_quad: Optional[np.ndarray] = None
+    r_quad: Optional[np.ndarray] = None,
+    quadrature_weights: Optional[np.ndarray] = None,
+    xc_params: Optional[XCParameters] = None
     ) -> XCEvaluator:
     """
     Factory function to create the appropriate XC evaluator.
@@ -654,9 +656,14 @@ def create_xc_evaluator(
     from .lda import LDA_SVWN, LDA_SPW
     from .gga_pbe import GGA_PBE
     from .meta_scan import SCAN, rSCAN, r2SCAN
-    
+    from .simple_xc import SIMPLE_GGA, SIMPLE_SCAN
+    from .simple_hole import SIMPLE_HOLE
+
     # Simple mapping: functional name → class
     FUNCTIONAL_MAP = {
+        'SIMPLE_GGA': SIMPLE_GGA,
+        'SIMPLE_SCAN': SIMPLE_SCAN,
+        'SIMPLE_HOLE': SIMPLE_HOLE,
         # LDA functionals
         'LDA_PZ': LDA_SVWN,  # Note: LDA_PZ uses VWN correlation in current implementation
         'LDA_PW': LDA_SPW,
@@ -686,7 +693,11 @@ def create_xc_evaluator(
     
     # Create and return instance with derivative matrix and r_quad
     functional_class = FUNCTIONAL_MAP[functional_name]
-    return functional_class(derivative_matrix=derivative_matrix, r_quad=r_quad)
+    if functional_class in (SIMPLE_GGA, SIMPLE_SCAN, SIMPLE_HOLE):
+        return functional_class(derivative_matrix=derivative_matrix, r_quad=r_quad,
+                                quadrature_weights=quadrature_weights, params=xc_params)
+    return functional_class(derivative_matrix=derivative_matrix, r_quad=r_quad,
+                            params=xc_params)
 
 
 # =============================================================================
