@@ -65,50 +65,112 @@ def axial_multipole_profile(rho, r0, r, l, n_angle=96):
 # =============================================================================
 # Spectral gradient / Laplacian operators [Eq. (sq)]
 # =============================================================================
+class _SpectralLaplacian:
+    """Stable per-channel spectral Laplacian for grad^2 rho [Eq. (sq), l=0].
+
+    The window functions are Laplacian eigenfunctions, grad^2[j_0(k_n u)] =
+    -k_n^2 j_0(k_n u), so for the monopole expansion rho_0(u;r0) = sum_n alpha_n R_{n0}(u),
+
+        grad^2 rho(r0) = - sum_n alpha_n k_n^2 R_{n0}(0),   k_n = (n+1) pi / r_c,
+        alpha_n(r0)   = int_0^{r_c} R_{n0}(u) rho_0(u;r0) u^2 du .
+
+    CRITICAL (numerical implementation note, see writeup App.): the channel
+    projections alpha_n must be formed FIRST -- they decay for a smooth density, so
+    sum_n (-k_n^2 R_{n0}(0)) alpha_n converges. Folding the eigenvalue weights into a
+    single kernel proj(u) = sum_n (-k_n^2 R_{n0}(0)) R_{n0}(u) BEFORE the density
+    integral (the way a dense fixed matrix would) builds a near-singular ~ -grad^2
+    delta kernel whose huge oscillatory values destroy the result to catastrophic
+    cancellation/overflow. Hence this is matrix-free and applied per channel. (The
+    l=1 gradient, with the milder k_n^1 growth, is stable as a folded matrix.)
+
+    Supports ``L @ rho`` (forward) and ``L.T @ y`` (adjoint). The adjoint reverses
+    the order and re-forms the singular kernel, so it is intrinsically stiff; in the
+    self-consistent loop this is mitigated by the frozen-gradient dual loop
+    (writeup App.; flagged for Phase D).
+
+    No constant-annihilation is applied (unlike the l=1 gradient): for the k_n^2
+    channel ``forward(1)`` is itself a large truncation artifact (a constant does not
+    decay in the window), so subtracting it would inject that artifact into every
+    point. The operator is therefore intended for densities that decay within the
+    window (real pseudopotential atoms; a bare nuclear cusp breaks the expansion),
+    where ``forward`` is accurate directly; the uniform-density (HEG) limit q->0 is
+    imposed analytically in the functional, not via this operator."""
+
+    def __init__(self, r_grid, n_channels=40, r_c=R_C, n_window=256, n_angle=64):
+        basis = window_basis(0, n_channels)
+        wq = radial_gauss_grid(r_c, n_window)
+        self._Rnu = basis.evaluate(0, wq.nodes)                 # (n_channels, n_window)
+        k = (np.arange(n_channels) + 1) * np.pi / r_c
+        R0 = basis.evaluate(0, np.array([1.0e-7]))[:, 0]        # R_{n0}(0)
+        self._spec_w = -k ** 2 * R0                             # eigenvalue weights
+        self._aw = wq.weights * wq.nodes ** 2
+        self._unodes = wq.nodes
+        self._mu, self._wmu = leggauss(n_angle)
+        self._r = np.asarray(r_grid, dtype=float)
+        self.shape = (self._r.size, self._r.size)
+
+    def _scatter(self, r0):
+        r = self._r
+        n = r.size
+        lo, hi = r[0], r[-1]
+        dist = np.sqrt(np.maximum(
+            r0 ** 2 + self._unodes[:, None] ** 2
+            - 2.0 * self._unodes[:, None] * r0 * self._mu[None, :], 0.0))
+        dist = np.clip(dist, lo, hi)
+        idx = np.clip(np.searchsorted(r, dist) - 1, 0, n - 2)
+        left, right = r[idx], r[idx + 1]
+        frac = np.where(right > left, (dist - left) / np.where(right > left, right - left, 1.0), 0.0)
+        return idx, frac
+
+    def _forward(self, rho):
+        rho = np.asarray(rho, dtype=float)
+        out = np.zeros(self._r.size)
+        for i, r0 in enumerate(self._r):
+            idx, frac = self._scatter(r0)
+            rv = rho[idx] * (1.0 - frac) + rho[idx + 1] * frac    # (nw, nangle)
+            prof = 0.5 * (rv @ self._wmu)                         # (nw,) l=0 profile
+            alpha = self._Rnu @ (self._aw * prof)                 # (nc,) -- decays for smooth rho
+            out[i] = self._spec_w @ alpha
+        return out
+
+    def _transpose(self, y):
+        y = np.asarray(y, dtype=float)
+        g = np.zeros(self._r.size)
+        for i, r0 in enumerate(self._r):
+            idx, frac = self._scatter(r0)
+            g_alpha = self._spec_w * y[i]                         # (nc,)
+            g_prof = self._aw * (self._Rnu.T @ g_alpha)           # (nw,) -- re-forms proj (stiff)
+            g_rv = 0.5 * g_prof[:, None] * self._wmu[None, :]     # (nw, nangle)
+            np.add.at(g, idx, g_rv * (1.0 - frac))
+            np.add.at(g, idx + 1, g_rv * frac)
+        return g
+
+    def __matmul__(self, rho):
+        return self._forward(np.asarray(rho, dtype=float))
+
+    @property
+    def T(self):
+        return _SpectralLaplacianTranspose(self)
+
+
+class _SpectralLaplacianTranspose:
+    """Adjoint view of ``_SpectralLaplacian`` (supports ``L.T @ y``)."""
+
+    def __init__(self, op):
+        self._op = op
+
+    def __matmul__(self, y):
+        return self._op._transpose(y)
+
+
 def build_spectral_laplacian_operator(r_grid, n_channels=40, r_c=R_C,
                                       n_window=256, n_angle=64):
-    """Fixed linear operator L (N x N) for grad^2 rho via the SPECTRAL
-    (Bessel-eigenvalue) sum [Eq. (sq), l=0]: the window functions are Laplacian
-    eigenfunctions, grad^2[j_0(k_n u)] = -k_n^2 j_0(k_n u), so for the monopole
-    expansion rho_0(u;r0) = sum_n alpha_n R_{n0}(u),
-
-        grad^2 rho(r0) = - sum_n alpha_n k_n^2 R_{n0}(0),   k_n = (n+1) pi / r_c .
-
-    Parameter-free (no decoder), full window. Recovers grad^2 rho to ~1% in the
-    core/valence of smooth (pseudopotential) atoms. Returns ``L`` (N x N).
-
-    NOTE: requires a SMOOTH density; a bare nuclear cusp breaks the expansion
-    (this is an exchange-only, pseudopotential-density model)."""
-    basis = window_basis(0, n_channels)
-    wq = radial_gauss_grid(r_c, n_window)
-    radial = basis.evaluate(0, wq.nodes)                  # (n_channels, n_window)
-    k = (np.arange(n_channels) + 1) * np.pi / r_c
-    R0 = basis.evaluate(0, np.array([1.0e-7]))[:, 0]      # R_{n0}(0)
-    spec_w = -k ** 2 * R0                                  # spectral eigenvalue weights
-    with np.errstate(over="ignore", divide="ignore", invalid="ignore"):
-        proj = spec_w @ radial                            # fold weights + basis -> (n_window,)
-    u, wu = leggauss(n_angle)
-    r_grid = np.asarray(r_grid, dtype=float)
-    n = r_grid.size
-    operator = np.zeros((n, n))
-    # rho_0(u;r0) = (1/2) int rho(dist) dmu (l=0 axial profile, P_0=1); orthonormal alpha_n.
-    kernel = 0.5 * (wq.weights * wq.nodes ** 2 * proj)[:, None] * wu[None, :]
-    kflat = kernel.ravel()
-    lo, hi = r_grid[0], r_grid[-1]
-    for i, r0 in enumerate(r_grid):
-        dist = np.sqrt(np.maximum(
-            r0 ** 2 + wq.nodes[:, None] ** 2 - 2.0 * wq.nodes[:, None] * r0 * u[None, :], 0.0
-        )).ravel()
-        dist = np.clip(dist, lo, hi)
-        idx = np.clip(np.searchsorted(r_grid, dist) - 1, 0, n - 2)
-        left, right = r_grid[idx], r_grid[idx + 1]
-        frac = np.where(right > left, (dist - left) / np.where(right > left, right - left, 1.0), 0.0)
-        np.add.at(operator[i], idx, kflat * (1.0 - frac))
-        np.add.at(operator[i], idx + 1, kflat * frac)
-    # Constant annihilation [Eq. (sq) / Numerical implementation]: each row sums to
-    # zero so grad^2(const)=0 (HEG/LDA limit) and the DC truncation residual is removed.
-    operator -= np.diag(operator.sum(axis=1))
-    return operator
+    """Stable per-channel spectral Laplacian operator [Eq. (sq), l=0]. Returns a
+    matrix-free linear operator supporting ``L @ rho`` and ``L.T @ y``; see
+    ``_SpectralLaplacian`` for why a folded dense matrix is numerically unusable for
+    the l=0/k_n^2 channel."""
+    return _SpectralLaplacian(r_grid, n_channels=n_channels, r_c=r_c,
+                              n_window=n_window, n_angle=n_angle)
 
 
 def build_spectral_gradient_operator(r_grid, n_channels=40, r_c=R_C,
