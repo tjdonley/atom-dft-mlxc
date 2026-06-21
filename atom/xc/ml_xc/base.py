@@ -237,7 +237,7 @@ class XCBaseModel(ABC):
         self.model_cls         = model_cls
         self.model_init_kwargs = model_init_kwargs
         self.model_name        = model_name if model_name is not None else "xc"
-        self.model_dir         = Path(model_dir)
+        self.model_dir         = Path(model_dir) if model_dir is not None else None
         self.device            = device
 
 

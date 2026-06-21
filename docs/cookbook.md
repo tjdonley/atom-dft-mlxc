@@ -15,7 +15,7 @@ solver = AtomicDFTSolver(
 )
 
 result = solver.solve()
-print(f"Total energy: {result.total_energy:.6f} Ha")
+print(f"Total energy: {result['energy']:.6f} Ha")
 ```
 
 ### Compare Different XC Functionals
@@ -32,8 +32,8 @@ for func in functionals:
         xc_functional=func,
     )
     result = solver.solve()
-    energies[func] = result.total_energy
-    print(f"{func}: {result.total_energy:.6f} Ha")
+    energies[func] = result["energy"]
+    print(f"{func}: {result['energy']:.6f} Ha")
 ```
 
 ### Extract Electron Density
@@ -46,8 +46,8 @@ solver = AtomicDFTSolver(atomic_number=1, xc_functional="LDA_PW")
 result = solver.solve()
 
 # Get radial grid and density
-r = solver.mesh.quadrature.quadrature_nodes
-rho = result.density
+r = result["quadrature_nodes"]
+rho = result["rho"]
 
 print(f"Grid points: {len(r)}")
 print(f"Density range: [{rho.min():.6e}, {rho.max():.6e}]")
@@ -64,8 +64,8 @@ from atom import AtomicDFTSolver
 solver = AtomicDFTSolver(atomic_number=1, xc_functional="LDA_PW")
 result = solver.solve()
 
-r = solver.mesh.quadrature.quadrature_nodes
-rho = result.density
+r = result["quadrature_nodes"]
+rho = result["rho"]
 
 plt.figure(figsize=(8, 6))
 plt.plot(r, rho, 'b-', linewidth=2)
@@ -88,14 +88,14 @@ solver = AtomicDFTSolver(
     atomic_number=1,
     xc_functional="LDA_PW",
     domain_size=30.0,      # Larger domain
-    finite_elements=20,    # More elements
+    finite_element_number=20,  # More elements
     polynomial_order=25,  # Higher order
     mesh_type="polynomial",
     mesh_concentration=2.0,
 )
 
 result = solver.solve()
-print(f"Energy with custom mesh: {result.total_energy:.6f} Ha")
+print(f"Energy with custom mesh: {result['energy']:.6f} Ha")
 ```
 
 ### Check Convergence
@@ -110,14 +110,14 @@ solver = AtomicDFTSolver(
 )
 
 result = solver.solve()
-print(f"Converged: {result.converged}")
-print(f"Iterations: {result.n_iterations}")
-print(f"Final error: {result.final_error:.2e}")
+print(f"Converged: {result['converged']}")
+print(f"Iterations: {result['iterations']}")
+print(f"Final residual: {result['rho_residual']:.2e}")
 ```
 
 ## Tips and Best Practices
 
 1. **Start with simple examples**: Begin with Hydrogen (atomic_number=1) to test your setup
-2. **Check convergence**: Always verify that `result.converged` is `True`
-3. **Adjust mesh parameters**: For heavier atoms, you may need larger `domain_size` or more `finite_elements`
-4. **Monitor iterations**: If `n_iterations` is very high, consider adjusting SCF parameters
+2. **Check convergence**: Always verify that `result["converged"]` is `True`
+3. **Adjust mesh parameters**: For heavier atoms, you may need larger `domain_size` or more `finite_element_number`
+4. **Monitor iterations**: If `result["iterations"]` is very high, consider adjusting SCF parameters

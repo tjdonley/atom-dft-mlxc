@@ -39,6 +39,7 @@ dev = [
     "nbconvert>=6.0.0",
     "jupyter>=1.0.0",
     "ipykernel>=6.0.0",
+    "matplotlib>=3.3.0",
 ]
 
 # Machine learning dependencies - for ML XC functionals

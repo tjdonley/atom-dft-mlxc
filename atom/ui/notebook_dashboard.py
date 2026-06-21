@@ -26,7 +26,7 @@ try:
 except ImportError as exc:  # pragma: no cover - exercised only in missing optional envs
     raise ImportError(
         "The notebook dashboard needs ipywidgets, matplotlib, and IPython. "
-        "Install them with `pip install ipywidgets matplotlib` or `pip install -e '.[dev,viz]'`."
+        "Install them with `pip install ipywidgets matplotlib` or `pip install -e '.[dev]'`."
     ) from exc
 
 from atom import AtomicDFTSolver

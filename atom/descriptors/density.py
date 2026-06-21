@@ -72,7 +72,8 @@ def normalize_density(r: np.ndarray, rho: np.ndarray, n_electrons: float = 1.0) 
     if n_electrons <= 0.0:
         raise ValueError("n_electrons must be positive.")
 
-    current = 4.0 * np.pi * np.trapz(r * r * rho, r)
+    trapezoid = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
+    current = 4.0 * np.pi * trapezoid(r * r * rho, r)
     if current <= 0.0:
         raise ValueError("Density integral is non-positive; cannot normalize.")
     return rho * (n_electrons / current)

@@ -40,7 +40,7 @@ solver = AtomicDFTSolver(
 - `xc_functional` (str): Exchange-correlation functional name
   - Valid options: `"LDA_PZ"`, `"LDA_PW"`, `"GGA_PBE"`, `"SCAN"`, `"RSCAN"`, `"R2SCAN"`, `"HF"`, `"PBE0"`, `"EXX"`, `"RPA"`
 - `domain_size` (float, optional): Size of the computational domain in Bohr
-- `finite_elements` (int, optional): Number of finite elements
+- `finite_element_number` (int, optional): Number of finite elements
 - `polynomial_order` (int, optional): Polynomial order for basis functions
 - `mesh_type` (str, optional): Type of mesh (`"exponential"`, `"polynomial"`, `"uniform"`)
 
@@ -50,11 +50,13 @@ solver = AtomicDFTSolver(
 
 #### Returns
 
-`SCFResult` object containing:
-- `total_energy`: Total energy in Ha
+Dictionary containing:
+- `energy`: Total energy in Ha
 - `converged`: Whether the calculation converged
-- `n_iterations`: Number of SCF iterations
-- `density`: Electron density array
+- `iterations`: Number of SCF iterations
+- `rho`: Electron density array
+- `energy_components`: Component energies with `total_kinetic`, `total_potential`, `exchange`, and `correlation`
+- `descriptor_results`: Descriptor outputs keyed by calculator name
 - And more...
 
 ## Data Management

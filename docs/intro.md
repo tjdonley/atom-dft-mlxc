@@ -26,14 +26,14 @@ solver = AtomicDFTSolver(
     atomic_number=1,
     xc_functional="LDA_PW",
     domain_size=20.0,
-    finite_elements=15,
+    finite_element_number=15,
     polynomial_order=20,
 )
 
 result = solver.solve()
-print(f"Total energy: {result.total_energy:.6f} Ha")
-print(f"Converged: {result.converged}")
-print(f"Number of iterations: {result.n_iterations}")
+print(f"Total energy: {result['energy']:.6f} Ha")
+print(f"Converged: {result['converged']}")
+print(f"Number of iterations: {result['iterations']}")
 ```
 
 ## Documentation Structure
