@@ -18,6 +18,7 @@ concurrency:
 
 jobs:
   build:
+    name: Docs build
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
