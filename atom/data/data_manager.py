@@ -1324,8 +1324,10 @@ class AtomicDataset:
 
         if scaler_kwargs_features is None:
             scaler_kwargs_features = {}
-        if scaler_kwargs_targets is None:
-            scaler_kwargs_targets = {}
+        if scaler_kwargs_potential is None:
+            scaler_kwargs_potential = {}
+        if scaler_kwargs_energy is None:
+            scaler_kwargs_energy = {}
 
         # Determine target mode
         if reference_functional is None:

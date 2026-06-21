@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     from ..solver import AtomicDFTSolver
 
 # Error messages
+ATOMIC_NUMBER_LIST_NOT_LIST_ERROR = \
+    "parameter 'atomic_number_list' must be a list, get {} instead."
 ATOMIC_NUMBER_NOT_INT_OR_FLOAT_ERROR = \
     "parameter 'atomic_number' must be an integer or float, get {} instead."
 ATOMIC_NUMBER_NOT_INTEGER_WHEN_USED_AS_INDEX_ERROR = \
@@ -1356,7 +1358,7 @@ class DataGenerator:
         """
         # atomic_number_list
         if not isinstance(atomic_number_list, list):
-            raise TypeError(ATOMIC_NUMBER_LIST_NOT_LIST_OF_INTEGERS_ERROR.format(atomic_number_list))
+            raise TypeError(ATOMIC_NUMBER_LIST_NOT_LIST_ERROR.format(atomic_number_list))
         for atomic_number in atomic_number_list:
             if not isinstance(atomic_number, (int, float)):
                 raise TypeError(ATOMIC_NUMBER_NOT_INT_OR_FLOAT_ERROR.format(atomic_number))

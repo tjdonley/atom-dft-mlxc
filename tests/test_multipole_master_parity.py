@@ -25,7 +25,8 @@ SUMMARY_REF = DATA_DIR / "mcsh_validation_summary.json"
 
 SCF_FIELD_ATOL = 5e-9
 SCF_DESCRIPTOR_ATOL = 1e-9
-SCF_ENERGY_ATOL = 5e-10
+# Small BLAS/Python-version differences show up below 1e-9 in CI.
+SCF_ENERGY_ATOL = 1e-9
 SUMMARY_DESCRIPTOR_ATOL = 5e-10
 SUMMARY_KERNEL_DIFF_ATOL = 1e-8
 
