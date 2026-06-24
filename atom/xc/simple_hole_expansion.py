@@ -14,11 +14,17 @@ zeta fixed by Q_S(zeta)=2, it runs the direct-expansion map.
 
 Map (a function of C and the local on-top density rho0 = rho(r0)):
   Cm   = C / (4 pi)                          # explicit (project_hole) convention
-  Q    = 4 pi sum_n Cm_n a_n                 # enclosed density charge
-  lam  = switch(Q)                           # 1 (Q<=1, one electron) -> 0 (Q>=2, HEG)
-  rhotilde = (1-lam) rhotilde^HEG(rho0) + lam (-Cm)        # blend the two anchors
-  rhotilde <- project to {sum rule = -1, on-top = -W rho0},  W = (1+lam)/2
+  Q    = 4 pi sum_n Cm_n a_n                 # total enclosed density charge
+  lam  = switch(Q/2)                         # PER-SPIN: 1 (Q<=2, <=1 e/spin) -> 0 (Q>=4, HEG)
+  rhotilde = (1-lam) rhotilde^HEG(rho0) + lam (-Cm/Q)      # HEG <-> Fermi-Amaldi anchors
+  rhotilde <- project to {sum rule = -1, on-top = (1-lam)(-rho0/2) + lam(-rho0/Q)}
   eps_x    = 1/2 * 4 pi * sum_n rhotilde_n b_n
+
+Exchange is a same-spin interaction, so the one-electron (self-interaction-free) limit is one
+electron PER SPIN (Q/2 <= 1). Keying the switch on Q/2 puts spin-paired He (Q=2, Q/2=1) in the
+density-following limit -> He exchange is reproduced essentially exactly. The Fermi-Amaldi
+anchor -Cm/Q integrates to -1 and its on-top -rho0/Q gives -rho0 for one electron (Q=1) and
+-rho0/2 for spin-paired He (Q=2): the spin factor falls out of /Q.
 
 rho0 is the *actual* density rho(r0), not reconstructed from C: the on-top reconstruction
 sum_n Cm_n R_{n0}(0) is an ill-conditioned alternating series (Gibbs-like). Because eps_x then
@@ -88,15 +94,18 @@ class SIMPLE_HOLE_EXPANSION(SIMPLE_HOLE):
 
     def _map_coeffs(self, C, rho0):
         """Parameter-free map: production monopole coeffs C (nch, N) and the local on-top
-        density rho0 (N,) -> hole coeffs rhotilde (nch, N)."""
+        density rho0 (N,) -> hole coeffs rhotilde (nch, N). The switch acts on the PER-SPIN
+        enclosed charge Q/2 (exchange is same-spin); the SIC/few-electron anchor is the
+        Fermi-Amaldi density-following hole -Cm/Q (int -> -1, on-top -rho0/Q)."""
         rho0 = np.maximum(np.asarray(rho0, float), 1e-12)
         Cm = C / (4.0 * np.pi)                                   # explicit convention
-        Q = 4.0 * np.pi * (self._a @ Cm)                        # (N,) enclosed charge
-        lam = enclosed_charge_switch(Q)                         # (N,)
-        coeffs = (1.0 - lam)[None, :] * self._heg_anchor(rho0) + lam[None, :] * (-Cm)
-        # project onto the two exact constraints (vectorized over columns)
-        W = 0.5 * (1.0 + lam)
-        c = np.vstack([np.full_like(rho0, -1.0), -W * rho0])    # (2, N) targets
+        Q = 4.0 * np.pi * (self._a @ Cm)                        # (N,) total enclosed charge
+        Qsafe = np.maximum(Q, 1e-12)
+        lam = enclosed_charge_switch(0.5 * Q)                   # per-spin switch (Q/2)
+        coeffs = (1.0 - lam)[None, :] * self._heg_anchor(rho0) + lam[None, :] * (-Cm / Qsafe[None, :])
+        # on-top target: HEG pair -rho/2 -> FA -rho/Q; sum rule always -1
+        ontop = (1.0 - lam) * (-0.5 * rho0) + lam * (-rho0 / Qsafe)
+        c = np.vstack([np.full_like(rho0, -1.0), ontop])        # (2, N) targets
         resid = c - self._A @ coeffs                            # (2, N)
         return coeffs + self._A.T @ (self._Ginv @ resid)        # (nch, N)
 

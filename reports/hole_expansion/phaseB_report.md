@@ -53,3 +53,17 @@ the hole is always projected at fixed ξ* so resolution and tail capture are
 density-independent. For the prototype this ≤~1% valence-density deviation is accepted in
 exchange for exact constraint satisfaction and an exactly self-interaction-free one-electron
 limit.
+
+## Update — per-spin switch + Fermi-Amaldi anchor (corrects the spin convention)
+The map above keyed the HEG↔SIC switch on the **total** enclosed charge and used the
+unscaled `−C` one-electron anchor. Exchange is a *same-spin* interaction, so the
+self-interaction-free limit is one electron **per spin** (`Q_σ = Q_total/2 ≤ 1`). The map now:
+- switches on the **per-spin** charge `Q/2` (so spin-paired He, `Q_total=2 → Q_σ=1`, is in the
+  density-following limit);
+- uses the **Fermi-Amaldi anchor** `−C/Q` (density-following, `∫ = −1` by construction), whose
+  on-top `−ρ0/Q` gives `−ρ0` for one electron (`Q=1`) and `−ρ0/2` for paired He (`Q=2`) — the
+  spin factor falls out of `/Q`;
+- on-top target blends `(1−λ)(−ρ0/2)` [HEG pair] + `λ(−ρ0/Q)` [FA].
+
+Limits preserved (HEG λ=0 → LDA; one-electron-per-spin λ=1 → SIC), and spin-paired He becomes
+essentially exact (see Phase-D update).

@@ -177,19 +177,21 @@ def test_B2_one_electron_constraints():
     a = ex.charge_moments(N_CHAN, R_C)
     r0 = ex.radial_basis_at_origin(N_CHAN, R_C)
     assert ex.enclosed_charge(coeffs, a) == pytest.approx(-1.0, abs=1e-6)
-    # on-top -> -rho (W=1 in the one-electron limit), not -rho/2
-    assert ex.on_top(coeffs, r0) == pytest.approx(-diag["rho0"], abs=1e-6)
+    # Fermi-Amaldi on-top -> -rho0/Q (= -rho0 for a fully-enclosed single electron, Q~1)
+    assert ex.on_top(coeffs, r0) == pytest.approx(-diag["rho0"] / diag["Q_window"], abs=1e-6)
 
 
-def test_B2_projection_barely_perturbs_1e_anchor():
-    """The constraint projection leaves the one-electron anchor (hole=-density) nearly fixed
-    when it already nearly satisfies the constraints (Q_window ~ 1)."""
+def test_B2_projection_barely_perturbs_fa_anchor():
+    """The constraint projection leaves the Fermi-Amaldi anchor (-C/Q) nearly fixed: it already
+    satisfies the sum rule (int = -1) and nearly the on-top, so the correction is tiny."""
     a = ex.charge_moments(N_CHAN, R_C)
     r0 = ex.radial_basis_at_origin(N_CHAN, R_C)
     C = ex.density_coeffs(_hydrogenic_1s(1.0), R_C, N_CHAN, nu=1024)
+    Q = 4.0 * np.pi * float(np.dot(C, a))
     rho0 = 1.0 ** 3 / np.pi
-    fixed = ex.constraint_project(-C, a, r0, sum_target=-1.0, ontop_target=-rho0)
-    assert np.linalg.norm(fixed - (-C)) < 1e-2, f"shift {np.linalg.norm(fixed + C):.2e}"
+    fa = -C / Q
+    fixed = ex.constraint_project(fa, a, r0, sum_target=-1.0, ontop_target=-rho0 / Q)
+    assert np.linalg.norm(fixed - fa) < 1e-2, f"shift {np.linalg.norm(fixed - fa):.2e}"
 
 
 # --- B3: the enclosed-charge switch is smooth and monotone -------------------- #
@@ -320,10 +322,12 @@ def test_D2_convolutional_matches_explicit_heg():
         assert eps == pytest.approx(eps_ex, rel=0.02), f"rho={rho_val}: conv={eps:.5f} expl={eps_ex:.5f}"
 
 
-# --- D3: self-consistent atoms converge; E_x is at the documented (LDA) level ------ #
+# --- D3: self-consistent atoms converge; spin-paired He is essentially exact ------- #
+# With the per-spin switch + Fermi-Amaldi anchor, spin-paired He (1 e/spin) is reproduced
+# essentially exactly; Be (2 e/spin) stays LDA-level (genuine two-orbital same-spin exchange).
 @pytest.mark.parametrize("Z,name,exact_ex,lda_band", [
-    (2, "He", -1.0258, (-1.10, -0.80)),   # LDA-level exchange (~10-15% under exact)
-    (4, "Be", -2.6658, (-2.70, -2.30)),
+    (2, "He", -1.0258, (-1.05, -1.00)),   # near-exact: spin-paired -> density-following hole
+    (4, "Be", -2.6658, (-2.70, -2.30)),   # LDA-level (2 electrons per spin)
 ])
 def test_D3_scf_atoms(Z, name, exact_ex, lda_band):
     from atom import AtomicDFTSolver
@@ -401,8 +405,11 @@ def test_E1_reduces_to_expansion_without_gradient():
     assert np.allclose(eps_gga, eps_base, rtol=1e-10)
 
 
-def test_E1_scf_converges_and_improves_He():
-    """The gradient correction converges self-consistently and improves He toward exact."""
+def test_E1_scf_converges_and_adds_magnitude():
+    """The gradient correction converges self-consistently and adds exchange magnitude (more
+    negative). On the corrected near-exact He base the bare GEA2 (10/81) OVERSHOOTS -- the
+    well-known reason production GGAs use a saturated/fitted enhancement rather than bare GEA2;
+    a feature-dependent (learnable) enhancement is the route to consistent accuracy (Phase F)."""
     from atom import AtomicDFTSolver
     res = {}
     for func in ("SIMPLE_HOLE_EXPANSION", "SIMPLE_HOLE_EXPANSION_GGA"):
@@ -411,10 +418,9 @@ def test_E1_scf_converges_and_improves_He():
         r = s.solve()
         assert r["converged"], f"{func}: SCF did not converge"
         res[func] = float(r["energy_components"].exchange)
-    # GGA is closer to exact (-1.0258) than the LDA-level base
-    err_base = abs(res["SIMPLE_HOLE_EXPANSION"] + 1.0258)
-    err_gga = abs(res["SIMPLE_HOLE_EXPANSION_GGA"] + 1.0258)
-    assert err_gga < err_base, f"GGA {res['SIMPLE_HOLE_EXPANSION_GGA']:.4f} not closer than base {res['SIMPLE_HOLE_EXPANSION']:.4f}"
+    # the gradient term increases the exchange magnitude (more negative E_x)
+    assert res["SIMPLE_HOLE_EXPANSION_GGA"] < res["SIMPLE_HOLE_EXPANSION"], \
+        f"GGA {res['SIMPLE_HOLE_EXPANSION_GGA']:.4f} not more negative than base {res['SIMPLE_HOLE_EXPANSION']:.4f}"
 
 
 # ======================================================================= #

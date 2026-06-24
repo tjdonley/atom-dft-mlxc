@@ -170,18 +170,23 @@ def lda_exchange_per_particle(rho):
 # =========================================================================== #
 # Phase B: the parameter-free map  M: {density monopole} -> {hole coeffs}
 #
-# Two anchors, blended by a smooth enclosed-charge switch lambda(Q), then
+# Two anchors, blended by a smooth switch on the PER-SPIN enclosed charge, then
 # projected onto the two exact constraints (sum rule, on-top):
 #
-#   HEG anchor  rhotilde^HEG = project(-(rho/2) S(k_F u))         (lambda -> 0, bulk)
-#   1e  anchor  rhotilde^1e  = -C_n  (hole = -density)            (lambda -> 1, Q <= 1 electron)
-#   rhotilde = (1-lambda) rhotilde^HEG + lambda rhotilde^1e
+#   HEG anchor  rhotilde^HEG = project(-(rho/2) S(k_F u))            (lambda -> 0, bulk)
+#   FA  anchor  rhotilde^FA  = -C_n / Q   (density-following)        (lambda -> 1, few e/spin)
+#   rhotilde = (1-lambda) rhotilde^HEG + lambda rhotilde^FA
 #
-# On-top is NOT universally -rho/2: like the W = 1/Q_S prefactor of the production
-# hole, it runs from -rho/2 (bulk pair, W=1/2) to -rho (one electron, W=1). We encode
-# W = (1+lambda)/2 so each anchor meets its own on-top and the blend interpolates
-# (verified against simple_hole_explicit.hole_solve: uniform W=0.5, H1s-center W=1.0).
-# Sum rule int n_x = -1 is enforced exactly in both limits.
+# THE SWITCH IS PER SPIN. Exchange is a same-spin interaction, so the one-electron
+# (self-interaction-free) limit is one electron PER SPIN: Q_sigma = Q/2 <= 1, i.e.
+# Q_total <= 2. This is why spin-paired He (Q_total=2 -> Q_sigma=1) is in the SIC/
+# density-following limit and is reproduced essentially exactly -- keying the switch on
+# the *total* charge instead wrongly calls He "bulk" and collapses it to LDA.
+#
+# The Fermi-Amaldi anchor -C_n/Q is the universal density-following hole: int = -1 by
+# construction, and its on-top -rho0/Q gives -rho0 for one electron (Q=1, fully
+# polarized) and -rho0/2 for spin-paired He (Q=2) -- the spin factor falls out of /Q.
+# On-top target blends (1-lambda)(-rho0/2) [HEG pair] + lambda(-rho0/Q) [FA].
 # =========================================================================== #
 def density_coeffs(density_profile, r_c, n_channels, nu=512):
     """Monopole coefficients C_n = int rho_avg(u) R_{n0}(u) u^2 du of the local
@@ -201,11 +206,12 @@ def _quintic_smoothstep(t):
     return t ** 3 * (10.0 + t * (-15.0 + 6.0 * t))
 
 
-def enclosed_charge_switch(q_window, q_lo=1.0, q_hi=2.0):
-    """Smooth (C^2) monotone switch lambda(Q): 1 for Q <= q_lo (one-electron / SIC), 0 for
-    Q >= q_hi (>= one pair, HEG/bulk), quintic Hermite in between. Mirrors the production
-    Fermi-Amaldi switch (Q_S <= 2 -> FA branch)."""
-    return 1.0 - _quintic_smoothstep((q_window - q_lo) / (q_hi - q_lo))
+def enclosed_charge_switch(q_spin, q_lo=1.0, q_hi=2.0):
+    """Smooth (C^2) monotone switch lambda(Q_sigma) on the PER-SPIN enclosed charge: 1 for
+    Q_sigma <= q_lo (one electron per spin / SIC), 0 for Q_sigma >= q_hi (bulk, HEG), quintic
+    Hermite in between. Exchange is same-spin, so the relevant charge is Q_sigma = Q_total/2
+    (call this with Q/2): spin-paired He (Q_total=2) -> Q_sigma=1 -> SIC limit."""
+    return 1.0 - _quintic_smoothstep((q_spin - q_lo) / (q_hi - q_lo))
 
 
 def constraint_project(coeffs, a, r0_vals, sum_target=-1.0, ontop_target=None):
@@ -225,24 +231,26 @@ def constraint_project(coeffs, a, r0_vals, sum_target=-1.0, ontop_target=None):
 def map_coeffs(density_profile, r_c, n_channels, nu=512, return_diagnostics=False):
     """Parameter-free map: local density profile -> hole monopole coefficients rhotilde.
 
-    rho_on_top = rho_avg(0); Q_window = 4 pi sum_n C_n a_n; lambda from the switch; blend
-    the HEG and one-electron anchors; project onto the sum-rule and (lambda-interpolated)
-    on-top constraints."""
+    rho_on_top = rho_avg(0); Q_window = 4 pi sum_n C_n a_n; the switch acts on the PER-SPIN
+    charge Q/2 (exchange is same-spin); blend the HEG and Fermi-Amaldi (density-following)
+    anchors; project onto the sum-rule and (lambda-interpolated) on-top constraints."""
     a = charge_moments(n_channels, r_c)
     r0 = radial_basis_at_origin(n_channels, r_c)
     C = density_coeffs(density_profile, r_c, n_channels, nu=nu)
     rho0 = float(np.atleast_1d(density_profile(np.array([0.0])))[0])
     q_window = 4.0 * np.pi * float(np.dot(C, a))
-    lam = float(enclosed_charge_switch(q_window))
+    q_safe = max(q_window, 1e-12)
+    lam = float(enclosed_charge_switch(0.5 * q_window))      # per-spin switch (Q/2)
 
     coeffs_heg = heg_anchor(rho0, r_c, n_channels, nu=nu)
-    coeffs_1e = -C
-    coeffs = (1.0 - lam) * coeffs_heg + lam * coeffs_1e
+    coeffs_fa = -C / q_safe                                  # Fermi-Amaldi: density-following, int -> -1
+    coeffs = (1.0 - lam) * coeffs_heg + lam * coeffs_fa
 
-    W = 0.5 * (1.0 + lam)                       # 1/2 (bulk) -> 1 (one electron)
-    coeffs = constraint_project(coeffs, a, r0, sum_target=-1.0, ontop_target=-W * rho0)
+    ontop = (1.0 - lam) * (-0.5 * rho0) + lam * (-rho0 / q_safe)   # HEG pair -rho/2; FA -rho/Q
+    coeffs = constraint_project(coeffs, a, r0, sum_target=-1.0, ontop_target=ontop)
     if return_diagnostics:
-        return coeffs, {"lambda": lam, "Q_window": q_window, "rho0": rho0, "W": W}
+        return coeffs, {"lambda": lam, "Q_window": q_window, "Q_spin": 0.5 * q_window,
+                        "rho0": rho0, "ontop": ontop}
     return coeffs
 
 

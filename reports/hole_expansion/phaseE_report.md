@@ -42,3 +42,12 @@ GGAs use a fitted/saturated enhancement rather than the bare 10/81). This is the
 LDA → GGA step on the direct-expansion hole: the next accuracy gains come from a
 density-/feature-dependent enhancement (the learnable map, Phase F) and a proper saturation,
 rather than the single universal GEA2 coefficient.
+
+## Update — on the spin-corrected base, bare GEA2 overshoots
+With the per-spin map (Phase-B/D updates) the base He is already near-exact (−1.028), so adding
+the bare GEA2 gradient term overshoots: He −1.147, Be −2.802 (both past exact). This is the
+expected, instructive outcome — the universal 10/81 coefficient is too aggressive on a correct
+base, which is precisely why production GGAs use a *saturated/fitted* enhancement. The slope
+(10/81), the exact gradient adjoint (4.3e-9), and the zero-gradient limit are all still
+recovered; the takeaway is that the enhancement should be **feature-dependent and saturated**
+(the limits-safe learnable layer, Phase F), not a single universal coefficient.

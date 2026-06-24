@@ -50,3 +50,18 @@ exact HEG and one-electron limits and an exact variational potential. Its accura
 **Bottom line:** the foundation is complete and validated end-to-end — representation (A),
 exact limits (B), exact-hole ground truth (C), and a self-consistent parameter-free functional
 with an exact adjoint (D) at LDA accuracy. Phase E adds the gradient correction on top.
+
+## Update — spin convention fixed; He now essentially exact
+The Phase-D table above (He −0.863, Be −2.477) used the total-charge switch, which wrongly
+treated spin-paired He (`Q_total≈2`) as bulk → LDA. With the **per-spin** switch (`Q_σ=Q/2`) and
+the **Fermi-Amaldi** anchor (Phase-B update), the self-consistent exchange energies are:
+
+| atom | EXPANSION (corrected) | exact | note |
+|------|-----------------------|-------|------|
+| He   | **−1.028**            | −1.0258 | near-exact (1 e/spin → density-following hole) |
+| Be   | −2.469                | −2.6658 | LDA-level (2 e/spin: genuine two-orbital same-spin exchange) |
+
+This confirms the framework reproduces spin-paired He exactly (the representation was never the
+limit — Phase C already showed the exact He hole projects to 0.05%); the earlier miss was purely
+the spin convention in the map's switch. The discrete adjoint (D1) and explicit/convolutional
+agreement (D2) are unaffected and remain green.
