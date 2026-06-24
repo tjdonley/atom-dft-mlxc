@@ -281,7 +281,7 @@ def _build_functional(gauge_fix=True, n=500):
     from atom.xc.simple_hole_expansion import SIMPLE_HOLE_EXPANSION, SIMPLEHOLEEXPParameters
     r = np.linspace(1e-3, 12.0, n)
     w = np.gradient(r)
-    p = SIMPLEHOLEEXPParameters(r_c=8.0, n_channels=24, gauge_fix=gauge_fix)
+    p = SIMPLEHOLEEXPParameters(r_c=6.0, n_channels=16, gauge_fix=gauge_fix)
     return SIMPLE_HOLE_EXPANSION(r_quad=r, quadrature_weights=w, params=p), r, w
 
 
@@ -317,8 +317,8 @@ def test_D2_convolutional_matches_explicit_heg():
         eps = F._eps_from_coeffs(C, rho)[len(r) // 2]
         # explicit HEG limit ratio at the same R_c / n_channels
         coeffs = ex.map_coeffs(lambda u, v=rho_val: np.full_like(np.atleast_1d(u), v),
-                               8.0, 24, nu=1024)
-        eps_ex = ex.eps_from_coeffs(coeffs, ex.coulomb_moments(24, 8.0))
+                               6.0, 16, nu=1024)
+        eps_ex = ex.eps_from_coeffs(coeffs, ex.coulomb_moments(16, 6.0))
         assert eps == pytest.approx(eps_ex, rel=0.02), f"rho={rho_val}: conv={eps:.5f} expl={eps_ex:.5f}"
 
 
@@ -347,7 +347,7 @@ def _build_gga(gauge_fix=True, n=600):
     from atom.xc.simple_hole_expansion import SIMPLE_HOLE_EXPANSION_GGA, SIMPLEHOLEEXPGGAParameters
     r = np.linspace(1e-3, 12.0, n)
     w = np.gradient(r)
-    p = SIMPLEHOLEEXPGGAParameters(r_c=8.0, n_channels=24, gauge_fix=gauge_fix)
+    p = SIMPLEHOLEEXPGGAParameters(r_c=6.0, n_channels=16, gauge_fix=gauge_fix)
     return SIMPLE_HOLE_EXPANSION_GGA(r_quad=r, quadrature_weights=w, params=p), r, w
 
 
@@ -359,7 +359,7 @@ def test_E1_gea2_slope_recovered():
     r = np.linspace(1e-3, 16.0, 800); w = np.gradient(r)
     from atom.xc.simple_hole_expansion import SIMPLE_HOLE_EXPANSION_GGA, SIMPLEHOLEEXPGGAParameters
     F = SIMPLE_HOLE_EXPANSION_GGA(r_quad=r, quadrature_weights=w,
-                                 params=SIMPLEHOLEEXPGGAParameters(r_c=8.0, n_channels=24))
+                                 params=SIMPLEHOLEEXPGGAParameters(r_c=6.0, n_channels=16))
     mid = len(r) // 2
     slopes = []
     for amp in (0.01, 0.02):                              # small gradient -> near-HEG, gate~1
@@ -409,7 +409,7 @@ def test_E1_reduces_to_expansion_without_gradient():
     from atom.xc.simple_hole_expansion import SIMPLE_HOLE_EXPANSION, SIMPLEHOLEEXPParameters
     F, r, w = _build_gga()
     base = SIMPLE_HOLE_EXPANSION(r_quad=r, quadrature_weights=w,
-                                params=SIMPLEHOLEEXPParameters(r_c=8.0, n_channels=24))
+                                params=SIMPLEHOLEEXPParameters(r_c=6.0, n_channels=16))
     rho = np.full_like(r, 1.0)
     C = np.array([op @ rho for op in F._ops])
     g = F._grad_op @ rho

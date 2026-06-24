@@ -56,8 +56,13 @@ class SIMPLEHOLEEXPParameters(SIMPLEHOLEParameters):
     """Direct-expansion hole settings. ``n_channels`` monopole channels resolve the hole
     (need n_channels >~ k_F R_c/pi where the density is high; see Phase-A report)."""
     functional_name: str = "SIMPLE_HOLE_EXPANSION"
-    r_c: float = 8.0
-    n_channels: int = 24
+    # Shared SIMPLE basis for BOTH the density projection C_n and the hole expansion (same R_c,
+    # same n_channels) -- required so the integral becomes a sum and the FA anchor (rhotilde =
+    # -C/Q) is well-defined. R_c = 6 bohr matches the canonical SIMPLE features. n_channels is
+    # the *resolution* (n_in): the hole needs n >~ k_F R_c/pi (~16 at R_c=6); the exposed
+    # SIMPLE feature count n_out=10 is too few to resolve the hole (Be diverges at n=10).
+    r_c: float = 6.0
+    n_channels: int = 16
     n_rho_table: int = 96           # HEG-anchor table resolution in log(rho)
     rho_table_min: float = 1.0e-4
     rho_table_max: float = 1.0e2
