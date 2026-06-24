@@ -140,3 +140,27 @@ scale-invariant (1.033). Adjoint still matches FD to 3.8e-9; SCF converges at do
 41/41 tests green (added a dedicated H near-SIC gate). The residual ~3% over-binding (H, He, and
 the 1.033 HEG ratio) is now the dominant error -- the constraint-projection/finite-X overshoot,
 a single constant to address next (tune X or the sum-rule enforcement).
+
+## Update 5 — can exact H be recovered? (diagnosis: finite-R_c, blocked by transfer instability)
+Swept R_c, n_in, n_out, X for H (E_x+E_H -> 0 = exact SIC). Findings:
+- **n_in converged**: -0.0170 at R_c=6 for n_in=20/30/40 (identical). Not a projection-resolution error.
+- **n_out**: -0.0170 (n_out=10) -> -0.0193 (n_out=24): more channels converge toward the FA value
+  (slightly WORSE); n_out=10's smaller residual is truncation luck. Not the fix.
+- **X flat**: -0.017 to -0.019 across X=6..16; eta = k_F R_ad clamps at k_F R_c, so X cannot
+  enlarge the window at R_c=6.
+- **R_c > 6 DIVERGES**: the scale-free transfer_matrix ill-conditions (R_c=9/n_in=20 -> singular
+  matrix; R_c=9,12 -> SCF blow-up at all n_in). So R_c cannot be increased to converge.
+
+Root cause (bracketing test on the H density): the one-electron hole -rho(r0+u) is DELOCALIZED
+(int=-1 over all space, but only -Q_window ~ -0.91 within R_ad). The windowed hole brackets exact:
+  FA normalized (/Q, int_window=-1):   E_x=-0.3334, E_x+E_H=-0.0195  (over-binds: /Q over-counts)
+  FA un-normalized (-rho, int_window=-Q): E_x=-0.3046, E_x+E_H=+0.0093  (under-binds: misses v_H tail)
+  exact -E_H = -0.3139 (between the two).
+Both window effects (Coulomb-tail truncation; normalization over-count) vanish as R_ad -> inf
+(Q->1, v_H,window->v_H). So exact H IS recoverable in principle -- it is a finite-R_c convergence
+error -- but it is blocked by the transfer-matrix instability for R_c>6.
+
+Next: stabilize the scale-free transfer at larger R_c (better conditioning / larger n_in /
+regularized transfer) so R_ad can grow and H converges; or give the delocalized one-electron
+hole a non-windowed treatment. The same finite-window over-count is the 1.033 HEG offset and He's
+slight over-binding -- one structural issue, addressed by fixing the large-R_c transfer.
