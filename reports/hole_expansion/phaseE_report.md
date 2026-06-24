@@ -232,3 +232,33 @@ screened He/Be), addressable by a broader single-orbital reference or a tau-base
 SCF wiring (next): needs efficient per-grid-point l=0,1,2 scale-free features (l=1,2 axial
 multipole window operators + transfer, analogous to the l=0 ops) and a smooth (soft-min)
 manifold distance for a differentiable adjoint.
+
+## Update 7 — additive two-correction test (gated GEA2 + H1s anti-binding), non-SCF, H/He/Be/Ne
+Tested the additive form  eps = eps_base + dGEA2 + dH1s, with
+  dGEA2 = exp(-alpha_LDA D_HEG) mu s^2 eps_base       (LDA-gated GEA2; adds binding)
+  dH1s  = -A_H1s (1-exp(-alpha_H1s D_H1s)) eps_base   (H1s-gated; anti-binding; grows with Z)
+on converged densities (alpha_LDA=4, alpha_H1s=1).
+
+| atom | E_base | dGEA2 | <g_H1s> | exact | base error |
+|------|--------|-------|---------|-------|------------|
+| H    | -0.3098 | -0.0000 | 0.014 | -0.3098 (FA) | exact |
+| He   | -1.0274 | -0.0007 | 0.320 | -1.0258 | +1.6 mHa over |
+| Be   | -2.7135 | -0.0033 | 0.614 | -2.6658 | +48 mHa over |
+| Ne   | -11.758 | -0.057  | 0.643 | -12.108 | -350 mHa UNDER |
+
+Findings:
+- **<g_H1s> grows with Z** (0.014, 0.32, 0.61, 0.64) -- the H1s indicator turns on increasingly
+  with Z, as hypothesized; H (true 1s) ~ 0 so the FA limit is recovered automatically.
+- The anti-binding H1s correction has the right SIGN for the over-binding light atoms (He, Be).
+- BUT (1) no single A_H1s fits He and Be: their over-binding differs 30x (1.6 vs 48 mHa) but
+  their H1s weights only 3.7x, so He wants A~0.005, Be wants A~0.04. (2) Ne UNDER-binds
+  (-350 mHa, opposite sign); the anti-binding correction makes Ne worse.
+- Ne's under-binding is the missing l>=1 HOLE anisotropy (the 2p shell): the monopole hole can't
+  represent the anisotropic p-exchange hole. This is a *hole* ingredient (explicit l>=1 hole
+  multipoles), NOT an l<=2 indicator/gate -- a different and more fundamental addition.
+
+Conclusion: the H1s-indicator construction is conceptually right (Z-scaling, FA-preserving, fixes
+the sign of light-atom over-binding) but the base error is not a monotonic over-binding it can
+absorb -- He is already near-exact, Be slightly over, Ne under for a structural reason. Heavier
+(p,d) atoms need the l>=1 hole multipoles (the "richer functional" route, CODEMAP open item),
+which the gated-GEA2 + H1s-indicator (both l=0-hole) corrections do not provide.
