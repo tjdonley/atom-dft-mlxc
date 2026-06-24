@@ -154,11 +154,21 @@ class SIMPLE_HOLE_EXPANSION_GGA(SIMPLE_HOLE_EXPANSION):
     """Direct-expansion hole with the parameter-free second-order gradient correction.
 
     The charge- and on-top-neutral gradient deformation of the hole enhances the energy by
-    the exact GEA2 factor in the slowly-varying limit:
-        eps_x = eps_x^map * (1 + (10/81) s^2_bounded),   s = |grad rho| / (2 k_F rho).
+    the exact GEA2 factor *in the slowly-varying branch only*:
+        eps_x = eps_x^map * (1 + (1 - lambda) (10/81) s^2_bounded),   s = |grad rho|/(2 k_F rho).
     s comes from the proven-stable l=1 spectral gradient operator (k_n^1 growth, no stiff
-    Laplacian). s^2 is smoothly saturated (Lieb-Oxford tail safety; reuses ``_bound``). The
-    self-consistent potential adds the gradient channel via the spectral-operator transpose."""
+    Laplacian). s^2 is smoothly saturated (Lieb-Oxford tail safety; reuses ``_bound``).
+
+    The (1 - lambda) gate is the essential point: GEA2 is an exact constraint of the
+    *slowly-varying* (HEG-like) limit, NOT of the one-electron-per-spin limit. lambda -> 1 there
+    (the Fermi-Amaldi branch), where the exact exchange is already self-interaction-free for any
+    gradient, so the enhancement must switch off -- otherwise it spuriously modifies an
+    already-exact result (e.g. spin-paired He, lambda=1, would be over-enhanced). Gating by
+    (1 - lambda) is the analogue of SCAN turning off the gradient term in single-orbital regions.
+
+    Because the gate depends on C (through lambda(Q)), the self-consistent potential is the full
+    discrete adjoint of eps_x, taken by finite difference in all three channels (C, on-top rho,
+    gradient g); the gradient channel uses the spectral-operator transpose."""
 
     def __init__(self, derivative_matrix=None, r_quad=None,
                  quadrature_weights=None, params: Optional[XCParameters] = None):
@@ -167,15 +177,21 @@ class SIMPLE_HOLE_EXPANSION_GGA(SIMPLE_HOLE_EXPANSION):
         self._grad_op = build_spectral_gradient_operator(self._r_grid)
 
     def _enhancement(self, rho, g):
-        """f = 1 + (10/81) s^2_b and its partials ds2b/drho, ds2b/dg (chain rule helpers)."""
+        """Ungated GEA2 factor f0 = 1 + (10/81) s^2_b (the slowly-varying-limit enhancement).
+        The (1-lambda) gate is applied in ``_eps_full``; this helper exposes the bare coefficient
+        for the slope test."""
         rho = np.maximum(rho, 1e-12)
         d8 = 4.0 * _SIX2_3 * rho ** (8.0 / 3.0)
-        s2 = g * g / d8
-        s2b, db = _bound(s2)                      # smooth saturation + derivative
-        f = 1.0 + _GEA2 * s2b
-        ds2_drho = -(8.0 / 3.0) * s2 / rho        # at fixed g
-        ds2_dg = 2.0 * g / d8
-        return f, _GEA2 * db * ds2_drho, _GEA2 * db * ds2_dg
+        s2b, _ = _bound(g * g / d8)
+        return 1.0 + _GEA2 * s2b, None, None
+
+    def _eps_full(self, C, rho0, g):
+        """eps_x = eps_map(C, rho0) * (1 + (1-lambda(C)) (10/81) s^2_b(g, rho0))."""
+        eps0 = self._eps_from_coeffs(C, rho0)
+        f0, _, _ = self._enhancement(rho0, g)                       # 1 + mu s2b
+        lam = enclosed_charge_switch(0.5 * (self._a @ C))           # per-spin switch from C
+        f = 1.0 + (1.0 - lam) * (f0 - 1.0)                          # gate the s^2 enhancement
+        return eps0 * f
 
     def compute_xc(self, density_data: DensityData) -> XCPotentialData:
         rho = np.maximum(np.asarray(density_data.rho, dtype=float), 1e-12)
@@ -183,27 +199,26 @@ class SIMPLE_HOLE_EXPANSION_GGA(SIMPLE_HOLE_EXPANSION):
         ewrho = ew * rho
         C = np.array([op @ rho for op in self._ops])
         g = self._grad_op @ rho
-        eps0 = self._eps_from_coeffs(C, rho)
-        f, df_drho, df_dg = self._enhancement(rho, g)
-        eps = eps0 * f
+        eps = self._eps_full(C, rho, g)
 
-        # C-channel adjoint, f-weighted: sum_n P_n^T[ew rho f deps0/dC_n]
+        # full discrete adjoint by finite difference in each channel (the gate's C-dependence
+        # is captured by FD-ing the complete eps_full, not just eps_map).
         acc = np.zeros_like(rho)
-        for n in range(len(self._ops)):
+        for n in range(len(self._ops)):                              # C-channel
             h = 1e-6 * (np.abs(C[n]) + 1e-8)
             Cp = C.copy(); Cp[n] += h
             Cm = C.copy(); Cm[n] -= h
-            deps0_dCn = (self._eps_from_coeffs(Cp, rho) - self._eps_from_coeffs(Cm, rho)) / (2.0 * h)
-            acc += self._ops[n].T @ (ewrho * f * deps0_dCn)
-        # explicit on-top-density derivative of eps0, f-weighted
-        hr = 1e-6 * (rho + 1e-8)
-        deps0_drho0 = (self._eps_from_coeffs(C, rho + hr) - self._eps_from_coeffs(C, rho - hr)) / (2.0 * hr)
-        # gradient-channel: eps0 * df, split into the local rho part and the spectral g part
+            deps_dCn = (self._eps_full(Cp, rho, g) - self._eps_full(Cm, rho, g)) / (2.0 * h)
+            acc += self._ops[n].T @ (ewrho * deps_dCn)
+        hr = 1e-6 * (rho + 1e-8)                                     # on-top-density channel
+        deps_drho0 = (self._eps_full(C, rho + hr, g) - self._eps_full(C, rho - hr, g)) / (2.0 * hr)
+        hg = 1e-6 * (np.abs(g) + 1e-8)                               # gradient channel
+        deps_dg = (self._eps_full(C, rho, g + hg) - self._eps_full(C, rho, g - hg)) / (2.0 * hg)
+
         v_x = (eps
-               + rho * f * deps0_drho0
+               + rho * deps_drho0
                + acc / ew
-               + rho * eps0 * df_drho                             # local d f/d rho at fixed g
-               + self._grad_op.T @ (ewrho * eps0 * df_dg) / ew)   # spectral gradient transpose
+               + self._grad_op.T @ (ewrho * deps_dg) / ew)          # spectral gradient transpose
         if getattr(self.params, "gauge_fix", True):
             v_x = self._apply_gauge(v_x, eps, rho)
         zero = np.zeros_like(rho)

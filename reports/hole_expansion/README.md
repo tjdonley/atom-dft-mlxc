@@ -18,10 +18,17 @@ production `SIMPLE_HOLE`/`SIMPLE_HOLE_GGA` untouched. 39/39 tests green
 | F | Learnable residual layer, limits exact by construction (mechanism) | residual=0 at both anchors; charge/on-top-neutral, any weights |
 
 ## Atom exchange energies (all-electron SCF)
-| atom | EXPANSION | + GEA2 | exact (oep) |
-|------|-----------|--------|-------------|
-| He   | −1.028 (near-exact) | −1.147 (overshoots) | −1.0258 |
-| Be   | −2.469 (LDA-level)  | −2.802 (overshoots) | −2.6658 |
+| atom | EXPANSION | + GEA2 (1−λ gated) | exact (oep) |
+|------|-----------|--------------------|-------------|
+| He   | −1.028 (near-exact) | −1.028 (unchanged — gate off in 1e/spin limit) | −1.0258 |
+| Be   | −2.469 (LDA-level)  | −2.802 (over-enhanced; bare 10/81 too large) | −2.6658 |
+
+The GEA2 enhancement is gated by `(1−λ)` so it acts only in the slowly-varying branch and
+**vanishes in the one-electron-per-spin limit** (λ→1) — it therefore leaves the already-exact
+spin-paired He untouched. GEA2 and the FA/SIC limit are exact constraints in *different*
+regimes; the gate keeps each where it belongs. Be's sharp core is flagged HEG by the
+enclosed-charge λ and still receives full GEA2 (over-enhanced) — motivating a saturated,
+feature-dependent enhancement (Phase F) over the universal coefficient.
 
 **Spin convention (key correctness point).** Exchange is a *same-spin* interaction, so the
 self-interaction-free limit is one electron **per spin** (`Q_σ = Q_total/2 ≤ 1`). Keying the

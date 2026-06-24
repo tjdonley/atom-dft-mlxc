@@ -375,9 +375,7 @@ def test_E1_gradient_adjoint_matches_fd():
     def Ex(rh):
         C = np.array([op @ rh for op in F._ops])
         g = F._grad_op @ rh
-        eps0 = F._eps_from_coeffs(C, np.maximum(rh, 1e-12))
-        f, _, _ = F._enhancement(np.maximum(rh, 1e-12), g)
-        return float(np.sum(ew * rh * eps0 * f))
+        return float(np.sum(ew * rh * F._eps_full(C, np.maximum(rh, 1e-12), g)))
 
     vx = F.compute_xc(DensityData(rho=rho)).v_x
     rng = np.random.default_rng(1)
@@ -405,11 +403,11 @@ def test_E1_reduces_to_expansion_without_gradient():
     assert np.allclose(eps_gga, eps_base, rtol=1e-10)
 
 
-def test_E1_scf_converges_and_adds_magnitude():
-    """The gradient correction converges self-consistently and adds exchange magnitude (more
-    negative). On the corrected near-exact He base the bare GEA2 (10/81) OVERSHOOTS -- the
-    well-known reason production GGAs use a saturated/fitted enhancement rather than bare GEA2;
-    a feature-dependent (learnable) enhancement is the route to consistent accuracy (Phase F)."""
+def test_E1_gate_preserves_exact_He():
+    """The (1-lambda) gate makes the gradient correction vanish in the one-electron-per-spin
+    limit, so it does NOT touch the already-exact spin-paired He: the gradient-corrected SCF
+    exchange equals the (near-exact) base to within a few mHa. (Be, in the HEG branch, is still
+    enhanced -- and over-enhanced by the bare 10/81, which is a separate saturation issue.)"""
     from atom import AtomicDFTSolver
     res = {}
     for func in ("SIMPLE_HOLE_EXPANSION", "SIMPLE_HOLE_EXPANSION_GGA"):
@@ -418,9 +416,9 @@ def test_E1_scf_converges_and_adds_magnitude():
         r = s.solve()
         assert r["converged"], f"{func}: SCF did not converge"
         res[func] = float(r["energy_components"].exchange)
-    # the gradient term increases the exchange magnitude (more negative E_x)
-    assert res["SIMPLE_HOLE_EXPANSION_GGA"] < res["SIMPLE_HOLE_EXPANSION"], \
-        f"GGA {res['SIMPLE_HOLE_EXPANSION_GGA']:.4f} not more negative than base {res['SIMPLE_HOLE_EXPANSION']:.4f}"
+    assert abs(res["SIMPLE_HOLE_EXPANSION_GGA"] - res["SIMPLE_HOLE_EXPANSION"]) < 5e-3, \
+        f"gate failed to preserve He: base={res['SIMPLE_HOLE_EXPANSION']:.4f} gga={res['SIMPLE_HOLE_EXPANSION_GGA']:.4f}"
+    assert abs(res["SIMPLE_HOLE_EXPANSION_GGA"] + 1.0258) < 0.01, "He no longer near-exact"
 
 
 # ======================================================================= #
