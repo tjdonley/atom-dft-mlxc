@@ -399,3 +399,40 @@ yet for Be. The stable, benchmarked evaluation is therefore GGA@base (frozen DEN
 density, GGA energy one-shot) = the numbers above. ROUTE TO ROBUST FULL SCF (next): LB94-style
 tail damping of the gradient potential where rho->0 (keeps the variational adjoint, kills the tail
 divergence). Tools: psp_cache2.py, psp_calib2.py, benchmark_final.py.
+
+## Update 14 — STABLE SCF via LB94-style tail floor (all atoms converge)
+Diagnosis of the SCF instability: the enhancement factor F = 1 + s^2(m_g g_HEG + m_h g_H1s)
+goes NEGATIVE in the low-density tail (Be F_min=-0.66 at rho~0.002; Na F_min=-4.8) -- s^2
+saturates at 4 while g_HEG is not small there, and m_g~-2.7 drives 1+e<0. F<0 flips the sign of
+eps (positive exchange density) -> garbage potential -> SCF blow-up. It is structural, not
+magnitude (fails even at 0.25x m_g).
+
+Fix (LB94-style tail damping): soft-floor F so it stays strictly positive,
+  F = enh_floor + softplus_k(1 + e - enh_floor),  e = s^2(m_g g_HEG + m_h g_H1s),
+which is the IDENTITY in the bulk (1+e comfortably above the floor) and only lifts F to
+enh_floor where 1+e dips toward/below it (the tail). Combined with the frozen-potential SCF mode
+(default; freeze F when forming the potential), ALL of He/Be/Na/Mg now converge self-consistently.
+
+PHYSICS POINT: the undamped GGA@base MAE of 9.4 (Update 13) was partly relying on the F<0 tail --
+where F<0 removes binding (extra, UNPHYSICAL anti-binding from a negative exchange enhancement).
+Flooring F>0 correctly removes that contribution, so Be/Na regress; the 9.4 was an artifact. The
+physically-sound, stable result is MAE ~30.
+
+Re-calibration with the floor (PSP, cached densities): alpha_heg=2, alpha_h1s=8, m_g=-3.0,
+m_h=0.0088 (ratio -0.003 from He cancellation), enh_floor=0.02, enh_floor_k=15.
+
+FULLY SELF-CONSISTENT benchmark vs EXX (PSP), all converged:
+  atom   EXX      PBE-x     base      GGA(SCF)   PBE err  base err  GGA err (mHa)
+  He   -1.0019   -0.9705   -1.0022   -1.0083      31.4     -0.3     -6.4
+  Be   -1.9208   -1.8853   -1.9924   -1.9620      35.5    -71.6    -41.1
+  Na   -5.7751   -5.6815   -6.0521   -5.8321      93.6   -276.9    -57.0
+  Mg   -6.9715   -6.7599   -7.2407   -6.9561     211.6   -269.2     15.4
+  MAE vs EXX (mHa):  PBE-x = 93.0   base = 154.5   GGA(SCF) = 30.0
+=> Stable self-consistent functional, 3x better than PBE exchange, 5x better than the base hole.
+He drifts to -6.4 mHa under SCF (the FA cancellation, calibrated on the base density, is not
+exactly preserved once the density relaxes). Tools: psp_calib4.py, benchmark_gga.py.
+
+REMAINING ACCURACY GAP (for the next branch, not this checkpoint): Na/Be still over-bind ~40-60
+mHa; the floor caps the achievable anti-binding where the valence wants F~floor. Routes: (a)
+calibrate directly against the SCF energy (not GGA@base); (b) restore He-exactness under SCF;
+(c) a second DOF / better gate to lift the Na/Mg split. Checkpoint first.

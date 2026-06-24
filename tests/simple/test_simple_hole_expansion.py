@@ -368,9 +368,9 @@ def _build_gga(gauge_fix=True, n=600):
 
 
 def test_E1_enhancement_is_gated_s2():
-    """The enhancement is exactly the two-term gated s^2 form:
-    eps_full/eps_base - 1 = s^2 (m_g g_HEG + m_h g_H1s),  g_HEG = exp(-alpha_heg D_HEG),
-    g_H1s = 1 - exp(-alpha_h1s D_H1s). Validates the wiring (both terms carry s^2)."""
+    """The enhancement is the two-term gated s^2 form with the LB94-style soft floor:
+    F = enh_floor + softplus_k(1 + s^2 (m_g g_HEG + m_h g_H1s) - enh_floor). Validates the
+    wiring (both terms carry s^2; the floor keeps F > 0)."""
     F, r, w = _build_gga(n=800)
     rho = np.exp(0.05 * (r - 8.0)) + 0.01
     C = np.array([op @ rho for op in F._ops])
@@ -380,8 +380,11 @@ def test_E1_enhancement_is_gated_s2():
     d_heg, d_h1s = F._gates(C, R_ad)
     gheg = np.exp(-F.params.alpha_heg * d_heg)
     gh1s = 1.0 - np.exp(-F.params.alpha_h1s * d_h1s)
-    expect = 1.0 + F._s2_bounded(rho, g) * (F.params.m_g * gheg + F.params.m_h * gh1s)
+    e = F._s2_bounded(rho, g) * (F.params.m_g * gheg + F.params.m_h * gh1s)
+    k, fl = F.params.enh_floor_k, F.params.enh_floor
+    expect = fl + np.logaddexp(0.0, k * (1.0 + e - fl)) / k
     assert np.allclose(Fx, expect, rtol=1e-9)
+    assert np.all(Fx > 0.0)                                          # floor keeps F positive
 
 
 def test_E_gates_detect_their_limits():
@@ -439,7 +442,8 @@ def test_E1_reduces_to_expansion_without_gradient():
     g = F._grad_op @ rho
     eps_gga = F._eps_full(C, rho, g)
     eps_base = base._eps_from_coeffs(np.array([op @ rho for op in base._ops]), rho)
-    assert np.allclose(eps_gga, eps_base, rtol=1e-10)
+    # s=0 -> e=0 -> F=1 to softplus precision (~1/exp(k(1-floor))); LDA limit preserved
+    assert np.allclose(eps_gga, eps_base, rtol=1e-6)
 
 
 def test_E1_gga_scf_converges():

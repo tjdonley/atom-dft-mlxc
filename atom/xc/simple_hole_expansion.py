@@ -209,11 +209,15 @@ class SIMPLEHOLEEXPGGAParameters(SIMPLEHOLEEXPParameters):
     # preserved; their ratio m_h/m_g is what enforces that cancellation. The overall magnitude
     # (m_g, with m_h = ratio * m_g) is the single calibrated DOF (fit on Be/Na/Mg). Defaults
     # from the self-consistent c_ad-gate calibration (reports/hole_expansion, Update 13).
-    m_g: float = -2.685              # HEG-gated s^2 term magnitude (the overall DOF)
-    m_h: float = 0.0081              # H1s-gated s^2 term magnitude (= (m_h/m_g) * m_g, ratio
+    m_g: float = -3.0                # HEG-gated s^2 term magnitude (the overall DOF)
+    m_h: float = 0.0088              # H1s-gated s^2 term magnitude (= (m_h/m_g) * m_g, ratio
                                      # -0.003 fixed by He cancellation)
     alpha_heg: float = 2.0           # HEG-gate strength: g_HEG = exp(-alpha_heg D_HEG)
-    alpha_h1s: float = 4.0           # H1s-gate strength: g_H1s = 1 - exp(-alpha_h1s D_H1s)
+    alpha_h1s: float = 8.0           # H1s-gate strength: g_H1s = 1 - exp(-alpha_h1s D_H1s)
+    enh_floor: float = 0.02          # LB94-style tail floor: F is soft-bounded below by this
+                                     # (>0) so the enhancement cannot flip eps' sign in the tail.
+    enh_floor_k: float = 15.0        # soft-floor sharpness; large -> identity in the bulk, only
+                                     # lifts F where 1+e dips toward enh_floor (the tail).
     frozen_potential: bool = True    # freeze the enhancement factor F when forming the SCF
                                      # potential (drop its unstable density-response); the energy
                                      # is still the full GGA energy. False = exact (variational)
@@ -295,26 +299,21 @@ class SIMPLE_HOLE_EXPANSION_GGA(SIMPLE_HOLE_EXPANSION):
         s2b, _ = _bound(g * g / d8)
         return s2b
 
-    def _eps_full(self, C, rho0, g):
-        """eps_x = eps_base * (1 + s^2 (m_g g_HEG + m_h g_H1s)).
+    def _enhancement(self, C, rho0, g):
+        """The gated gradient enhancement factor F and eps0.
+
+            e     = s^2 (m_g g_HEG + m_h g_H1s)              # raw two-term gated enhancement
+            F     = enh_floor + softplus_k(1 + e - enh_floor) # LB94-style tail floor
 
         Both gated terms carry s^2, so the correction vanishes at the HEG limit (uniform density,
-        s=0 -> LDA preserved). The two gates differ only away from HEG: g_HEG = exp(-alpha_heg
-        D_HEG) attenuates in non-HEG regions; g_H1s = 1 - exp(-alpha_h1s D_H1s) attenuates near
-        the single-orbital limit. With opposite-sign m_g, m_h the two integrate to opposite
-        values for He and cancel (FA limit preserved)."""
-        p = self.params
-        rho0 = np.maximum(np.asarray(rho0, float), 1e-12)
-        R_ad, _ = self._R_ad(rho0)
-        eps0 = self._eps_sf(C, R_ad)
-        d_heg, d_h1s = self._gates(C, R_ad)
-        g_heg = np.exp(-p.alpha_heg * d_heg)
-        g_h1s = 1.0 - np.exp(-p.alpha_h1s * d_h1s)
-        f = 1.0 + self._s2_bounded(rho0, g) * (p.m_g * g_heg + p.m_h * g_h1s)
-        return eps0 * f
-
-    def _enhancement(self, C, rho0, g):
-        """The gated gradient enhancement factor F = 1 + s^2 (m_g g_HEG + m_h g_H1s) and eps0."""
+        s=0 -> LDA preserved). g_HEG = exp(-alpha_heg D_HEG) attenuates in non-HEG regions;
+        g_H1s = 1 - exp(-alpha_h1s D_H1s) attenuates near the single-orbital limit; opposite-sign
+        m_g, m_h make the two cancel for He (FA limit preserved). The raw factor 1+e diverges in
+        the low-density tail (s^2 large) and would go negative -> sign-flipped eps and an SCF
+        blow-up. The soft floor (softplus with sharpness enh_floor_k) is the IDENTITY in the bulk
+        (where 1+e is comfortably above enh_floor, so the good correction is untouched) and lifts
+        F smoothly to enh_floor only where 1+e dips toward/below it (the tail) -- keeping F
+        strictly positive without disturbing the energy-relevant region."""
         p = self.params
         rho0 = np.maximum(np.asarray(rho0, float), 1e-12)
         R_ad, unclamped = self._R_ad(rho0)
@@ -322,8 +321,15 @@ class SIMPLE_HOLE_EXPANSION_GGA(SIMPLE_HOLE_EXPANSION):
         d_heg, d_h1s = self._gates(C, R_ad)
         g_heg = np.exp(-p.alpha_heg * d_heg)
         g_h1s = 1.0 - np.exp(-p.alpha_h1s * d_h1s)
-        F = 1.0 + self._s2_bounded(rho0, g) * (p.m_g * g_heg + p.m_h * g_h1s)
+        e = self._s2_bounded(rho0, g) * (p.m_g * g_heg + p.m_h * g_h1s)
+        k = p.enh_floor_k
+        F = p.enh_floor + np.logaddexp(0.0, k * (1.0 + e - p.enh_floor)) / k   # soft lower bound
         return F, eps0, R_ad, unclamped
+
+    def _eps_full(self, C, rho0, g):
+        """eps_x = eps_base * F, with the tail-damped gated enhancement F (see ``_enhancement``)."""
+        F, eps0, _, _ = self._enhancement(C, rho0, g)
+        return eps0 * F
 
     def compute_xc(self, density_data: DensityData) -> XCPotentialData:
         rho = np.maximum(np.asarray(density_data.rho, dtype=float), 1e-12)
