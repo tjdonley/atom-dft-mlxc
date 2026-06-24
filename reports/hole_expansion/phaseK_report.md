@@ -38,3 +38,25 @@ FA limit gated in charge space. Extensible to more fixed points.
 => The idea is sound: a kernel map with the GEA carried by the feature-distance lever hits LDA
 (from GEA, slope 10/81) and FA exactly, parameter-free, and extends to more fixed points.
 Tool: scratchpad `kernel_check.py`. Next: Phase 2 (wire into a self-consistent functional).
+
+## Phase 2 foundation — scale-free direct-energy normalization (validated)
+
+For the SCF functional the kernel hole lives on the adaptive-radius (scale-free) frame (unit
+window [0,1], basis R_m^(1), k_F R_ad = X). The direct-expansion energy/constraints are:
+
+  eps_x   = 2 pi * R_ad^2 * (rhotilde . beta1),     beta1_m = int_0^1 R_m^(1)(t) t   dt  (= _H[eta~0])
+  sum rule: 4 pi * R_ad^3 * (rhotilde . alpha1) = -1, alpha1_m = int_0^1 R_m^(1)(t) t^2 dt (= _G[eta~0])
+  on-top  : rhotilde . R_m^(1)(0) = -rho0/2
+
+HEG anchor (universal, reuses the envelope table): rhotilde_HEG = -(rho0/2) g(X) [g = _G interp at
+eta=X]. FA anchor: rhotilde_FA = -c_ad/Q, Q = 4 pi R_ad^3 (c_ad . alpha1) (per spin Q/2). delta_GEA:
+-(rho0) int g0(Xt) phi(Xt) R_m^(1)(t) t^2 dt, charge/on-top-neutralized; response R = eps(delta_GEA)/
+eps_unif is a single density-independent number.
+
+VALIDATED (scratchpad kernel_sf_norm.py, uniform density, grid): eps = 2 pi R_ad^2 (rhotilde_HEG.
+beta1) gives eps/eps_LDA = 0.984 at rho = 0.5, 1, 2 -- constant => scale-free; the 1.6% is the
+X=8/n_out=10 projection band (constraint projection enforces the sum rule to -1 exactly). This
+pins the adaptive-frame normalization (the historically bug-prone 4pi/R_ad bookkeeping). Remaining
+Phase-2 work is mechanical: assemble SIMPLE_HOLE_EXPANSION_KERNEL (vectorized over the grid),
+exact variational adjoint (FD through C, R_ad, s, Q), register, and benchmark He/Be/Na/Mg vs
+EXX/PBE.
