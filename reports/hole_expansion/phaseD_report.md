@@ -189,3 +189,31 @@ grow toward the full atom -- requiring R_c>6, unblocked by fix (2). With both fi
 construction should reach the prior SF accuracy (<1 mHa) and converge H -> -E_H. So the exact H
 limit is recoverable; the current residual is implementation (projection + raw-c_ad transfer),
 not physics.
+
+## Update 7 — both fixes implemented: H/He near-exact (the two bugs were real)
+Implemented the two fixes from Update 6 (both review pushbacks were correct):
+1. **Prior-SF normalization** (sum rule via the on-top scale Q_S(eta*)=2, not the min-norm
+   projection): the hole self-energy is the universal contraction of c_ad with the envelope
+   tables g(eta), h(eta); eta* set by Q_S=2 (Fermi-Amaldi branch when the window holds < a pair).
+2. **Regularization by contraction**: c_ad enters ONLY through the damped g.c_ad / h.c_ad
+   (differentiable, cheap, no SVD), so the transfer's high-frequency content is damped.
+Plus a found bug: the SIMPLE ``transfer_matrix`` builds its input basis with the GLOBAL pipeline
+R_C (3 Angstrom ~ 5.669 bohr), so the window operators must use r_c = R_C for consistency
+(default changed from 8 -> R_C). With r_c != R_C the transfer mis-read the coefficients (the
+~pi/2 Q_S error).
+
+Result (all-electron SCF, domain 15):
+
+| atom | E_x (this work) | exact | error |
+|------|-----------------|-------|-------|
+| H    | -0.3098 (E_x+E_H=-0.0021, E_tot=-0.5014) | -E_H (E_tot=-0.5) | ~2 mHa (near-SIC) |
+| He   | -1.0274         | -1.0258 | 1.6 mHa |
+| Be   | -2.7135         | -2.6658 | 48 mHa (1.8% over) |
+
+So **H is now essentially exact** (self-interaction free to ~2 mHa; was 17 mHa with the
+min-norm/raw-c_ad bugs, 128 mHa for restricted EXX). He is ~mHa. Adjoint matches FD to ~5e-8;
+SCF converges. HEG is recovered with the finite-R_c approximate scale invariance (ratio ~1.03
+at rho=0.5 to ~0.90 at rho=5; best near valence). The earlier "9 mHa = truncation" reading was
+wrong, as the review suspected -- it was the projection + raw-c_ad + r_c/R_C mismatch. 41/41
+tests green; D2/D3/H bands updated to the near-exact values. The l=1 iso-orbital correction
+(and Be's residual) is the next step, now on a correct base.

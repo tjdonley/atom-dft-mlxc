@@ -43,6 +43,7 @@ from scipy.special import spherical_jn
 
 from ..descriptors.simple.bessel import RadialBesselBasis
 from ..descriptors.simple.derivatives import build_spectral_gradient_operator
+from ..descriptors.simple.params import R_C as _PIPELINE_R_C
 from ..descriptors.simple.pipeline import transfer_matrix
 from .evaluator import DensityData, XCParameters, XCPotentialData
 from .simple_hole import SIMPLE_HOLE, SIMPLEHOLEParameters, _bound
@@ -61,32 +62,40 @@ def _envelope(x):
 
 @dataclass
 class SIMPLEHOLEEXPParameters(SIMPLEHOLEParameters):
-    """Scale-free direct-expansion hole settings (SIMPLE adaptive-radius frame).
+    """Scale-free hole settings (SIMPLE adaptive-radius frame; prior-SF normalization).
 
     ``n_channels`` = n_in: the fixed-R_c window resolution used to project the density.
-    ``n_out`` = the adaptive-radius hole/feature basis (the exposed SIMPLE feature count).
-    The implicit adaptive radius R_ad = min(x_window/k_F(rho), R_c) makes the hole scale-free,
-    so n_out=10 resolves it (the dense core gets a small window). The SIMPLE ``transfer_matrix``
-    re-expresses the n_in window coefficients on the n_out adaptive basis in closed form."""
+    ``n_out`` = the adaptive-radius basis (the exposed SIMPLE feature count). The implicit
+    adaptive radius R_ad = min(x_window/k_F(rho), R_c) makes the hole scale-free, so n_out=10
+    resolves it. The SIMPLE ``transfer_matrix`` re-expresses the n_in window coefficients on the
+    n_out adaptive basis in closed form. The sum rule is enforced by the on-top scale (the
+    Q_S=2 enclosed-charge inversion), and c_ad is used only through the damped envelope
+    contractions g(eta).c_ad / h(eta).c_ad (regularization-by-contraction, differentiable)."""
     functional_name: str = "SIMPLE_HOLE_EXPANSION"
-    r_c: float = 6.0
+    # r_c MUST equal the pipeline R_C: transfer_matrix builds the input (window) basis with the
+    # global R_C, so the window operators and the transfer are consistent only when r_c == R_C.
+    r_c: float = _PIPELINE_R_C      # = 3 Angstrom in bohr (~5.669); the canonical SIMPLE window
     n_channels: int = 20            # n_in: fixed-R_c projection resolution
     n_out: int = 10                 # adaptive-radius hole basis (exposed feature count)
     x_window: float = _X_WINDOW     # dimensionless hole window X = k_F R_ad
     n_rad: int = 48                 # R_ad-grid for the precomputed transfer matrices
-    n_eta: int = 400                # eta-grid for the universal HEG-anchor shape sigma(eta)
+    n_eta: int = 600                # eta-grid for the universal envelope tables g(eta), h(eta)
+    eta_max: float = 60.0
 
 
 class SIMPLE_HOLE_EXPANSION(SIMPLE_HOLE):
-    """Exchange-only scale-free direct-expansion exchange hole, self-consistent. Parameter-free.
+    """Exchange-only scale-free SIMPLE hole, self-consistent and parameter-free.
 
-    The hole is expanded on the IMPLICIT adaptive-radius basis: project the density to n_in
-    fixed-R_c window coefficients C, set R_ad = min(X/k_F(rho0), R_c), transfer
-    c_ad = T(R_ad) @ C onto the n_out adaptive basis, and expand the hole there. Because
-    k_F R_ad = X is locked (where unclamped), the hole is represented at a density-independent
-    dimensionless scale -> scale invariance, and n_out=10 suffices (the dense core gets a small
-    window). The HEG anchor is then a UNIVERSAL fixed shape sigma_m = int_0^1 R_m^(1)(t) S(X t)
-    t^2 dt; the moments scale as R_ad^{3/2} (charge) and R_ad^{1/2} (self-Coulomb)."""
+    Project the density to n_in fixed-R_c window coefficients C; set the implicit adaptive
+    radius R_ad = min(X/k_F(rho0), R_c); transfer c_ad = T(R_ad) @ C onto the n_out adaptive
+    basis. The exchange self-energy follows the prior SF normalization -- the hole self-energy is
+    a universal contraction of c_ad with the envelope-projection tables g(eta), h(eta), and the
+    on-top scale eta* is fixed by the enclosed-charge sum rule Q_S(eta*) = 2 (Fermi-Amaldi branch
+    where the window holds < one pair). This (i) enforces int n_x = -1 through the SCALE (not a
+    min-norm coefficient projection -> no overshoot), and (ii) touches c_ad ONLY through the
+    damped contractions g.c_ad, h.c_ad (so the transfer's high-frequency content is regularized
+    by contraction -- differentiable, stable at R_c >= 8, no SVD). The direct-expansion
+    coefficient flexibility (gradient/iso-orbital corrections) layers on top of this base."""
 
     def __init__(self, derivative_matrix=None, r_quad=None,
                  quadrature_weights=None, params: Optional[XCParameters] = None):
@@ -96,18 +105,19 @@ class SIMPLE_HOLE_EXPANSION(SIMPLE_HOLE):
         self._n_in = p.n_channels
         self._n_out = int(getattr(p, "n_out", 10))
         self._X = float(getattr(p, "x_window", _X_WINDOW))
-        # unit-window adaptive monopole basis R_m^(1) on [0,1]: moments + on-top
+        # universal envelope-projection tables on the unit-window adaptive basis R_m^(1) [0,1]:
+        #   g_m(eta) = int_0^1 R_m^(1)(t) S(eta t) t^2 dt   (enclosed charge per channel)
+        #   h_m(eta) = int_0^1 R_m^(1)(t) S(eta t) t   dt   (self-Coulomb per channel)
         basis = RadialBesselBasis(self._n_out - 1, 0, 1.0)
         xu, wu = np.polynomial.legendre.leggauss(600)
         t = 0.5 * (xu + 1.0); wt = 0.5 * wu
         Rb1 = basis.evaluate(0, t)                               # (n_out, nt)
-        self._a1 = Rb1 @ (wt * t ** 2)                           # unit-window charge moments
-        self._b1 = Rb1 @ (wt * t)                                # unit-window self-Coulomb moments
-        self._r0_1 = basis.evaluate(0, np.array([1e-9]))[:, 0]   # R_m^(1)(0)
-        # universal HEG-anchor shape sigma(eta) = int R_m^(1)(t) S(eta t) t^2 dt; eta = k_F R_ad <= X
-        self._etas = np.linspace(1e-3, self._X, int(getattr(p, "n_eta", 400)))
+        self._etas = np.linspace(1e-3, float(getattr(p, "eta_max", 60.0)),
+                                 int(getattr(p, "n_eta", 600)))
         with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
-            self._sigma = np.array([Rb1 @ (wt * t ** 2 * _envelope(eta * t)) for eta in self._etas])
+            S = _envelope(self._etas[:, None] * t[None, :])      # (n_eta, nt)
+            self._G = (S * (wt * t ** 2)[None, :]) @ Rb1.T       # (n_eta, n_out)  g_m(eta)
+            self._H = (S * (wt * t)[None, :]) @ Rb1.T            # (n_eta, n_out)  h_m(eta)
         # transfer matrices T(R_ad) = transfer_matrix(0, R_ad, n_out, n_in), precomputed + interp
         n_rad = int(getattr(p, "n_rad", 48))
         self._rad_grid = np.linspace(p.r_c / n_rad, p.r_c, n_rad)
@@ -115,80 +125,72 @@ class SIMPLE_HOLE_EXPANSION(SIMPLE_HOLE):
                                  for ra in self._rad_grid])      # (n_rad, n_out, n_in)
 
     def _R_ad(self, rho0):
-        """Implicit adaptive radius R_ad = min(X/k_F(rho0), R_c) (explicit, differentiable)."""
+        """Implicit adaptive radius R_ad = min(X/k_F(rho0), R_c) and the unclamped mask
+        (R_ad < R_c); explicit and differentiable, dR_ad/drho = -R_ad/(3 rho) where unclamped."""
         kF = (3.0 * np.pi ** 2 * np.maximum(rho0, 1e-12)) ** (1.0 / 3.0)
-        return np.minimum(self._X / np.maximum(kF, 1e-12), self.params.r_c)
+        raw = self._X / np.maximum(kF, 1e-12)
+        return np.minimum(raw, self.params.r_c), raw < self.params.r_c
 
     def _c_ad(self, C, R_ad):
-        """Adaptive-radius density features c_ad (N, n_out) = T(R_ad) @ C, via interpolation."""
+        """Adaptive-radius density features c_ad (N, n_out) = T(R_ad) @ C, via interpolation.
+        C carries the angular 4pi (the 3D window projection); it is kept here and the universal
+        tables g, h provide the matching dimensionless factors (prior-SF convention)."""
         rg = self._rad_grid
         k = np.clip(np.searchsorted(rg, R_ad), 1, rg.size - 1)
         f = np.clip((R_ad - rg[k - 1]) / (rg[k] - rg[k - 1]), 0.0, 1.0)
         Tb = (1.0 - f)[:, None, None] * self._T_grid[k - 1] + f[:, None, None] * self._T_grid[k]
         return np.einsum('Noi,iN->No', Tb, C)                    # (N, n_out)
 
-    def _sigma_at(self, eta):
-        """Universal HEG-anchor shape sigma(eta) (N, n_out), interpolated on the eta grid."""
-        et = self._etas
-        k = np.clip(np.searchsorted(et, eta), 1, et.size - 1)
-        f = np.clip((eta - et[k - 1]) / (et[k] - et[k - 1]), 0.0, 1.0)
-        return (1.0 - f)[:, None] * self._sigma[k - 1] + f[:, None] * self._sigma[k]
+    def _ontop(self, Qc, Pc):
+        """Vectorized on-top inversion: per point solve Q_S(eta)=2 (Q_S decreasing in eta;
+        Fermi-Amaldi branch when the window holds < one pair), eps = -1/2 Phi_S/Q_S. Qc, Pc are
+        (N, n_eta) on the shared eta grid. (Prior-SF normalization.)"""
+        etas = self._etas; N = Qc.shape[0]; ar = np.arange(N)
+        below = Qc <= 2.0
+        fa = below[:, 0]                                          # max Q_S (eta->0) <= 2 -> FA
+        crosses = below.any(axis=1)
+        idx = np.clip(np.argmax(below, axis=1), 1, etas.size - 1)
+        Qlo = Qc[ar, idx - 1]; Qhi = Qc[ar, idx]
+        frac = np.clip((Qlo - 2.0) / (Qlo - Qhi + 1e-300), 0.0, 1.0)
+        eps = -0.25 * (Pc[ar, idx - 1] + frac * (Pc[ar, idx] - Pc[ar, idx - 1]))   # Q_S=2 -> -Phi/4
+        eps = np.where(fa, np.where(Qc[:, 0] > 1e-30, -0.5 * Pc[:, 0] / Qc[:, 0], 0.0), eps)
+        eps = np.where(~crosses & ~fa, -0.25 * Pc[:, -1], eps)    # never crosses: clamp to grid end
+        return eps
 
-    def _map_coeffs(self, C, rho0):
-        """Scale-free map: n_in window coeffs C (n_in, N) + on-top density rho0 (N,) -> adaptive
-        hole coeffs rhotilde (N, n_out). HEG <-> Fermi-Amaldi anchors blended by the per-spin
-        enclosed-charge switch, projected onto the (R_ad-scaled) sum-rule and on-top constraints."""
-        rho0 = np.maximum(np.asarray(rho0, float), 1e-12)
-        R_ad = self._R_ad(rho0)
-        # C from the window operators carries the angular 4pi; divide it out so c_ad are the
-        # bare adaptive coefficients (same convention as the HEG anchor sigma) -- otherwise the
-        # enclosed charge Q below is inflated by 4pi and every atom is wrongly flagged HEG.
-        c_ad = self._c_ad(C / (4.0 * np.pi), R_ad)               # (N, n_out)
-        eta = (3.0 * np.pi ** 2 * rho0) ** (1.0 / 3.0) * R_ad    # = X where unclamped
-        Q = 4.0 * np.pi * (R_ad ** 1.5) * (c_ad @ self._a1)      # (N,) enclosed charge
-        Qsafe = np.maximum(Q, 1e-12)
-        lam = enclosed_charge_switch(0.5 * Q)                    # per-spin switch (exchange is same-spin)
-        heg = -(0.5 * rho0)[:, None] * (R_ad ** 1.5)[:, None] * self._sigma_at(eta)   # HEG anchor
-        fa = -c_ad / Qsafe[:, None]                              # Fermi-Amaldi anchor
-        coeffs = (1.0 - lam)[:, None] * heg + lam[:, None] * fa  # (N, n_out)
-        ontop = (1.0 - lam) * (-0.5 * rho0) + lam * (-rho0 / Qsafe)
-        # 2-constraint least-norm projection with R_ad-dependent rows (vectorized 2x2 solve):
-        A0 = 4.0 * np.pi * (R_ad ** 1.5)[:, None] * self._a1[None, :]    # sum-rule row (N, n_out)
-        A1 = (R_ad ** -1.5)[:, None] * self._r0_1[None, :]               # on-top row    (N, n_out)
-        g00 = np.sum(A0 * A0, axis=1); g01 = np.sum(A0 * A1, axis=1); g11 = np.sum(A1 * A1, axis=1)
-        r0 = -1.0 - np.sum(A0 * coeffs, axis=1); r1 = ontop - np.sum(A1 * coeffs, axis=1)
-        det = np.maximum(g00 * g11 - g01 ** 2, 1e-300)
-        x0 = (g11 * r0 - g01 * r1) / det; x1 = (g00 * r1 - g01 * r0) / det
-        return coeffs + x0[:, None] * A0 + x1[:, None] * A1      # (N, n_out)
+    def _eps_sf(self, C, R_ad):
+        """Scale-free eps_x: c_ad = T(R_ad).C; Q_S = R_ad^{3/2} g.c_ad, Phi_S = R_ad^{1/2} h.c_ad;
+        on-top Q_S(eta)=2 -> eps. c_ad enters ONLY through the damped contractions g.c_ad, h.c_ad."""
+        c_ad = self._c_ad(C, R_ad)                               # (N, n_out)
+        Qc = (R_ad ** 1.5)[:, None] * (c_ad @ self._G.T)         # (N, n_eta)
+        Pc = (R_ad ** 0.5)[:, None] * (c_ad @ self._H.T)
+        return self._ontop(Qc, Pc)
 
     def _eps_from_coeffs(self, C, rho0):
-        """eps_x per point: 1/2 * 4pi * R_ad^{1/2} * sum_m rhotilde_m b_m^(1) [Eq. (eps)]."""
-        rho0 = np.maximum(np.asarray(rho0, float), 1e-12)
-        R_ad = self._R_ad(rho0)
-        coeffs = self._map_coeffs(C, rho0)                       # (N, n_out)
-        return 0.5 * 4.0 * np.pi * (R_ad ** 0.5) * (coeffs @ self._b1)   # (N,)
+        """eps_x per point from window coeffs C (n_in, N) and on-top density rho0 (N,)."""
+        R_ad, _ = self._R_ad(np.maximum(np.asarray(rho0, float), 1e-12))
+        return self._eps_sf(C, R_ad)
 
     def compute_xc(self, density_data: DensityData) -> XCPotentialData:
-        """Self-consistent exchange via the direct-expansion hole. The potential is the
-        discrete adjoint through both C = P @ rho and the explicit on-top density rho0."""
+        """Self-consistent exchange. eps_x = f(C, R_ad(rho)); the discrete-adjoint potential is
+        the C-channel (operator transpose, R_ad frozen) plus the explicit R_ad(rho) channel."""
         rho = np.maximum(np.asarray(density_data.rho, dtype=float), 1e-12)
-        ew = self.energy_weights
-        C = np.array([op @ rho for op in self._ops])            # (nch, N)
-        eps = self._eps_from_coeffs(C, rho)
+        ew = self.energy_weights; ewrho = ew * rho
+        C = np.array([op @ rho for op in self._ops])             # (n_in, N)
+        R_ad, unclamped = self._R_ad(rho)
+        eps = self._eps_sf(C, R_ad)
 
-        ewrho = ew * rho
-        acc = np.zeros_like(rho)
-        for n in range(len(self._ops)):                          # C-channel adjoint (Sahoo)
+        acc = np.zeros_like(rho)                                  # C-channel adjoint (R_ad fixed)
+        for n in range(len(self._ops)):
             h = 1e-6 * (np.abs(C[n]) + 1e-8)
             Cp = C.copy(); Cp[n] += h
             Cm = C.copy(); Cm[n] -= h
-            deps_dCn = (self._eps_from_coeffs(Cp, rho) - self._eps_from_coeffs(Cm, rho)) / (2.0 * h)
+            deps_dCn = (self._eps_sf(Cp, R_ad) - self._eps_sf(Cm, R_ad)) / (2.0 * h)
             acc += self._ops[n].T @ (ewrho * deps_dCn)
-        # explicit on-top-density derivative (rho0 = rho): local term in the variational derivative
-        hr = 1e-6 * (rho + 1e-8)
-        deps_drho0 = (self._eps_from_coeffs(C, rho + hr) - self._eps_from_coeffs(C, rho - hr)) / (2.0 * hr)
+        hr = 1e-6 * (R_ad + 1e-8)                                 # local R_ad(rho) channel
+        deps_dRad = (self._eps_sf(C, R_ad + hr) - self._eps_sf(C, R_ad - hr)) / (2.0 * hr)
+        dRad_drho = np.where(unclamped, -(1.0 / 3.0) * R_ad / rho, 0.0)
 
-        v_x = eps + rho * deps_drho0 + acc / ew
+        v_x = eps + acc / ew + rho * deps_dRad * dRad_drho
         if getattr(self.params, "gauge_fix", True):
             v_x = self._apply_gauge(v_x, eps, rho)
         zero = np.zeros_like(rho)
