@@ -465,16 +465,38 @@ scale. Because the $1/u$ weight keeps only the monopole, the energy per electron
 \varepsilon_x(r_0)=2\pi\sum_n \tilde\varrho_n(r_0)\,b_n,\qquad
 b_n=\int_0^{\Rc}\!R_{n0}(u)\,u\,du ,
 \end{equation}
-and the exact constraints become linear in $\{\tilde\varrho_n\}$: the normalization
-sum rule $4\pi\sum_n\tilde\varrho_n a_n=-1$ (with $a_n=\int_0^{\Rc}R_{n0}u^2du$ the
-enclosed charge) and the on-top value. The coefficients are produced by a
-parameter-free map of the local monopole features that interpolates between the
-homogeneous-gas hole (LDA limit, C4) and the negative of the local density
-(Fermi--Amaldi one-electron limit, C5), formed on the same adaptive-radius frame
-[$\Rad=\min(\xi^*/\kF,\Rc)$, Eq.~\eqref{eq:transfer}] so uniform scaling (C3) holds
-within the window. With the on-top scale fixed by the enclosed-charge sum rule
-($Q_S{=}2$), hydrogen is reproduced to $\sim2$~mHa (a near-exact self-interaction
-correction), spin-paired He to $\sim2$~mHa, and Be within $\sim2\%$.
+and the exact constraints --- the normalization sum rule
+$4\pi\sum_n\tilde\varrho_n a_n=-1$ ($a_n=\int_0^{\Rc}R_{n0}u^2du$) and the on-top
+value --- are linear in $\{\tilde\varrho_n\}$.
+
+\emph{The map that fixes the bare coefficients.} In the gradient-free base the
+coefficients are not left free; they realize the same enclosed-charge hole as the
+single-envelope model [Eq.~\eqref{eq:ansatz}] --- the surrounding density screened by
+the universal envelope, $\tilde\varrho\leftrightarrow-W\rho(r_0{+}\uu)S(\eta u)$ ---
+with the spherically-averaged density carried by its adaptive-radius monopole
+coefficients $\mathbf c=T(\Rad)\,\mathbf C$
+[$\Rad=\min(\xi^*/\kF,\Rc)$, Eq.~\eqref{eq:transfer}]. The energy is then the
+enclosed-charge ratio [Eq.~\eqref{eq:eps-x}]
+\begin{equation}
+\label{eq:eps-base-ratio}
+\varepsilon_x=-\tfrac12\,\frac{\Phi_S(\eta^*)}{Q_S(\eta^*)},\qquad
+Q_S(\eta)=\Rad^{3/2}\!\sum_m c_m\,g_m(\eta),\quad
+\Phi_S(\eta)=\Rad^{1/2}\!\sum_m c_m\,h_m(\eta),
+\end{equation}
+with envelope-projection tables $g_m(\eta)=\int_0^1 R_{m0}(t)\,S(\eta t)\,t^2dt$,
+$h_m(\eta)=\int_0^1 R_{m0}(t)\,S(\eta t)\,t\,dt$ and a single on-top scale $\eta^*$.
+\emph{There is no explicit LDA/FA interpolation; the two limits are the two regimes of
+this one sum rule.} Where the window can hold a full pair, $\eta^*$ solves
+$Q_S(\eta^*)=2$ and a slowly-varying density recovers LDA (C4). Where it cannot --- a
+one-electron region (a light-atom core or a density tail), for which
+$Q_S(\eta{\to}0)\le2$ --- no such scale exists; the construction takes the unscreened
+hole ($\eta\to0$, $S\to1$, i.e.\ the negative of the local density), giving the
+Fermi--Amaldi self-interaction $\varepsilon_x=-\tfrac12\Phi_S(0)/Q_S(0)$ (C5). The
+crossover is continuous in $\eta^*$, and on the adaptive radius uniform scaling (C3)
+holds within the window. With this base, hydrogen is reproduced to $\sim2$~mHa (a
+near-exact self-interaction correction), spin-paired He to $\sim2$~mHa, and Be within
+$\sim2\%$. The added direct-expansion freedom in $\{\tilde\varrho_n\}$
+[Eq.~\eqref{eq:hole-direct}] enters through the gradient correction below.
 
 \paragraph*{Gradient correction with an iso-orbital gate.}
 The monopole hole is blind to $\nabla\rho$, so as before a gradient correction must
