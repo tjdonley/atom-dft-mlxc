@@ -352,18 +352,34 @@ def _build_gga(gauge_fix=True, n=600):
 
 
 def test_E1_gea2_slope_recovered():
-    """In the slowly-varying limit F_x = eps_GGA/eps_LDA -> 1 + (10/81) s^2 (slope 10/81)."""
-    F, r, w = _build_gga()
+    """In the slowly-varying limit the EFFECTIVE (gated) enhancement F_x = eps_full/eps_map ->
+    1 + (10/81) s^2: as s->0 the density approaches HEG, D_HEG->0, the gate g->1, and the slope
+    is exactly 10/81. (The gate's density-dependence enters only at O(s^4).)"""
+    F, r, w = _build_gga(n=800)
+    r = np.linspace(1e-3, 16.0, 800); w = np.gradient(r)
+    from atom.xc.simple_hole_expansion import SIMPLE_HOLE_EXPANSION_GGA, SIMPLEHOLEEXPGGAParameters
+    F = SIMPLE_HOLE_EXPANSION_GGA(r_quad=r, quadrature_weights=w,
+                                 params=SIMPLEHOLEEXPGGAParameters(r_c=8.0, n_channels=24))
     mid = len(r) // 2
     slopes = []
-    for amp in (0.02, 0.04):
-        rho = np.exp(amp * (r - 6.0))                     # gentle exp ramp -> small uniform s
+    for amp in (0.01, 0.02):                              # small gradient -> near-HEG, gate~1
+        rho = np.exp(amp * (r - 8.0))
+        C = np.array([op @ rho for op in F._ops])
         g = F._grad_op @ rho
-        f, _, _ = F._enhancement(rho, g)
+        Fx = F._eps_full(C, rho, g)[mid] / F._eps_from_coeffs(C, rho)[mid]   # effective enhancement
         kF = (3.0 * np.pi ** 2 * rho[mid]) ** (1.0 / 3.0)
         s2 = (abs(g[mid]) / (2.0 * kF * rho[mid])) ** 2
-        slopes.append((f[mid] - 1.0) / s2)
+        slopes.append((Fx - 1.0) / s2)
     assert np.allclose(slopes, 10.0 / 81.0, rtol=0.02), f"slopes {slopes} vs 10/81={10/81:.4f}"
+
+
+def test_E_l2_distance_zero_at_heg():
+    """The L2-from-HEG gate variable D_HEG is exactly zero for any uniform density."""
+    F, r, w = _build_gga()
+    for rho_val in (0.3, 1.0, 4.0):
+        C = np.array([op @ np.full_like(r, rho_val) for op in F._ops])
+        D = F._l2_distance_from_heg(C)
+        assert np.max(np.abs(D)) < 1e-12, f"rho={rho_val}: max D_HEG={np.max(np.abs(D)):.2e}"
 
 
 def test_E1_gradient_adjoint_matches_fd():
@@ -388,7 +404,8 @@ def test_E1_gradient_adjoint_matches_fd():
 
 
 def test_E1_reduces_to_expansion_without_gradient():
-    """Uniform density -> s=0 -> f=1 -> GGA energy density == the gradient-free expansion."""
+    """Uniform density -> s=0 -> enhancement=1 -> GGA energy density == the gradient-free
+    expansion (and the gate is irrelevant since s^2=0)."""
     from atom.xc.simple_hole_expansion import SIMPLE_HOLE_EXPANSION, SIMPLEHOLEEXPParameters
     F, r, w = _build_gga()
     base = SIMPLE_HOLE_EXPANSION(r_quad=r, quadrature_weights=w,
@@ -396,18 +413,16 @@ def test_E1_reduces_to_expansion_without_gradient():
     rho = np.full_like(r, 1.0)
     C = np.array([op @ rho for op in F._ops])
     g = F._grad_op @ rho
-    f, _, _ = F._enhancement(rho, g)
-    assert np.allclose(f, 1.0, atol=1e-10), "enhancement not unity at zero gradient"
-    eps_gga = F._eps_from_coeffs(C, rho) * f
+    eps_gga = F._eps_full(C, rho, g)
     eps_base = base._eps_from_coeffs(np.array([op @ rho for op in base._ops]), rho)
     assert np.allclose(eps_gga, eps_base, rtol=1e-10)
 
 
 def test_E1_gate_preserves_exact_He():
-    """The (1-lambda) gate makes the gradient correction vanish in the one-electron-per-spin
-    limit, so it does NOT touch the already-exact spin-paired He: the gradient-corrected SCF
-    exchange equals the (near-exact) base to within a few mHa. (Be, in the HEG branch, is still
-    enhanced -- and over-enhanced by the bare 10/81, which is a separate saturation issue.)"""
+    """The L2-from-HEG gate (g = exp(-c D_HEG)) makes the gradient correction vanish where the
+    density is far from HEG. Spin-paired He is strongly inhomogeneous (D_HEG large) -> gate ~ 0
+    -> the gradient-corrected SCF exchange equals the (near-exact) base to within a few mHa, so
+    the already-exact He is left untouched."""
     from atom import AtomicDFTSolver
     res = {}
     for func in ("SIMPLE_HOLE_EXPANSION", "SIMPLE_HOLE_EXPANSION_GGA"):

@@ -148,25 +148,39 @@ class SIMPLE_HOLE_EXPANSION(SIMPLE_HOLE):
 @dataclass
 class SIMPLEHOLEEXPGGAParameters(SIMPLEHOLEEXPParameters):
     functional_name: str = "SIMPLE_HOLE_EXPANSION_GGA"
+    gea_gate_c: float = 1.0          # gate strength: g = exp(-c * D_HEG); larger c => GEA needs
+                                     # the density to be closer to HEG before turning on.
+    gea_mu: float = 10.0 / 81.0      # GEA enhancement coefficient (F_x -> 1 + g*mu*s^2). The
+                                     # s^2 slope is exactly mu in the s->0 limit (g->1); tune mu
+                                     # only to set the *effective* enhancement at finite gradient
+                                     # (the gate adds an O(s^4) self-saturation, see report).
 
 
 class SIMPLE_HOLE_EXPANSION_GGA(SIMPLE_HOLE_EXPANSION):
     """Direct-expansion hole with the parameter-free second-order gradient correction.
 
-    The charge- and on-top-neutral gradient deformation of the hole enhances the energy by
-    the exact GEA2 factor *in the slowly-varying branch only*:
-        eps_x = eps_x^map * (1 + (1 - lambda) (10/81) s^2_bounded),   s = |grad rho|/(2 k_F rho).
-    s comes from the proven-stable l=1 spectral gradient operator (k_n^1 growth, no stiff
-    Laplacian). s^2 is smoothly saturated (Lieb-Oxford tail safety; reuses ``_bound``).
+    The charge- and on-top-neutral gradient deformation of the hole enhances the energy by the
+    GEA2 factor, gated by how HEG-like the local density is:
+        eps_x = eps_x^map * (1 + g(C) * mu * s^2_bounded),   s = |grad rho|/(2 k_F rho),
+        g(C)  = exp(-c * D_HEG(C)),   D_HEG = sum_n (C_n/C_0 - (-1)^n/(n+1))^2 .
+    s comes from the proven-stable l=1 spectral gradient operator (k_n^1, no stiff Laplacian);
+    s^2 is smoothly saturated (``_bound``). mu = ``gea_mu`` (default 10/81), c = ``gea_gate_c``.
 
-    The (1 - lambda) gate is the essential point: GEA2 is an exact constraint of the
-    *slowly-varying* (HEG-like) limit, NOT of the one-electron-per-spin limit. lambda -> 1 there
-    (the Fermi-Amaldi branch), where the exact exchange is already self-interaction-free for any
-    gradient, so the enhancement must switch off -- otherwise it spuriously modifies an
-    already-exact result (e.g. spin-paired He, lambda=1, would be over-enhanced). Gating by
-    (1 - lambda) is the analogue of SCAN turning off the gradient term in single-orbital regions.
+    THE GATE IS THE L2 DISTANCE FROM HEG IN SIMPLE FEATURE SPACE. The non-dimensional SIMPLE
+    monopole features vanish at the homogeneous-gas limit; D_HEG is their squared L2 norm (the
+    monopole channel: C_n/C_0 vs the HEG ratios (-1)^n/(n+1)), so D_HEG = 0 for any uniform
+    density and grows with inhomogeneity. The gate turns GEA *on* (g -> 1) only when the whole
+    local density is HEG-like, and *off* (g -> 0) in strongly inhomogeneous regions (atomic
+    cores, one-electron tails) -- so it leaves already-exact results (e.g. spin-paired He, which
+    is far from HEG) untouched. This is the natural scale-free inhomogeneity detector of the
+    SIMPLE framework, intrinsic rather than the ad-hoc enclosed-charge switch.
 
-    Because the gate depends on C (through lambda(Q)), the self-consistent potential is the full
+    Slope: because D_HEG ~ s^2 across the window, g = 1 - c*k*s^2 + ..., so the enhancement is
+    mu*s^2*(1 - c*k*s^2) = mu*s^2 - O(s^4): the s^2 coefficient is exactly mu in the s->0 limit
+    (GEA2 recovered without tuning), and the gate's density-derivative contributes only an
+    O(s^4) self-saturation. Tune ``gea_mu`` only to set the effective enhancement at finite s.
+
+    Because the gate depends on C (through D_HEG), the self-consistent potential is the full
     discrete adjoint of eps_x, taken by finite difference in all three channels (C, on-top rho,
     gradient g); the gradient channel uses the spectral-operator transpose."""
 
@@ -176,21 +190,30 @@ class SIMPLE_HOLE_EXPANSION_GGA(SIMPLE_HOLE_EXPANSION):
                          quadrature_weights=quadrature_weights, params=params)
         self._grad_op = build_spectral_gradient_operator(self._r_grid)
 
-    def _enhancement(self, rho, g):
-        """Ungated GEA2 factor f0 = 1 + (10/81) s^2_b (the slowly-varying-limit enhancement).
-        The (1-lambda) gate is applied in ``_eps_full``; this helper exposes the bare coefficient
-        for the slope test."""
+    def _s2_bounded(self, rho, g):
+        """Smoothly-saturated reduced gradient squared s^2_b, s = |g|/(2 k_F rho)."""
         rho = np.maximum(rho, 1e-12)
         d8 = 4.0 * _SIX2_3 * rho ** (8.0 / 3.0)
         s2b, _ = _bound(g * g / d8)
-        return 1.0 + _GEA2 * s2b, None, None
+        return s2b
+
+    def _l2_distance_from_heg(self, C):
+        """Squared L2 distance of the monopole SIMPLE features from the HEG limit:
+        D_HEG = sum_n (C_n/C_0 - (-1)^n/(n+1))^2. Scale-free (ratio C_n/C_0) and exactly 0 for
+        any uniform density. C (nch, N) -> D (N,)."""
+        n = np.arange(C.shape[0])
+        heg_ratio = ((-1.0) ** n) / (n + 1.0)                       # C_n/C_0 at HEG
+        c0 = C[0]
+        c0 = np.where(np.abs(c0) > 1e-30, c0, 1e-30)
+        ratio = C / c0[None, :]                                     # (nch, N)
+        return np.sum((ratio - heg_ratio[:, None]) ** 2, axis=0)    # (N,)
 
     def _eps_full(self, C, rho0, g):
-        """eps_x = eps_map(C, rho0) * (1 + (1-lambda(C)) (10/81) s^2_b(g, rho0))."""
+        """eps_x = eps_map(C, rho0) * (1 + g(C) * mu * s^2_b(g, rho0)), g = exp(-c D_HEG(C))."""
+        p = self.params
         eps0 = self._eps_from_coeffs(C, rho0)
-        f0, _, _ = self._enhancement(rho0, g)                       # 1 + mu s2b
-        lam = enclosed_charge_switch(0.5 * (self._a @ C))           # per-spin switch from C
-        f = 1.0 + (1.0 - lam) * (f0 - 1.0)                          # gate the s^2 enhancement
+        gate = np.exp(-p.gea_gate_c * self._l2_distance_from_heg(C))
+        f = 1.0 + gate * p.gea_mu * self._s2_bounded(rho0, g)
         return eps0 * f
 
     def compute_xc(self, density_data: DensityData) -> XCPotentialData:

@@ -77,3 +77,42 @@ issue: (i) the bare 10/81 is too large for real inhomogeneous systems (productio
 saturated/fitted coefficient), and (ii) a global enclosed-charge lambda is a crude
 single-orbital detector for a sharp core. Both point to a feature-dependent, saturated
 enhancement (the limits-safe learnable layer, Phase F) rather than the universal GEA2 constant.
+
+## Update 3 — L2-distance-from-HEG gate (intrinsic SIMPLE inhomogeneity detector)
+Replaced the enclosed-charge (1-lambda) gate with a gate keyed on the **L2 distance from the
+HEG limit in SIMPLE feature space** -- the natural, scale-free inhomogeneity measure:
+
+    eps_x = eps_map * (1 + g(C) * mu * s^2_b),   g(C) = exp(-c * D_HEG),
+    D_HEG = sum_n (C_n/C_0 - (-1)^n/(n+1))^2 .
+
+The non-dimensional SIMPLE monopole features vanish at HEG; D_HEG is their squared L2 norm
+(monopole channel). Verified D_HEG = 0 (to 1e-12) for any uniform density. The gate turns GEA
+on (g->1) only when the local density is HEG-like, and off (g->0) in inhomogeneous regions, so
+it leaves already-exact results untouched. Parameters: `gea_gate_c` (c, default 1.0) and
+`gea_mu` (mu, default 10/81). Adjoint (FD-all-channels, the gate's C-dependence included)
+matches FD dE/drho to ~5e-8.
+
+**Slope.** Because D_HEG ~ s^2 across the window, g = 1 - c k s^2 + ..., so the gated
+enhancement is mu s^2 (1 - c k s^2) = mu s^2 - O(s^4). The s^2 coefficient is exactly mu in the
+s->0 limit -- GEA2 is recovered WITHOUT tuning (measured effective slope 0.1234 vs 10/81 =
+0.1235 at s^2 = 0.015). The gate's density-derivative contributes only an O(s^4) self-saturation
+(the effect anticipated in the request); `gea_mu` is exposed to tune the *effective* enhancement
+at finite gradient if desired.
+
+**Gate-strength sweep (SCF, c with mu=10/81):**
+
+| c | He E_x | Be E_x | (exact He -1.026, Be -2.666) |
+|------|--------|--------|---|
+| 1.00 (default) | -1.028 (exact, protected) | -2.472 (LDA-level, untouched) | |
+| 0.10 | -1.046 | -2.554 | |
+| 0.03 | -1.086 | -2.621 | |
+| 0.01 | -1.118 | -2.693 | |
+
+At the default c=1 the gate is highly selective: atoms (He <D>~33, Be <D>~81) are far from HEG,
+so GEA is essentially off and both already-decent base results are preserved (He exact, Be
+LDA-level -- and Be no longer overshoots as it did under the enclosed-charge gate). Lowering c
+turns GEA on more broadly and improves Be toward exact, but it turns on for **He before Be**
+(He is *closer* to HEG in the monopole L2 measure), so a single c cannot protect He while fixing
+Be. That is an honest limit of the monopole-only distance; the full SIMPLE distance (l>0
+channels, which carry the gradient/anisotropy) or a tau-based single-orbital indicator would
+separate He and Be differently and is the natural next refinement.

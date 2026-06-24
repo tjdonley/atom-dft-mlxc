@@ -18,17 +18,21 @@ production `SIMPLE_HOLE`/`SIMPLE_HOLE_GGA` untouched. 39/39 tests green
 | F | Learnable residual layer, limits exact by construction (mechanism) | residual=0 at both anchors; charge/on-top-neutral, any weights |
 
 ## Atom exchange energies (all-electron SCF)
-| atom | EXPANSION | + GEA2 (1−λ gated) | exact (oep) |
-|------|-----------|--------------------|-------------|
-| He   | −1.028 (near-exact) | −1.028 (unchanged — gate off in 1e/spin limit) | −1.0258 |
-| Be   | −2.469 (LDA-level)  | −2.802 (over-enhanced; bare 10/81 too large) | −2.6658 |
+| atom | EXPANSION | + GEA2 (L2-HEG gated, c=1) | exact (oep) |
+|------|-----------|----------------------------|-------------|
+| He   | −1.028 (near-exact) | −1.028 (gate off — far from HEG) | −1.0258 |
+| Be   | −2.469 (LDA-level)  | −2.472 (gate off — far from HEG) | −2.6658 |
 
-The GEA2 enhancement is gated by `(1−λ)` so it acts only in the slowly-varying branch and
-**vanishes in the one-electron-per-spin limit** (λ→1) — it therefore leaves the already-exact
-spin-paired He untouched. GEA2 and the FA/SIC limit are exact constraints in *different*
-regimes; the gate keeps each where it belongs. Be's sharp core is flagged HEG by the
-enclosed-charge λ and still receives full GEA2 (over-enhanced) — motivating a saturated,
-feature-dependent enhancement (Phase F) over the universal coefficient.
+The GEA2 enhancement is gated by the **L2 distance from HEG in SIMPLE feature space**,
+`g = exp(−c·D_HEG)`, `D_HEG = Σ_n (C_n/C_0 − (−1)ⁿ/(n+1))²` — the intrinsic scale-free
+inhomogeneity measure (=0 for any uniform density). GEA turns on only when the local density is
+HEG-like, so it leaves already-exact results untouched (He, far from HEG, is preserved exactly;
+Be no longer overshoots). The s² slope is exactly μ in the s→0 limit (GEA2 recovered without
+tuning; the gate adds only an O(s⁴) self-saturation). Two parameters: gate strength `c`
+(default 1) and coefficient `μ` (default 10/81). Lowering `c` turns GEA on more broadly and
+improves Be toward exact, but turns on for He before Be (He is closer to HEG in the monopole
+measure) — an honest limit of the monopole-only distance, pointing to the full SIMPLE distance
+(ℓ>0) or a τ-based detector as the next refinement.
 
 **Spin convention (key correctness point).** Exchange is a *same-spin* interaction, so the
 self-interaction-free limit is one electron **per spin** (`Q_σ = Q_total/2 ≤ 1`). Keying the
