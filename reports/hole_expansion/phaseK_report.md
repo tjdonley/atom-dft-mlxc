@@ -60,3 +60,25 @@ pins the adaptive-frame normalization (the historically bug-prone 4pi/R_ad bookk
 Phase-2 work is mechanical: assemble SIMPLE_HOLE_EXPANSION_KERNEL (vectorized over the grid),
 exact variational adjoint (FD through C, R_ad, s, Q), register, and benchmark He/Be/Na/Mg vs
 EXX/PBE.
+
+## Non-SCF atom benchmark (kernel on the EXX density, fixed-R_c explicit)
+
+Evaluate the kernel exchange energy post-hoc on the EXX density (per-r0 spherically-averaged
+profile + reduced gradient -> kernel_map_coeffs -> eps; integrate). PSP, vs EXX and PBE-x:
+
+  atom  Z   E_x(EXX)  E_x(kernel)  kernel err(mHa)  PBE-x err
+  He    2   -1.0019   -1.0028        -0.9            31.4
+  Li    3   -1.4507   -1.3075      +143.2             2.6
+  Be    4   -1.9208   -1.9048       +16.1            35.5
+  Ne   10   (EXX did not converge -- solver issue, not the functional)
+  Na   11   -5.7752   -5.7478       +27.4            93.6
+  Mg   12   -6.9715   -6.8525      +119.1           211.6
+  MAE vs EXX (mHa):  kernel = 61.3   PBE-x = 75.0
+
+Read: kernel competitive with PBE exchange. He near-exact (FA limit). Be/Na good (+16/+27, better
+than the bare LDA band -> GEA helping). Mg +119 ~= 1.6% of E_x = the fixed-R_c LDA-band offset
+(the scale-free frame removes this; expect ~tens of mHa). Li +143 is the FA<->bulk TRANSITION
+(window holds ~1.5 e/spin, W_FA mid-blend) -- the hardest region for the HEG+FA two-node set, and
+the concrete target for an added transition-region fixed point (the extensibility goal). No
+blow-ups; the construction is sound on real atoms even before the scale-free frame. Tool:
+kernel_atom_bench.py.
