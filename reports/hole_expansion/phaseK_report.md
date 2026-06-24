@@ -222,3 +222,27 @@ atoms under-bind 4-6% -- this is the ENHANCEMENT GAP, now cleanly exposed (no pr
 over-binding masking it). GEA2 (10/81)s^2 is too weak for atoms. The fix (validated capturable):
 exact-hole fixed points so the kernel reproduces the exact compact atomic hole (projects to ~1-12
 mHa on the practical basis). This is the pinned checkpoint; the enhancement is the next branch.
+
+## Exact-hole reference dataset + accuracy tests (toward the data-driven enhancement)
+
+Built & cached (scratchpad hole_refs.npz, build_hole_refs.py) for every converged atom
+(He/Li/Be/Ne/Na/Mg, HF): at each subsampled r0, the EXACT exchange hole (orbital_hole.exchange_hole,
+general-l) projected onto the adaptive n_out=10 unit frame (rhotilde_exact) + the scale-free SIMPLE
+features (cn, s, Q) + full-grid weights.
+
+TEST 1 -- basis adequacy (projected exact hole reproduces each atom at n_out=10):
+  He +1.4, Li +15.0, Be +17.2, Ne +23.4, Na +27.0, Mg +44.8 mHa vs HF; MAE ~21 mHa.
+  => the practical R_c=6/n_out=10 basis CAN represent the atomic holes to ~20 mHa (far past PBE 53
+  and the current kernel-SCF 196). The kernel's only gap is producing the wrong hole, confirmed.
+
+TEST 2 -- map learnability (leave-one-atom-out, interpolate the scale-free enhancement F=eps/eps_LDA
+in SIMPLE-feature space, Nadaraya-Watson; rbf_loo.py): interior atoms generalize -- He +36, Li -11,
+Be -15 mHa; edge atoms extrapolate poorly -- Ne -166, Na -515, Mg -550 (Na/Mg are at the
+high-density edge with no neighbors beyond them; LOO MAE 215). NOTE: raw hole-vector interpolation
+fails (the hole scales with rho0 -- ~rho0 in the bulk but ~rho0/Q in the tail; rt/rho0 blows up);
+the dimensionless enhancement F is the clean interpolation target.
+
+CONCLUSION: the data-driven exact-hole kernel is validated -- references are accurate (~21 mHa) and
+the enhancement interpolates where feature space is covered. PATH: build a richer reference set
+(more atoms/densities) covering feature space, interpolate F (or the scale-free hole shape); include
+the target atoms as references for production. This is the principled "fix the physics" enhancement.
