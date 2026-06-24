@@ -262,3 +262,28 @@ the sign of light-atom over-binding) but the base error is not a monotonic over-
 absorb -- He is already near-exact, Be slightly over, Ne under for a structural reason. Heavier
 (p,d) atoms need the l>=1 hole multipoles (the "richer functional" route, CODEMAP open item),
 which the gated-GEA2 + H1s-indicator (both l=0-hole) corrections do not provide.
+
+## Update 8 — s-atom series references (He/Li/Be/Na/Mg): base error changes sign
+Computed exact exchange (EXX oep_exchange) and the base scale-free hole exchange to calibrate the
+H1s-correction magnitude on heavier s-atoms (per review):
+
+| atom | Z | shell | E_x(exact) | E_x(base) | base error |
+|------|---|-------|------------|-----------|------------|
+| He | 2 | 1s^2          | -1.0258 | -1.0274 | -1.6 mHa (over)  |
+| Li | 3 | 1s^2 2s^1     | -1.7106 | -1.7834 | -72.8 mHa (over) |
+| Be | 4 | 1s^2 2s^2     | -2.6658 | -2.7136 | -47.8 mHa (over) |
+| Na | 11| ..2p^6 3s^1   | -13.950 | -13.464 | +485.7 mHa (UNDER) |
+| Mg | 12| ..2p^6 3s^2   | -15.988 | -15.273 | +715.6 mHa (UNDER) |
+
+The base error CHANGES SIGN: the truly s-only atoms (He, Li, Be -- no p electrons) OVER-bind;
+Na/Mg carry a closed 2p^6 shell and UNDER-bind by 486/716 mHa (same direction/mechanism as Ne).
+So Na/Mg cannot calibrate the anti-binding H1s magnitude -- the correction would worsen them.
+And within the s-only set the over-binding is non-monotonic (open-shell Li 4.3% > Be 1.8% > He
+0.16%), while <g_H1s> grows monotonically with Z -- so a single magnitude cannot track it.
+
+Conclusion (reinforced by the heavier-atom data, not just Ne): the dominant heavier-atom error is
+UNDER-binding from the missing l>=1 hole anisotropy (every p-shell atom: Ne, Na, Mg), which the
+anti-binding H1s/GEA2 indicator corrections (l=0 hole) cannot supply -- they have the wrong sign
+for these. The H1s correction can only nudge the small closed-shell s-only over-binding (He, Be),
+which is already near-exact. The l>=1 HOLE multipole expansion is the needed ingredient for
+heavier atoms.
