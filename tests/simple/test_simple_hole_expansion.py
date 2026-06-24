@@ -497,3 +497,74 @@ def test_F_residual_is_charge_and_ontop_neutral():
         assert abs(np.dot(r0, d)) < 1e-10, "residual changes on-top value"
         # but it CAN change the energy channel (otherwise it would be useless)
         assert abs(np.dot(ex.coulomb_moments(n_ch, R_C), d)) > 0 or np.allclose(d, 0)
+
+
+# ======================================================================= #
+# PHASE KERNEL: fixed-point hole map (LDA-from-GEA + FA), operator-free
+# ======================================================================= #
+_KCH, _KNU = 16, 1024
+
+
+def test_KERNEL_T1_uniform_is_lda():
+    """Uniform density -> s=0, Q/2>>2 (W_FA=0) -> the kernel map returns the HEG anchor, so
+    eps_x = LDA within the finite-R_c band, with the sum rule and on-top exact."""
+    a = ex.charge_moments(_KCH, R_C); r0 = ex.radial_basis_at_origin(_KCH, R_C)
+    b = ex.coulomb_moments(_KCH, R_C)
+    for rho in (0.25, 0.5, 1.0, 2.0, 5.0):
+        c, d = ex.kernel_map_coeffs(_uniform(rho), 0.0, R_C, _KCH, nu=_KNU, return_diagnostics=True)
+        assert d["W_FA"] == 0.0
+        F = ex.eps_from_coeffs(c, b) / float(ex.lda_exchange_per_particle(rho))
+        assert 0.98 < F < 1.04, f"rho={rho}: F={F:.4f} outside finite-R_c LDA band"
+        assert abs(ex.enclosed_charge(c, a) + 1.0) < 1e-6
+        assert abs(ex.on_top(c, r0) - (-0.5 * rho)) < 1e-6
+
+
+@pytest.mark.parametrize("rho0", [0.5, 1.0, 2.0])
+def test_KERNEL_T2_gea_slope(rho0):
+    """A slowly-varying density (uniform base rho0 with reduced gradient s) gives the exact GEA2
+    enhancement F_x -> 1 + (10/81)s^2: the slope vs s^2 is 10/81 and the linear-in-s coefficient
+    is ~0 (parity: exchange is even in grad rho; the gradient enters only as s^2)."""
+    b = ex.coulomb_moments(_KCH, R_C)
+    eps_unif = float(ex.lda_exchange_per_particle(rho0))
+    s = np.array([0.02, 0.04, 0.06, 0.08, 0.10])
+    Fm1 = np.array([ex.eps_from_coeffs(ex.kernel_map_coeffs(_uniform(rho0), si, R_C, _KCH, nu=_KNU), b)
+                    / eps_unif - 1.0 for si in s])
+    # slope vs s^2 (with intercept absorbing the finite-R_c F(s=0) offset)
+    slope = np.polyfit(s ** 2, Fm1, 1)[0]
+    assert abs(slope - 10.0 / 81.0) < 0.02 * (10.0 / 81.0), f"GEA slope {slope:.5f} vs {10/81:.5f}"
+    # parity: fit c0 + b1 s + b2 s^2; the linear coefficient must be negligible vs the quadratic
+    c0, b1, b2 = np.polyfit(s, Fm1, 2)[::-1]
+    assert abs(b1) < 0.05 * abs(b2), f"spurious linear-in-s term b1={b1:.2e} vs b2={b2:.2e}"
+
+
+@pytest.mark.parametrize("Z", [1, 2, 3])
+def test_KERNEL_T3_one_electron_is_fa(Z):
+    """A hydrogenic 1s holds <= one electron per spin (Q/2<=1) -> W_FA=1 -> the kernel map is the
+    Fermi-Amaldi density-following hole -C/Q, matching the existing map_coeffs FA path, and is
+    INDEPENDENT of the reduced gradient s (the GEA term is gated off): LDA/GEA and FA decouple."""
+    b = ex.coulomb_moments(_KCH, R_C)
+    c0, d = ex.kernel_map_coeffs(_hydrogenic_1s(Z), 0.0, R_C, _KCH, nu=_KNU, return_diagnostics=True)
+    assert d["W_FA"] == 1.0 and d["Q_spin"] <= 1.0
+    e0 = ex.eps_from_coeffs(c0, b)
+    # s-independence (GEA gated off)
+    es = ex.eps_from_coeffs(ex.kernel_map_coeffs(_hydrogenic_1s(Z), 0.8, R_C, _KCH, nu=_KNU), b)
+    assert abs(es - e0) < 1e-9, f"FA limit depends on s: {1e3*(es-e0):.3f} mHa"
+    # matches the existing Fermi-Amaldi path
+    em = ex.eps_from_coeffs(ex.map_coeffs(_hydrogenic_1s(Z), R_C, _KCH, nu=_KNU), b)
+    assert abs(e0 - em) < 1e-9, f"kernel FA {e0:.4f} != map_coeffs FA {em:.4f}"
+
+
+def test_KERNEL_T4_rbf_reproduces_fixed_points():
+    """The RBF interpolant reproduces every fixed point exactly (rhotilde(x_k)=rhotilde_k), and
+    adding a node leaves the others unchanged -- the basis for adding more exact limits. With no
+    fixed points it returns the supplied default (the HEG anchor) -> N=1 is LDA everywhere."""
+    rng = np.random.default_rng(0)
+    nodes = [(np.array([0.0, 0.0]), rng.standard_normal(_KCH)),
+             (np.array([1.0, 0.5]), rng.standard_normal(_KCH)),
+             (np.array([0.3, 1.2]), rng.standard_normal(_KCH))]
+    for xk, yk in nodes:
+        got = ex.rbf_interpolant(xk, nodes, default=np.zeros(_KCH), ell=0.7)
+        assert np.allclose(got, yk, atol=1e-6), "RBF does not reproduce a fixed point"
+    # empty fixed-point set -> the default (HEG anchor stand-in)
+    dflt = rng.standard_normal(_KCH)
+    assert np.allclose(ex.rbf_interpolant(np.zeros(2), [], default=dflt), dflt)

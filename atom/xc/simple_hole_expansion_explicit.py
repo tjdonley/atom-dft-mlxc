@@ -288,3 +288,117 @@ def learnable_residual(features, weights, lam, a, r0_vals, n_channels):
     A = np.vstack([4.0 * np.pi * np.asarray(a), np.asarray(r0_vals)])   # (2, n_channels)
     Ginv = np.linalg.inv(A @ A.T)
     return delta - A.T @ (Ginv @ (A @ delta))
+
+
+# =========================================================================== #
+# KERNEL / fixed-point hole map (LDA-from-GEA + FA)
+#
+# The hole coefficients come from a kernel interpolation over fixed points -- known
+# (invariant-features, hole-coefficients) pairs from spherically-symmetric reference
+# densities -- with the LDA limit enforced through the FEATURE DISTANCE and the GEA limit
+# carried by the *gradient projection onto that distance*, not a bolt-on term:
+#
+#   rhotilde(x, Q) = (1 - W_FA(Q/2)) [ rhotilde_RBF(x) + alpha_GEA * s^2 * delta_GEA ]
+#                  +  W_FA(Q/2) * rhotilde_FA ,        then constraint-project.
+#
+# The l=1 part of the squared feature distance from HEG IS s^2 (writeup Eq. sq), so a map
+# *linear in the distance* gives a quadratic-in-grad-rho (= s^2) energy correction, and parity
+# forbids a linear-in-grad-rho term. delta_GEA is the fixed envelope-deformation mode (phi=j_1,
+# on-top neutral) and alpha_GEA = (10/81)/R with R the one-time HEG envelope response -- so the
+# GEA2 slope 10/81 is reproduced by construction, parameter-free. The FA limit is a CHARGE
+# condition (Q = 4 pi sum C_n a_n, derivable from the features), gated in Q-space so it cannot
+# perturb the GEA. N=1 (HEG only) reduces rhotilde_RBF to the HEG anchor exactly.
+# =========================================================================== #
+def gea_mode(rho_on_top, r_c, n_channels, nu=512):
+    """The GEA deformation mode delta_GEA in coefficient space and its dimensionless HEG
+    response R.
+
+    The HEG hole is -(rho/2) S(k_F u) with S=[g_0]^2, g_0=3 j_1(x)/x. Deforming S->[g_0+chi phi]^2
+    (phi=j_1) changes the hole at first order in chi by  d/dchi (-(rho/2)[g_0+chi phi]^2)|_0
+    = -rho g_0(k_F u) phi(k_F u). Project that onto the basis and remove the charge/on-top
+    components (phi(0)=0 already makes it on-top neutral; we also project out the sum-rule
+    component) so the mode touches ONLY the energy. R = eps_from_coeffs(delta_GEA,b)/eps_unif is
+    dimensionless and (on a resolved window) density-independent -- the single GEA response.
+    Returns (delta_GEA (n_channels,), R)."""
+    rho = float(rho_on_top)
+    k_f = (3.0 * np.pi ** 2 * rho) ** (1.0 / 3.0)
+
+    def _dhole(u):
+        x = np.maximum(k_f * np.asarray(u, float), 1e-12)
+        g0 = 3.0 * spherical_jn(1, x) / x          # -> 1 as x->0
+        phi = spherical_jn(1, x)
+        return -rho * g0 * phi
+
+    delta = project_hole(_dhole, r_c, n_channels, nu=nu)
+    a = charge_moments(n_channels, r_c)
+    r0v = radial_basis_at_origin(n_channels, r_c)
+    A = np.vstack([4.0 * np.pi * a, r0v])                              # (2, N)
+    delta = delta - A.T @ np.linalg.solve(A @ A.T, A @ delta)         # charge/on-top neutral
+    b = coulomb_moments(n_channels, r_c)
+    R = eps_from_coeffs(delta, b) / float(lda_exchange_per_particle(rho))
+    return delta, R
+
+
+_MU_GEA = 10.0 / 81.0       # exact second-order gradient-expansion coefficient
+_LO_FX_MAX = 1.804          # Lieb-Oxford enhancement ceiling F_x <= 1.804
+
+
+def rbf_interpolant(x, fixed_points, default, ell=1.0, ridge=1e-9):
+    """Interpolating-RBF value at invariant-feature point ``x`` over ``fixed_points`` =
+    [(x_k, rhotilde_k), ...]. Gaussian kernel of the squared distance; reproduces every node
+    (rhotilde(x_k)=rhotilde_k). With no fixed points it returns ``default`` (the HEG anchor) --
+    i.e. N=1 (HEG only) gives the LDA hole everywhere. Coefficients solved once (small N x N)."""
+    if not fixed_points:
+        return np.asarray(default, float)
+    X = np.array([np.asarray(xk, float) for xk, _ in fixed_points])    # (K, d)
+    Y = np.array([np.asarray(yk, float) for _, yk in fixed_points])    # (K, n_channels)
+    d2 = np.sum((X[:, None, :] - X[None, :, :]) ** 2, axis=2)          # (K, K)
+    Kmat = np.exp(-d2 / (2.0 * ell ** 2)) + ridge * np.eye(len(X))
+    coef = np.linalg.solve(Kmat, Y)                                    # (K, n_channels)
+    kvec = np.exp(-np.sum((X - np.asarray(x, float)[None, :]) ** 2, axis=1) / (2.0 * ell ** 2))
+    return kvec @ coef
+
+
+def kernel_map_coeffs(density_profile, s, r_c, n_channels, nu=512,
+                      fixed_points=(), x_invariants=None, ell=1.0, return_diagnostics=False):
+    """Kernel/fixed-point map: (local density profile, reduced gradient s) -> hole coefficients.
+
+    density_profile : callable(u) -> spherically-averaged local density (for C_n, Q, rho0).
+    s               : reduced gradient |grad rho|/(2 k_F rho) at the point (the l=1 invariant;
+                      s^2 is the l=1 squared distance from HEG). 0 for a uniform density.
+    fixed_points    : optional [(x_k, rhotilde_k)] interior nodes for rhotilde_RBF (HEG is the
+                      default base); x_invariants is the current point's coordinate for the RBF.
+    Returns rhotilde (n_channels,). LDA at s=0 & Q/2>=2; +(10/81)s^2 enhancement (LO-capped) for
+    a slowly-varying density; Fermi-Amaldi (-C/Q) as Q/2 -> 1."""
+    a = charge_moments(n_channels, r_c)
+    r0v = radial_basis_at_origin(n_channels, r_c)
+    C = density_coeffs(density_profile, r_c, n_channels, nu=nu)
+    rho0 = float(np.atleast_1d(density_profile(np.array([0.0])))[0])
+    q_window = 4.0 * np.pi * float(np.dot(C, a))
+    q_safe = max(q_window, 1e-12)
+    w_fa = float(enclosed_charge_switch(0.5 * q_window))               # Q-space gate (per spin)
+
+    # bulk hole: RBF interpolation (N=1 -> HEG anchor) + the GEA gradient deformation
+    rho_heg = heg_anchor(rho0, r_c, n_channels, nu=nu)
+    rbf = rbf_interpolant(x_invariants if x_invariants is not None else np.zeros(1),
+                          list(fixed_points), default=rho_heg, ell=ell)
+    delta_gea, R = gea_mode(rho0, r_c, n_channels, nu=nu)
+    chi = (_MU_GEA / R) * float(s) ** 2                                # F = 1 + (10/81) s^2
+    chi_max = (_LO_FX_MAX - 1.0) / R                                   # LO ceiling F_x <= 1.804
+    chi = chi_max * np.tanh(chi / chi_max)                             # principled saturation
+    bulk = rbf + chi * delta_gea
+
+    coeffs_fa = -C / q_safe                                            # Fermi-Amaldi (density-following)
+    coeffs = (1.0 - w_fa) * bulk + w_fa * coeffs_fa
+    ontop = (1.0 - w_fa) * (-0.5 * rho0) + w_fa * (-rho0 / q_safe)
+    coeffs = constraint_project(coeffs, a, r0v, sum_target=-1.0, ontop_target=ontop)
+    if return_diagnostics:
+        return coeffs, {"W_FA": w_fa, "Q_window": q_window, "Q_spin": 0.5 * q_window,
+                        "rho0": rho0, "R": R, "chi": float(chi), "ontop": ontop}
+    return coeffs
+
+
+def eps_x_kernel(density_profile, s, r_c, n_channels, nu=512, **kw):
+    """Exchange energy per particle from the kernel/fixed-point map."""
+    b = coulomb_moments(n_channels, r_c)
+    return eps_from_coeffs(kernel_map_coeffs(density_profile, s, r_c, n_channels, nu=nu, **kw), b)
