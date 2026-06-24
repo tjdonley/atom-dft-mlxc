@@ -16,8 +16,8 @@ $\mathcal N_{n\ell}$ are fixed by orthonormality with the radial measure $r^2dr$
 $\int_0^{\Rc} r^2 R_{n\ell}R_{n'\ell}\,dr=\delta_{nn'}$, which follows from the
 Sturm--Liouville orthogonality of the Bessel functions. Why this basis? The
 $j_\ell$ are eigenfunctions of the radial Laplacian,
-$\nabla^2[j_\ell(kr)\Ylm]=-k^2 j_\ell(kr)\Ylm$, so derivatives act diagonally
-(used in App.~\ref{app:gea}); and the Dirichlet truncation makes the set complete
+$\nabla^2[j_\ell(kr)\Ylm]=-k^2 j_\ell(kr)\Ylm$, so derivatives act diagonally;
+and the Dirichlet truncation makes the set complete
 and orthonormal on the finite ball, which is what lets integrals collapse to sums
 (App.~\ref{app:operators}).
 
@@ -78,8 +78,8 @@ truncation --- this is why the HEG limit is exact by construction
 \caption{Numerical verification of the homogeneous-electron-gas (HEG) limit through
 the full SIMPLE pipeline (window projection, adaptive radius, mean-split transfer,
 non-dimensionalization), referenced from Sec.~\ref{sec:results-features}.
-\textbf{(a)} The monopole descriptors $d_{n00}$ on the $h=0.2$~bohr grid (points)
-against the analytic HEG values $d^{\mathrm{HEG}}_{n00}=(-1)^n/(n+1)$ (dashed), over
+\textbf{(a)} The monopole descriptors $\varrho_{n00}$ on the $h=0.2$~bohr grid (points)
+against the analytic HEG values $\varrho^{\mathrm{HEG}}_{n00}=(-1)^n/(n+1)$ (dashed), over
 $r_s\in[0.5,20]$; the shaded region marks densities where the adaptive radius is
 clamped ($\Rad=\Rc$), which leaves the HEG values unaffected. \textbf{(b)} Maximum
 deviation from the analytic values versus $r_s$: the continuum pipeline reproduces
@@ -107,11 +107,11 @@ rotations (App.~\ref{app:nondim}).
 \label{app:nondim}
 
 The descriptors are normalized at the adaptive radius,
-$d_{n\ell m}=c'_{n\ell m}/[A_0(\Rad)\bar\rho_{\sigma,\mathrm{safe}}(\Rad)]$. Under
+$\varrho_{n\ell m}=c'_{n\ell m}/[A_0(\Rad)\bar\rho_{\sigma,\mathrm{safe}}(\Rad)]$. Under
 scaling, $A_0(\Rad/\lambda)=\lambda^{-3/2}A_0(\Rad)$ and
 $\bar\rho_\sigma\mapsto\lambda^3\bar\rho_\sigma$, so the denominator scales as
 $\lambda^{3/2}$, exactly cancelling the $\lambda^{3/2}$ of the numerator from
-Eq.~\eqref{eq:dilation}: $d_{n\ell m}$ is invariant for every $\ell$, up to
+Eq.~\eqref{eq:dilation}: $\varrho_{n\ell m}$ is invariant for every $\ell$, up to
 $\rho_{\min}$ effects and the transfer truncation. (This corrects an earlier
 convention that multiplied by $\bar\kF^\ell$, which actually multiplies the
 fixed-$\xi$ features by $\lambda^\ell$ and breaks the invariance it was meant to
@@ -131,14 +131,14 @@ slot and the rotation on the magnetic slot, they commute,
 \bigl(\mathsf M^{(\ell)}\otimes\mathbb 1\bigr)\bigl(\mathbb 1\otimes D^{(\ell)}\bigr)
 =\bigl(\mathbb 1\otimes D^{(\ell)}\bigr)\bigl(\mathsf M^{(\ell)}\otimes\mathbb 1\bigr),
 \end{equation}
-so $d_{n\ell m}$ is a rank-$\ell$ tensor and any contraction to total angular
+so $\varrho_{n\ell m}$ is a rank-$\ell$ tensor and any contraction to total angular
 momentum zero is invariant (verified numerically to $\lesssim2\times10^{-15}$).
 
 \paragraph*{Low-density limit.}
 With the safe floor $\bar\rho_{\sigma,\mathrm{safe}}=(\bar\rho_\sigma^2+\rho_{\min}^2)^{1/2}$,
 as $\rho\to\epsilon\rho$ the adaptive radius clamps at the window and the descriptors
-reduce to fixed-window coefficients divided by a floor: $d_{n\ell m}=\mathcal O(\epsilon)$
-and $\tilde P_{n\ell}=\sum_m d_{n\ell m}^2=\mathcal O(\epsilon^2)$, smoothly and
+reduce to fixed-window coefficients divided by a floor: $\varrho_{n\ell m}=\mathcal O(\epsilon)$
+and $\tilde P_{n\ell}=\sum_m \varrho_{n\ell m}^2=\mathcal O(\epsilon^2)$, smoothly and
 without overflow, with crossover at $\epsilon^*=\rho_{\min}/\bar\rho_\sigma$.
 
 \begin{figure}[tb]
@@ -146,8 +146,8 @@ without overflow, with crossover at $\epsilon^*=\rho_{\min}/\bar\rho_\sigma$.
 \includegraphics[width=\columnwidth]{figures/simple_vacuum.pdf}
 \caption{Low-density (vacuum) stability of the descriptors as the density is scaled
 down uniformly, $\rho\mapsto\epsilon\rho$, over thirteen decades of $\epsilon$. The
-descriptor-coefficient norm $\lVert d_{n\ell m}\rVert$ (blue) decays as
-$\mathcal O(\epsilon)$ and the power spectrum $\tilde P_{n\ell}=\sum_m d_{n\ell m}^2$
+descriptor-coefficient norm $\lVert \varrho_{n\ell m}\rVert$ (blue) decays as
+$\mathcal O(\epsilon)$ and the power spectrum $\tilde P_{n\ell}=\sum_m \varrho_{n\ell m}^2$
 (orange) as $\mathcal O(\epsilon^2)$ (reference slopes shown dashed; the fitted
 power-spectrum slope is $2.000$), exactly as predicted in this section: below the
 crossover $\epsilon^*=\rho_{\min}/\bar\rho_\sigma$ the safe floor
@@ -203,56 +203,50 @@ measure from $u^2du$ to $u\,du$: this is how the long-range $1/r$ structure that
 semilocal functionals miss enters, and it is the foundation of the exchange-hole
 functional below.
 
-\section{Reduced gradient and Laplacian from the expansion}
+\section{Reduced gradient from the expansion}
 \label{app:gea}
 
 The gradient expansion of exchange,
 $E_x=\int\varepsilon_x^{\mathrm{LDA}}(\rho)\bigl[1+\mu s^2+\dots\bigr]\rho\,d^3r$,
-requires the reduced gradient $s=|\nabla\rho|/(2\kF\rho)$ and reduced Laplacian
-$q=\nabla^2\rho/(4\kF^2\rho)$, with $\kF=(3\pi^2\rho)^{1/3}$. We extract both from
-the SIMPLE expansion with parameter-free spectral operators.
+requires the reduced gradient $s=|\nabla\rho|/(2\kF\rho)$, with
+$\kF=(3\pi^2\rho)^{1/3}$. We extract it from the SIMPLE expansion with a
+parameter-free spectral operator.
 
 \paragraph*{Gradient (slope at origin).}
 The density at the expansion center along a ray is built from the $\ell=1$
 channel; its slope at $r_0$ is $\rho'(r_0)=\sum_n a^{(1)}_n R'_{n1}(0)$, where
-$a^{(\ell)}_n$ are the channel-$\ell$ radial expansion coefficients and
-$R'_{n1}(0)=\mathcal N_{n1}k_n/3$ (the small-argument behavior $j_1(x)\approx x/3$).
-This is a fixed linear operator on the gridded density.
+$a^{(1)}_n$ are the channel-$1$ radial expansion coefficients and
+$R'_{n1}(0)=\mathcal N_{n1}k_n/3$ (the small-argument behavior $j_1(x)\approx x/3$),
+$k_n=z_{n1}/\Rc$. This is a fixed linear operator on the gridded density, and ---
+growing only as $k_n^1$ --- it is well-conditioned, so the slope is recovered
+directly without any per-channel reformation.
 
-\paragraph*{Laplacian (Bessel eigenvalue).}
-Because $\nabla^2[R_{n0}]=-k_n^2 R_{n0}$ with $k_n=z_{n0}/\Rc$, the Laplacian is the
-eigenvalue-weighted monopole sum $\nabla^2\rho(r_0)=-\sum_n a^{(0)}_n k_n^2 R_{n0}(0)$.
-This must be evaluated \emph{per channel}: the coefficients
-$a^{(0)}_n=\int_0^{\Rc} R_{n0}(u)\,\rho_0(u;r_0)\,u^2\,du$ are formed first --- they
-decay for a smooth density --- and the growing $k_n^2$ weights applied afterward, so
-the sum converges. Folding the weights into a single kernel
-$\sum_n(-k_n^2 R_{n0}(0))R_{n0}(u)$ \emph{before} the density integral builds a
-near-singular ($\sim\nabla^2\delta$) object whose huge oscillatory values destroy the
-result to catastrophic cancellation; the $k_n^2$ growth makes this fatal for $\ell=0$
-(the $\ell=1$ gradient, growing only as $k_n^1$, is stable either way). The operator
-is therefore matrix-free and applied per channel.
+\paragraph*{Why not the Laplacian.}
+The same construction would give the reduced Laplacian from the $\ell=0$ channel via
+$\nabla^2[R_{n0}]=-k_n^2 R_{n0}$, i.e.\ $\nabla^2\rho(r_0)=-\sum_n a^{(0)}_n k_n^2
+R_{n0}(0)$. The forward sum can be stabilized by forming it \emph{per channel} (the
+$a^{(0)}_n$ decay for a smooth density, the growing $k_n^2$ weights applied
+afterward), but its variational adjoint --- needed for the self-consistent
+potential --- re-forms the single $k_n^2$ kernel $\sum_n(-k_n^2 R_{n0}(0))R_{n0}(u)$,
+a near-singular ($\sim\nabla^2\delta$) object whose huge oscillatory values are
+catastrophically ill-conditioned. The $k_n^2$ growth makes this fatal for $\ell=0$,
+and no practical regularization kept the self-consistent cycle stable across cutoffs.
+We therefore stop the expansion at second order and do not carry a Laplacian channel;
+the functional uses only the $\ell=1$ gradient.
 
 \paragraph*{Constant annihilation and the uniform limit.}
 The $\ell=1$ gradient operator ends with
 $\mathsf O\to\mathsf O-\mathrm{diag}(\sum_j\mathsf O_{ij})$, forcing
 $\mathsf O[\text{const}]=0$ (the gradient of a uniform density vanishes; the
-subtraction also removes the DC truncation residual). The $\ell=0$ Laplacian is
-\emph{not} constant-annihilated: for the $k_n^2$ channel the constant's own
-truncation residual is large (a constant does not decay in the window), so
-subtracting it would contaminate every point. The operator is instead applied to
-densities that decay within the window (real pseudopotential atoms), where
-$\nabla^2\rho$ is recovered directly to $\sim1\%$ in the core/valence (verified
-against finite differences); the uniform-density limit $q\to0$ is imposed
-analytically in the functional, not through this operator.
+subtraction also removes the DC truncation residual), so the reduced gradient
+vanishes for the HEG by construction.
 
 \paragraph*{In SIMPLE features.}
-Dividing these dimensional operators by the non-dimensionalization amplitude turns
-them into the feature contractions of Eq.~\eqref{eq:sq}: the spectral weights are
+Dividing this dimensional operator by the non-dimensionalization amplitude turns it
+into the feature contraction of Eq.~\eqref{eq:sq}: the spectral weights are
 $g^{(1)}_n\propto R'_{n1}(0)$ (slope-at-origin) acting on the $\ell=1$ features
-$d_{n1m}$, and $g^{(0)}_n\propto k_n^2 R_{n0}(0)$ (Bessel eigenvalue) acting on the
-$\ell=0$ features $d_{n00}$. The reduced gradient is the norm of the $\ell=1$
-contraction --- hence the $\ell=1$ power of the spectrally-weighted features --- and
-the reduced Laplacian is the $\ell=0$ contraction.
+$\varrho_{n1m}$. The reduced gradient is the norm of the $\ell=1$ contraction --- hence the
+$\ell=1$ power of the spectrally-weighted features.
 
 \paragraph*{The $10/81$ coefficient.}
 For the ball-normalized reduced gradient the second-order gradient-expansion
@@ -320,30 +314,47 @@ The ``2'' is a spin assumption (a paired pair); the open-shell case is handled b
 the spin decomposition of App.~\ref{app:spin}.
 
 \paragraph*{Recovering the gradient expansion.}
-Inhomogeneity is returned to the shape by adding $\ell\ge1$ Bessel modes that
-vanish at the origin (preserving on-top and HEG),
-$S(x;\{c\})=[\,j_0(x)+j_2(x)+\sum_m c_m\varphi_m(x)]^2$ with
-$\varphi_m=j_\ell(\kappa_m x)$ (mode wavevectors $\kappa_m$) and deformation
-coefficients $c_m=\sum_\alpha A^m_\alpha I_\alpha[\rho]$ (coefficients $A^m_\alpha$)
-linear in the SIMPLE invariants $I_\alpha$. The invariants vanish for a uniform density
-(preserving LDA), and the small-$s$ slope of $c_m$ is fixed by the gradient
-expansion ($\mu=10/81$ at second order, optionally fourth order). The bare
-parameter-free functional uses only the monopole and gradient features and so is
-spherically symmetric.
+Inhomogeneity is returned to the shape by adding a single Bessel mode that
+vanishes at the origin (preserving on-top and HEG),
+$S(x;\chi)=[\,j_0(x)+j_2(x)+\chi\,\varphi(x)]^2$ with $\varphi=j_1$ and a single
+deformation amplitude $\chi$ linear in the SIMPLE reduced gradient, $\chi\propto
+s^2$ [Eq.~\eqref{eq:sq}]. The amplitude vanishes for a uniform density (preserving
+LDA), and its small-$s$ slope is fixed by the second-order gradient expansion
+($\mu=10/81$). The parameter-free functional uses only the monopole and $\ell=1$
+gradient features and so is spherically symmetric.
 
 \paragraph*{Calibrating the deformation (one-time HEG response).}
-The map from the invariants to the envelope amplitude is fixed, not fit. To linear
-order the envelope deformation shifts the enhancement factor by
-$\delta F_x=\sum_m\rho_m\,c_m$, where the \emph{envelope response}
-$\rho_m\equiv\partial F_x/\partial c_m$ is evaluated once at the homogeneous gas:
-perturb the amplitude $c_m$ about the bare hole ($c=0$), re-solve the on-top scale
-$Q_S(\zeta)=2$, and read off the change in $F_x=\varepsilon_x/\varepsilon_x^{\mathrm{unif}}$.
-The coefficients are then chosen so $\sum_m\rho_m A^m_\alpha$ equals the
-gradient-expansion coefficient of invariant $\alpha$ [the $10/81$, $146/2025$,
-$-73/405$ of Eq.~\eqref{eq:fx}]; with a single mode this is simply
-$A_\alpha=(\text{coefficient}_\alpha)/\rho_0$. Because $F_x$ and the invariants are
-scale-free, $\rho_0$ is universal (computed once), so the deformed functional
-reproduces Eq.~\eqref{eq:fx} by construction while the bare-hole limits survive.
+The map from the reduced gradient to the envelope amplitude is fixed, not fit. To
+linear order the envelope deformation shifts the enhancement factor by
+$\delta F_x=R\,\chi$, where the \emph{envelope response} $R\equiv\partial
+F_x/\partial\chi$ is evaluated once at the homogeneous gas: perturb the amplitude
+$\chi$ about the bare hole ($\chi=0$), re-solve the on-top scale $Q_S(\zeta)=2$, and
+read off the change in $F_x=\varepsilon_x/\varepsilon_x^{\mathrm{unif}}$. The
+amplitude is then chosen so $R\,\chi$ equals the second-order gradient-expansion term
+$\tfrac{10}{81}s^2$ of Eq.~\eqref{eq:fx}, i.e.\ $\chi=R^{-1}\tfrac{10}{81}s^2$
+[Eq.~\eqref{eq:amp}]. The key point is that $F_x$ is evaluated on the \emph{adaptive}
+radius $\Rad=\xi^*/\kF$ reached by the scale transform of Sec.~\ref{sec:scale}, so it
+depends only on the dimensionless profile and $R$ is a single density- and
+cutoff-independent constant (computed once); under a fixed window the same response
+drifts with density and cutoff and would require a one-parameter regression over
+reference atoms. The deformed functional therefore reproduces Eq.~\eqref{eq:fx} by
+construction while the bare-hole limits survive. The large-$s$ divergence of the
+expansion is regularized by saturating the amplitude,
+$\chi\to\chi_{\max}\tanh(\chi/\chi_{\max})$, with $\chi_{\max}$ fixed by the
+Lieb--Oxford bound $F_x\le1.804$; acting on the amplitude it leaves the second-order
+slope and the on-top value untouched. Because the $\ell=1$ gradient adjoint grows only
+as $k_n^1$ and is well-conditioned, the resulting potential is self-consistent and
+stable without any auxiliary loop --- the central reason the expansion is stopped at
+second order rather than carrying the stiff $\ell=0$ Laplacian channel
+(App.~\ref{app:gea}).
+
+\paragraph*{Plane-wave (HEG) verification of the second-order limit.}
+Perturbing the uniform gas with a density wave $\rho_0(1+\alpha\cos kz)$ (analytic
+monopole, operator-free) shows the bare hole is \emph{monopole-blind} to the
+gradient: its $s^2$ response vanishes identically at the pure-gradient phase. The
+$\ell=1$ deformation therefore supplies the \emph{entire} second-order term, and the
+exact slope $\mu=10/81$ is recovered as $\rho\to$~HEG --- an independent check that
+the construction carries the gradient expansion at second order.
 
 \paragraph*{The DOF ledger and the frontier.}
 \begin{center}
@@ -426,16 +437,15 @@ non-iterative, and vectorized over all grid points, adding no loop to the
 Kohn--Sham cycle. (Confirmed in the implementation: the self-consistent functional
 reproduces the direct-integral hole on the converged density.)
 
-\paragraph*{Stiffness and the frozen-gradient dual loop.}
-The exchange-kernel response $\delta v_x/\delta\rho$ is stiff. The reduced Laplacian
-$q$ that carries the fourth-order GEA term [Eq.~\eqref{eq:fx}] enters the potential
-through the $\ell=0$ spectral Laplacian, whose forward is stable when applied per
-channel (App.~\ref{app:gea}) but whose adjoint re-forms the singular $k_n^2$ kernel
-and is correspondingly ill-conditioned. This is handled by a frozen-gradient dual
-loop: the gradient/Laplacian (GEA) correction is held fixed on the stable bare-hole
-potential through the Kohn--Sham outer loop, which converges all atoms while keeping
-the bare-hole stability bound. Quantitative validation of the dual loop on the
-self-consistent atom set is part of the production benchmarks.
+\paragraph*{Adjoint conditioning and the second-order cutoff.}
+The exchange-kernel response $\delta v_x/\delta\rho$ is dominated by the gradient
+deformation. The $\ell=1$ adjoint grows only as $k_n^1$ and is well-conditioned, so
+the second-order functional converges self-consistently across all atoms tested with
+no auxiliary loop. A fourth-order Laplacian term would instead enter through the
+$\ell=0$ spectral Laplacian, whose adjoint re-forms the singular $k_n^2$ kernel and is
+catastrophically ill-conditioned (App.~\ref{app:gea}); attempts to stabilize it
+(per-channel forward, frozen-correction outer loops) did not hold across cutoffs.
+This is why the expansion is stopped at second order.
 
 \paragraph*{The $-1/r$ tail.}
 The exact exchange potential decays as $-1/r$. The model potential is made to
@@ -466,3 +476,284 @@ vanish to machine precision ($\lesssim2\times10^{-16}$); and a sub-grid registra
 sweep stays at $\sim\!1.0\times10^{-3}$. The lattice scale-invariance test tracks the 1D radial behavior
 with the same two breakdown mechanisms. Thus $\sim0.2$~bohr grid spacings, typical
 of real-space pseudopotential codes, are sufficient.
+
+\section{Practical limits of the SIMPLE features on real-space grids}
+\label{app:stress}
+
+The validation above establishes that the descriptors are convergent and covariant;
+this appendix maps the \emph{practical} limits --- where each feature family, used as
+a functional ingredient, stays invariant on a realistic grid and where it fails. We
+stress four ingredients through $\ell=3$ --- the reduced gradient $s$, the reduced
+Laplacian $q$, the power spectrum $\tilde P_{n\ell}$ (32 entries), and the bispectrum
+(all triangle triples, 6656 entries) --- on five superposition densities built from
+single-atom radial densities: pseudo-H$_2$, pseudo-N$_2$, pseudo-H$_2$O (O$+$2H at
+$0.96$~\AA, $104.5^\circ$), and FCC bulk Al and Pt (clusters filling the window). The
+cutoff is fixed at $\Rc=6$~bohr; the realistic spacings are $h=0.1,0.2,0.3$~bohr; the
+ground truth is the analytic continuum-quadrature reference (for $\tilde P$ and the
+bispectrum) and a finite-difference gradient/Laplacian of the analytic density (for
+$s,q$). We flag any relative error $>10\%$ whose feature magnitude is above a
+per-group floor (a large relative error on a near-zero feature carries no
+information). The four tests are translation (sub-grid registration), rotation
+(random rigid rotations), uniform scaling, and grid-spacing sensitivity; the script
+\texttt{invariant\_stress\_test.py} reproduces every number and figure.
+
+\paragraph*{Rotation and translation are robust.}
+Across 8 random rotations the rotation-invariant features ($s,q,\tilde P$, bispectrum)
+hold to $\le1.4\%$ at $h=0.2$ for every system and center (median $<0.5\%$) --- the
+grid breaks rotational symmetry only at the static-quadrature level. Under sub-grid
+registration shifts the deviation stays $\le1\%$ except at the bare pseudo-H$_2$
+nuclear cusp, where it reaches $6.5\%$ (the cusp is the hardest case for any uniform
+grid; pseudopotential and bulk densities are smooth and stay $\lesssim1\%$).
+
+\paragraph*{Grid-spacing: $\tilde P$ and the bispectrum converge; $q$ is a
+reconstruction problem, not a grid problem.}
+The power spectrum and bispectrum converge as $\mathcal O(h^2)$ toward the continuum
+(Fig.~\ref{fig:stress-grid}), reaching the $10\%$ flag only for the cusped pseudo-H$_2$
+at the coarsest $h=0.3$; at $h=0.2$ all systems are within $\sim$6\% and the smooth
+ones within $\sim$2\%. The \emph{grid-discretization} error of $s$ and $q$ is likewise
+small. Their limitation is instead the \emph{reconstruction} fidelity (continuum
+feature versus the exact derivative): $s$ is faithful in molecules ($\le4\%$ for
+N$_2$, H$_2$O), but $q$ --- the $\ell=0$ Bessel-eigenvalue contraction --- is
+unreliable in dense environments, off by tens to hundreds of times at the bulk metal
+sites ($\sim\!60\times$ for Al, $\sim\!900\times$ for the Pt octahedral interstitial).
+This is the practical confirmation that the dimensionless Laplacian cannot be carried
+as a functional ingredient (Sec.~\ref{sec:gea}, App.~\ref{app:gea}); the high-symmetry
+bulk sites are inversion centers where $\nabla\rho\equiv0$, so $s$ itself vanishes
+there and its relative error is not informative, whereas $q$ is genuinely large and
+genuinely wrong.
+
+\paragraph*{Uniform scaling: an inner-channel resolution limit, not a clamp.}
+At the grid-matched channel count $\nin=16$ (the $\nin\!\simeq\!\Rc/2h$ pairing for
+$h=0.2$, $\Rc=6$) the dimensionless features deviate under uniform scaling more than
+the raw descriptors of Fig.~\ref{fig:scale} would suggest --- the apparent
+deviations grow with $|\lambda-1|$ and are largest for the bispectrum and the dense
+bulk systems. This is \emph{not} the adaptive-radius clamp: across every system and
+scaling here $\Rad$ stays well below $\Rc$ (e.g.\ $0.3$--$3$~bohr; never clamped). Nor
+is it a grid artifact --- the continuum-quadrature descriptors show the same
+deviation. It is the \emph{inner-channel resolution} bound of the scale transform,
+$k^*\lambda\lesssim\nin\pi/\Rc$ (Sec.~\ref{sec:scale}): the transfer that
+reconstructs the dilated-window descriptors needs enough inner channels to represent
+the dilated sampling, and $\nin=16$ at $\Rc=6$ exhausts that resolution sooner than
+the $\nin\!\ge\!32$ used for the continuum results of Fig.~\ref{fig:scale}. Raising
+$\nin$ collapses the deviation back to the Fig.~\ref{fig:scale} level
+(Fig.~\ref{fig:stress-scaleres}): the descriptor-vector deviation at $\lambda=1.67$
+falls from $\sim\!19\%$ ($\nin=16$) to $\sim\!1\%$ ($\nin=32$) to $\sim\!0.2\%$
+($\nin=48$), exactly the documented convergence. (The per-entry \emph{maximum}
+relative error of Fig.~\ref{fig:stress-scale} further amplifies this over the
+vector-norm metric, since it is dominated by the smallest, near-floor power-spectrum
+and bispectrum entries.) The practical statement is therefore not that the features
+fail to be scale-invariant, but that \emph{scale-invariant use of the
+transfer-reconstructed features requires $\nin\gtrsim32$} --- i.e.\ a grid fine enough
+($h\lesssim0.1$~bohr at $\Rc=6$) to supply the inner channels, or a channel count
+decoupled from the grid spacing.
+
+\paragraph*{Summary.}
+At $h\le0.2$~bohr the power spectrum, the bispectrum, and the reduced gradient $s$ are
+practically usable under rotation, translation, and grid refinement; the reduced
+Laplacian $q$ is not reliably reconstructable (catastrophically so in bulk metals,
+where its $\ell=0$ eigenvalue sum is ill-conditioned), consistent with the $q$-free,
+second-order functional of the main text. Scale invariance holds as the theory
+predicts, but only once the inner-channel count resolves the dilation
+($\nin\gtrsim32$); at the coarse grid-matched $\nin=16$ it is the apparent soft spot,
+so adequate radial resolution (or an $\nin$ decoupled from $h$) is the requirement for
+applying the transferred features to strongly scaled or condensed-phase densities.
+
+\begin{figure*}[tb]
+\centering
+\includegraphics[width=0.82\textwidth]{figures/invariance_grid.pdf}
+\caption{Grid-spacing sensitivity of the four feature families: maximum relative error
+of the gridded features against the continuum reference versus spacing $h$, at
+$\Rc=6$~bohr, for the five systems (max over evaluation centers). Dashed line, the
+$10\%$ flag; dotted, an $\mathcal O(h^2)$ guide. The power spectrum and bispectrum
+converge as $\mathcal O(h^2)$; only the cusped pseudo-H$_2$ approaches the flag at
+$h=0.3$. (This is grid-discretization error; the reconstruction error of $s$ and
+especially $q$ in dense environments, discussed in the text, is a separate and larger
+effect.)}
+\label{fig:stress-grid}
+\end{figure*}
+
+\begin{figure*}[tb]
+\centering
+\includegraphics[width=0.82\textwidth]{figures/invariance_scale.pdf}
+\caption{Scale invariance at $h=0.2$~bohr: relative deviation of each feature family
+from its $\lambda=1$ value under uniform scaling $\rho\to\lambda^3\rho(\lambda r)$,
+one curve per system and evaluation center (deviations floored at $10^{-6}$ for the
+log axis; dashed line, the $10\%$ flag). Invariance holds only in a narrow window
+about $\lambda=1$ and degrades steeply for stronger scaling and for the extended/bulk
+systems. The deviation is dominated by the inner-channel resolution of the scale
+transform at the grid-matched $\nin=16$ (Fig.~\ref{fig:stress-scaleres}), not by the
+adaptive-radius clamp (which is never reached here), and the per-entry maximum
+amplifies the smallest near-floor entries.}
+\label{fig:stress-scale}
+\end{figure*}
+
+\begin{figure*}[tb]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/invariance_scale_resolution.pdf}
+\caption{Resolving the scale-invariance deviations of Fig.~\ref{fig:stress-scale}.
+Continuum-quadrature descriptor-vector deviation
+$D(\lambda)=\lVert \varrho(\lambda)-\varrho(1)\rVert/\lVert \varrho(1)\rVert$ under uniform scaling, for
+increasing inner-channel counts $\nin$, at $\Rc=6$~bohr (the adaptive radius is
+unclamped throughout). The deviation falls systematically with $\nin$ --- from the
+grid-matched $\nin=16$ down to $\nin=64$ --- collapsing below the Fig.~\ref{fig:scale}
+continuum level (dotted) once $\nin\gtrsim32$. The scale non-invariance is therefore
+the documented inner-channel resolution bound $k^*\lambda\lesssim\nin\pi/\Rc$, not a
+breakdown of the construction: with enough radial channels the transferred features
+are scale-invariant as the theory requires.}
+\label{fig:stress-scaleres}
+\end{figure*}
+
+\section{Parameter selection: window, resolution, scale range, and cost}
+\label{app:params}
+
+The limits of App.~\ref{app:stress} fix the few free parameters of the descriptor ---
+the window $\Rc$, the grid spacing $h$, the inner- and exposed-channel counts
+$\nin,\nout$, and the angular cutoff $\ell_{\max}$ --- through two requirements: a
+target energy accuracy (which sets $\Rc$ and $\nout$) and a target scale-invariance
+range (which couples $h$, $\nin$, $\nout$, and the cost). We make both quantitative and
+adopt a single production setting, $\Rc=6$~bohr and $\nout=10$, used in the rest of the
+paper.
+
+\paragraph*{Scale range, resolution, and cost are one relation.}
+On a grid of spacing $h$ the inner channels resolvable below the Nyquist wavevector
+$\pi/h$ number $\nin=\Rc/h$ (the highest channel $k_{\nin}=\nin\pi/\Rc=\pi/h$ sits
+exactly at Nyquist). The scale transform reconstructs the dilated-window descriptors
+only while the dilated sampling stays within that resolution, $k^*\lambda\lesssim
+\nin\pi/\Rc$ with $k^*\simeq\nout\pi/\Rc$ the highest \emph{exposed} wavevector, i.e.\
+the features stay scale-invariant up to a dilation
+\begin{equation}
+\label{eq:lammax}
+\Lambda_{\max}\;\simeq\;\frac{\nin}{\nout}\;=\;\frac{\Rc}{h\,\nout}.
+\end{equation}
+This is confirmed directly (Fig.~\ref{fig:design}a): at fixed $\nout=10$, the
+descriptor-vector deviation $D(\lambda)$ stays $\lesssim1\%$ until $\lambda$ approaches
+$\Lambda_{\max}=\nin/\nout$ and rises beyond it, with the usable range growing linearly
+in $\nin$ ($\Lambda_{\max}\approx2.0,3.0,6.0$ at $h=0.3,0.2,0.1$~bohr). The cost is set
+by the same $\nin$: each descriptor is one fixed-stencil convolution per radial channel
+and angular index, so
+\begin{equation}
+\label{eq:nconv}
+N_{\mathrm{conv}}=\nin(\ell_{\max}+1)^2=\frac{\Rc}{h}(\ell_{\max}+1)^2 ,
+\end{equation}
+the transfer to $\nout$ being a cheap per-point matrix product. Eliminating $h$ between
+Eqs.~\eqref{eq:lammax}--\eqref{eq:nconv} gives the design rule directly: to be
+scale-invariant over a dilation $\Lambda$ with $\nout$ exposed channels through
+$\ell_{\max}$ requires
+\begin{equation}
+\label{eq:designrule}
+h\le\frac{\Rc}{\nout\,\Lambda},\qquad
+N_{\mathrm{conv}}\ge\nout\,\Lambda\,(\ell_{\max}+1)^2 .
+\end{equation}
+For $\Rc=6$, $\nout=10$, $\ell_{\max}=3$ (so $(\ell_{\max}+1)^2=16$) this is
+$N_{\mathrm{conv}}=320,480,960$ convolutions at $h=0.3,0.2,0.1$~bohr (set by $\nin$, not
+$\nout$), buying $\Lambda_{\max}\approx2.0,3.0,6.0$ (Fig.~\ref{fig:design}b) --- the
+coarsest practical grid ($h=0.3$) already covers a $2.0\times$ linear (${\sim}8\times$
+density) dilation at $320$ convolutions, and halving $h$ buys proportionally more range
+at proportionally more cost.
+
+\paragraph*{The cost is set by the scale range, not the grid.}
+A subtlety worth making explicit: $\nin$ is a \emph{design choice} --- the number of
+inner channels one elects to compute --- bounded above only by the grid through
+$\nin\le\Rc/h$. The sequence $N_{\mathrm{conv}}=320,480,960$ above corresponds to
+spending the \emph{full} grid resolution $\nin=\Rc/h$ at each $h$, which is why it grows
+as the grid refines (and buys the larger $\Lambda_{\max}=2,3,6$). But for a \emph{fixed}
+target scale range one simply fixes $\nin=\nout\Lambda$; the convolution count
+$N_{\mathrm{conv}}=\nout\Lambda(\ell_{\max}+1)^2$ is then independent of $h$, and the
+grid need only be fine enough to resolve it, $h\le\Rc/\nin$. Numerically, holding
+$\nin=2\nout=20$ fixed (so $N_{\mathrm{conv}}=320$ at $\ell_{\max}=3$, for the full
+$\Lambda_{\max}=2$): the scale deviation $D(\lambda)$ is essentially
+\emph{$h$-independent} ($D(\lambda{=}2)\approx0.035$ at $h=0.3,0.2,0.1,0.05$~bohr), while
+refining $h$ only sharpens those same channels (their deviation from the continuum falls
+$0.5\%\!\to\!0.01\%$ from $h=0.3$ to $0.05$). So a finer grid does \emph{not} require
+more convolutions for a given scale range --- it improves accuracy at fixed cost.
+Conversely, extending $\Lambda$ means raising $\nin$ (more convolutions) and refining $h$
+to resolve it; reducing the angular cutoff is the other lever, $N_{\mathrm{conv}}=
+\nin(\ell_{\max}+1)^2 = 320,180,80$ at $\nin=20$ for $\ell_{\max}=3,2,1$. The full
+$\ell\le3$ feature set at $\Lambda=2$ is thus a fixed $320$ convolutions on any grid
+$h\le0.3$~bohr.
+
+\paragraph*{An energy scale fixes $\Rc$ and $\nout$.}
+To anchor the two remaining counts to a physical tolerance we evaluate the Hartree
+self-energy of the hydrogen $1s$ density ($\rho=e^{-2r}/\pi$, exact $J=5/16$~Ha) through
+the SIMPLE windowed Coulomb projection [Eq.~\eqref{eq:coulomb}], $V_H(r_0)=\sum_n w_n
+C_n$ with the monopole window coefficients $C_n$ in an $\nout$-channel basis and Coulomb
+weights $w_n=4\pi\int_0^{\Rc}R_n(u)\,u\,du$. Two truncations control the error
+(Fig.~\ref{fig:hartree}): the window $\Rc$ (the Coulomb tail beyond it is dropped) and
+$\nout$ (the radial-basis resolution of the enclosed density). The window floor reaches
+the milli-Hartree scale only at $\Rc\gtrsim6$~bohr --- $-1.7$~mHa at $\Rc=5$,
+$\mathbf{-0.37}$~\textbf{mHa at} $\boldsymbol{\Rc=6}$, $-0.01$~mHa at $\Rc=8$ --- so
+$\Rc=6$ is the smallest window consistent with sub-milli-Hartree Coulomb energetics, and
+no $\nout$ can rescue a shorter window ($\Rc=4$ plateaus at $-7.9$~mHa). At $\Rc=6$ the
+radial-basis error falls below $1$~mHa already by $\nout\approx8$ and effectively
+reaches the window floor by $\nout\approx10$ ($-0.49$~mHa at $\nout=10$; further channels
+gain little, the residual being the tail). Hence $\Rc=6$~bohr and $\nout=10$ deliver the
+Coulomb energy to ${\sim}0.5$~mHa with margin --- the production setting.
+
+\paragraph*{The energy floor on a practical grid.}
+The $-0.5$~mHa figure above is the continuum value of the projection; on a real
+Cartesian grid it acquires a discretization error that depends on the spacing $h$ and on
+where the nucleus sits relative to the lattice (sub-grid registration). Evaluating the
+same H Hartree energy on a 3D grid (the windowed-Coulomb kernel convolved with the
+gridded density) for four registrations --- nucleus on a lattice point, on a face
+center, on the body center, and a generic offset --- shows the error fanning out from
+the continuum floor as $h$ coarsens (Fig.~\ref{fig:hartreegrid}): all registrations
+agree to $0.02$~mHa at $h=0.1$, spread to $0.33$~mHa at $h=0.2$ (all within
+$[-0.55,-0.22]$~mHa) and $0.80$~mHa at $h=0.25$, and reach a $1.66$~mHa spread at
+$h=0.3$ where the best/worst registrations ($+0.86/-0.80$~mHa) just brush the
+$\pm1$~mHa band. The on-site placement overshoots and the body-centered undershoots ---
+a grid-quadrature aliasing that averages out only as $h\to0$. So the $1$~mHa Coulomb
+tolerance holds robustly and registration-independently for $h\lesssim0.2$--$0.25$~bohr;
+$h=0.3$~bohr is the practical edge, where the translation-induced variation alone
+approaches the tolerance.
+
+\paragraph*{Recommended setting.}
+$\Rc=6$~bohr, $\nout=10$, $\ell_{\max}=3$: Hartree energetics converged to ${\sim}0.5$~mHa
+(continuum), holding to ${<}1$~mHa on grids with $h\lesssim0.2$--$0.25$~bohr for any
+registration (Fig.~\ref{fig:hartreegrid}); $N_{\varrho}=10$ monopole channels for the
+spherically symmetric hole functional; and (Eq.~\eqref{eq:designrule}) scale invariance
+over $\Lambda_{\max}\approx2.0$ at the coarsest $h=0.3$~bohr, rising to ${\approx}6$ at
+$h=0.1$~bohr, at $320$--$960$ convolutions for the full $\ell\le3$ feature set. The
+reduced gradient $s$ and the power spectrum/bispectrum are well within their flagged
+tolerances at these settings (App.~\ref{app:stress}); the reduced Laplacian $q$ is
+excluded on the stability grounds established there and in App.~\ref{app:gea}.
+
+\begin{figure*}[tb]
+\centering
+\includegraphics[width=0.86\textwidth]{figures/hartree_convergence.pdf}
+\caption{Energy-scale calibration of $\Rc$ and $\nout$: the Hartree self-energy of the
+hydrogen $1s$ density through the SIMPLE windowed Coulomb projection
+[Eq.~\eqref{eq:coulomb}], error versus the exact $5/16$~Ha. \textbf{(a)} radial-basis
+convergence versus $\nout$ for several windows (circle: the adopted $\Rc=6,\nout=10$ at
+$-0.49$~mHa); a short window ($\Rc=4$) is tail-limited and never reaches $1$~mHa.
+\textbf{(b)} the $\nout$-converged window floor versus $\Rc$, crossing $1$~mHa at
+$\Rc\!\approx\!6$~bohr. Together they fix $\Rc=6$, $\nout=10$.}
+\label{fig:hartree}
+\end{figure*}
+
+\begin{figure}[tb]
+\centering
+\includegraphics[width=\columnwidth]{figures/hartree_cartesian.pdf}
+\caption{The Hartree-energy tolerance on a practical grid: the H $1s$ Hartree energy
+through the SIMPLE windowed-Coulomb projection ($\Rc=6$, $\nout=10$) evaluated on a 3D
+Cartesian grid, versus spacing $h$ and the nucleus's sub-grid registration (on a lattice
+point, a face center, the body center, a generic offset). All registrations collapse to
+the $-0.49$~mHa continuum floor as $h\to0$; the grid-discretization error fans out with
+$h$ (on-site overshoots, body-centered undershoots), staying inside the $\pm1$~mHa band
+(shaded) for $h\lesssim0.25$~bohr and reaching a $1.66$~mHa registration spread at
+$h=0.3$~bohr. The $1$~mHa Coulomb tolerance is thus registration-robust for
+$h\lesssim0.2$--$0.25$~bohr.}
+\label{fig:hartreegrid}
+\end{figure}
+
+\begin{figure*}[tb]
+\centering
+\includegraphics[width=0.86\textwidth]{figures/scale_vs_lambda.pdf}
+\caption{Scale range versus resolution and cost at the production $\nout=10$,
+$\Rc=6$~bohr. \textbf{(a)} descriptor-vector deviation $D(\lambda)$ under uniform
+scaling for $h=0.3,0.2,0.1$~bohr ($\nin=\Rc/h=20,30,60$); dotted verticals mark the
+predicted $\Lambda_{\max}=\nin/\nout$ [Eq.~\eqref{eq:lammax}], which the $1\%$ crossings
+track. \textbf{(b)} design map: the scale range $\Lambda_{\max}=\Rc/(h\nout)$ and the
+convolution count $N_{\mathrm{conv}}=(\Rc/h)(\ell_{\max}+1)^2$ versus $h$ (both
+$\propto1/h$); the dotted line marks the coarsest practical $h=0.3$~bohr.}
+\label{fig:design}
+\end{figure*}
