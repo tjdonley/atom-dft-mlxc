@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import numpy as np
 from numpy.polynomial.legendre import leggauss
+from scipy.special import eval_legendre
 
 from .simple_hole_expansion_explicit import (
     charge_moments, coulomb_moments, radial_basis, radial_basis_at_origin,
@@ -56,6 +57,21 @@ def extract_s_orbitals(result):
     g = orb / r[:, None]                                   # (n_grid, n_orb)
     idx = np.argsort(r)
     return r[idx], g[idx], occ
+
+
+def extract_orbitals(result):
+    """All occupied orbitals (any l): return (r_sorted, g_sorted, occ, l_values).
+
+    Same g_i(r) = phi_i(r)/r as ``extract_s_orbitals`` but keeps l>0 manifolds; the
+    spherically-averaged density rho = sum_i occ_i g_i^2/(4 pi) holds for filled subshells
+    of any l (the sum over m and the (2l+1) degeneracy cancel)."""
+    r = np.asarray(result["quadrature_nodes"], float)
+    orb = np.asarray(result["orbitals"], float)           # (n_grid, n_orb) = phi_i = r R_i
+    occ = np.asarray(result["occupation_info"].occupations, float)
+    l_values = np.asarray(result["occupation_info"].l_values, int)
+    g = orb / r[:, None]
+    idx = np.argsort(r)
+    return r[idx], g[idx], occ, l_values
 
 
 def _g_interp(r_sorted, g_sorted, x):
@@ -90,6 +106,72 @@ def exchange_hole_s(r0, u, r_sorted, g_sorted, occ, n_mu=80):
     rho1_sq_ang = 0.5 * np.sum(wm[None, :] * rho1 ** 2, axis=1)   # < |rho1|^2 >_Omega  (nu,)
     rho0 = float(np.sum(occ * g_r0 ** 2) / (4.0 * np.pi))
     return -2.0 * rho1_sq_ang / max(rho0, 1e-30)
+
+
+def exchange_hole(r0, u, r_sorted, g_sorted, occ, l_values, n_mu=80):
+    """Spherically-averaged exact exchange hole n_x(r0, u) for *general* l, via the
+    spherical-harmonic addition theorem.
+
+    For a spherically-averaged atom the per-spin 1-RDM is
+        rho1_sigma(r0, r') = (1/4 pi) sum_i (occ_i/2) g_i(r0) g_i(r') P_{l_i}(cos gamma),
+    with r' = |r0 + u u_hat| = sqrt(r0^2 + u^2 + 2 r0 u mu) and the angle gamma between the
+    vectors r0 and r' given by cos gamma = (r0 + u mu)/r'  (mu = cos<r0,u_hat>). The hole is
+    n_x(r0,u) = -(2/rho0) <|rho1_sigma|^2>_Omega (restricted: occ/2 per spin, x2 spins). For
+    l_i = 0 all P_l = 1 and this reduces to ``exchange_hole_s``.
+
+    r0 : scalar; u : array. Returns n_x(r0, u) (same shape as u)."""
+    u = np.atleast_1d(np.asarray(u, float))
+    mu, wm = leggauss(n_mu)
+    rp = np.sqrt(np.maximum(r0 ** 2 + u[:, None] ** 2 + 2.0 * r0 * u[:, None] * mu[None, :], 0.0))
+    cg = np.clip((r0 + u[:, None] * mu[None, :]) / np.maximum(rp, 1e-30), -1.0, 1.0)  # cos gamma
+    g_rp = _g_interp(r_sorted, g_sorted, rp)               # (nu, nmu, n_orb)
+    g_r0 = _g_interp(r_sorted, g_sorted, np.array([r0]))[0]  # (n_orb,)
+    rho1 = np.zeros(rp.shape)
+    for i in range(len(occ)):
+        Pl = eval_legendre(int(l_values[i]), cg) if l_values[i] > 0 else 1.0
+        rho1 = rho1 + (occ[i] / 2.0) * g_r0[i] * g_rp[:, :, i] * Pl
+    rho1 = rho1 / (4.0 * np.pi)
+    rho1_sq_ang = 0.5 * np.sum(wm[None, :] * rho1 ** 2, axis=1)   # < |rho1|^2 >_Omega
+    rho0 = float(np.sum(occ * g_r0 ** 2) / (4.0 * np.pi))
+    return -2.0 * rho1_sq_ang / max(rho0, 1e-30)
+
+
+def exact_eps_x_l(r0, r_sorted, g_sorted, occ, l_values, n_u=128, n_mu=80, u_max=None):
+    """Exact eps_x(r0) = 1/2 * 4 pi int_0^{u_max} n_x(r0,u) u du via the general-l hole."""
+    u_max = (r_sorted[-1] - 1e-6) if u_max is None else u_max
+    xu, wu = leggauss(n_u)
+    u = 0.5 * u_max * (xu + 1.0)
+    wq = 0.5 * u_max * wu
+    nx = exchange_hole(r0, u, r_sorted, g_sorted, occ, l_values, n_mu=n_mu)
+    return 0.5 * 4.0 * np.pi * float(np.sum(wq * nx * u))
+
+
+def exact_Ex_l(result, n_u=128, n_mu=64, r0_stride=1):
+    """Total exact E_x = int rho(r0) eps_x(r0) d^3r0 from the general-l orbital hole
+    (handles p/d manifolds: Ne, Na, Mg, ...)."""
+    r = np.asarray(result["quadrature_nodes"], float)
+    w = np.asarray(result["quadrature_weights"], float)
+    rho = np.asarray(result["rho"], float)
+    r_sorted, g_sorted, occ, l_values = extract_orbitals(result)
+    sel = np.arange(0, len(r), r0_stride)
+    ew = 4.0 * np.pi * r[sel] ** 2 * w[sel]
+    if r0_stride > 1:
+        ew = ew * (np.sum(4.0 * np.pi * r ** 2 * w) / np.sum(ew))
+    eps = np.array([exact_eps_x_l(r[i], r_sorted, g_sorted, occ, l_values, n_u=n_u, n_mu=n_mu)
+                    for i in sel])
+    return float(np.sum(ew * rho[sel] * eps))
+
+
+def project_exact_hole_l(r0, r_sorted, g_sorted, occ, l_values, r_c, n_channels, n_u=256, n_mu=80):
+    """rhotilde^exact_{n00}(r0) = int_0^{r_c} n_x(r0,u) R_{n0}(u) u^2 du for general-l holes
+    (the true monopole-hole coefficients; target for diagnosing/correcting the map)."""
+    xu, wu = leggauss(n_u)
+    u = 0.5 * r_c * (xu + 1.0)
+    wq = 0.5 * r_c * wu
+    nx = exchange_hole(r0, u, r_sorted, g_sorted, occ, l_values, n_mu=n_mu)
+    with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
+        Rb = np.array([radial_basis(n, u, r_c) for n in range(n_channels)])
+        return Rb @ (nx * u ** 2 * wq)
 
 
 def on_top_density(r0, r_sorted, g_sorted, occ):

@@ -10,7 +10,7 @@ result in the document is reproduced exactly.
 
 BOHR_PER_ANGSTROM = 1.0 / 0.529177210903
 
-R_C = 3.0 * BOHR_PER_ANGSTROM  # window radius: 3 Angstrom in bohr
+R_C = 6.0                      # window radius in bohr (new default; was 3 Ang = 5.6692 bohr)
 XI_TARGET = 2.0                # dimensionless cutoff target xi*
 N_OUT = 8                      # exposed radial channels
 RHO_MIN = 1e-10                # smooth density floor

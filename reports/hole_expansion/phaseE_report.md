@@ -287,3 +287,40 @@ anti-binding H1s/GEA2 indicator corrections (l=0 hole) cannot supply -- they hav
 for these. The H1s correction can only nudge the small closed-shell s-only over-binding (He, Be),
 which is already near-exact. The l>=1 HOLE multipole expansion is the needed ingredient for
 heavier atoms.
+
+## Update 9 — REGIME CORRECTION: prior heavy-atom analysis was all-electron; PSP is the target
+The Update-8 "base error changes sign / Na-Mg under-bind / l>=1 hole anisotropy" conclusion was
+computed with all_electron_flag=True. That is the WRONG regime: the functional targets
+pseudopotential calculations (Table-I: He -1.0019, Be -1.92, Ne -5.46). All-electron pulls in
+the bare 1s core (rho(0) ~ Z^3; Ne core rho ~ 620), and the scale-free map has a genuine but
+SEPARATE bug there (Update 10). PSP removes the core; max valence density is only ~1.3-2.8.
+
+PSP-regime series (R_C = 6.0 bohr, all_electron_flag=False):
+
+| atom | Z | E_x(EXX) | E_x(base) | base err | E_x(l-hole) | max rho | has p? |
+|------|---|----------|-----------|----------|-------------|---------|--------|
+| He | 2 | -1.0019 | -1.0022 |   -0.3 | -1.0019 | 1.35 | no  |
+| Be | 4 | -1.9208 | -1.9924 |  -71.6 | -1.9207 | 2.83 | no  |
+| Na | 11| -5.7751 | -6.0521 | -276.9 | -5.7748 | 1.62 | yes |
+| Mg | 12| -6.9715 | -7.2407 | -269.2 | -6.9711 | 2.40 | yes |
+(Ne PSP EXX did not converge this run; revisit.)
+
+KEY: in PSP there is NO sign flip. EVERY atom OVER-binds, growing ~monotonically with Z
+(He -0.3 -> Be -71.6 -> Na/Mg ~-270). Per-electron over-binding is ~27-36 mHa/e and is NOT
+specifically p-driven (Be, no p, is the largest per electron). This is exactly the regime the
+anti-binding H1s correction was designed for: a consistent over-binding that grows with Z, so a
+single magnitude (with the He-exact alpha-ratio fixed by construction) can be calibrated on the
+Be/Na/Mg series. The general-l orbital hole reproduces EXX to <1 mHa for PSP p-shell atoms too.
+=> The l>=1-hole direction was chasing an all-electron artifact; revert to calibrating the
+anti-binding correction on the PSP over-binding series.
+
+## Update 10 — all-electron high-density map bug (documented, not the PSP path)
+For completeness: in all-electron Ne the map's monopole hole under-binds the 1s core by +1280 mHa
+(eps_map -2.68 vs exact -4.18 ~ LDA -4.12), partially cancelled by -900 mHa valence over-binding,
+net +350. Root cause (uniform-density probe): the scale-free map's HEG limit is density-DEPENDENT
+and collapses at high rho -- eps_map/eps_LDA = 0.99 (rho=2), 0.88 (rho=10), 0.66 (rho=100),
+0.55 (rho=620), 0.52 (rho=1000) -- though it must be density-INDEPENDENT (scale-free). Mechanism:
+the fixed-R_c=6 window cannot be faithfully transferred to small R_ad = X/k_F (~0.30 at Ne core).
+More n_in helps but plateaus (~0.71 at rho=620); larger X is worse. This bug is real but only
+bites all-electron cores, so it is OUT OF SCOPE for the PSP target. Tools: validate_lhole.py,
+diagnose_map_ne.py, decomp_be_ne.py, uniform_highrho.py, fix_probe.py.
