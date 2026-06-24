@@ -129,6 +129,13 @@ _FUNCTIONAL_REQUIREMENTS: Dict[str, FunctionalRequirements] = {
         functional_type='GGA'
     ),
 
+    # SIMPLE-HOLE-EXPANSION-GGA: direct-expansion hole + second-order gradient correction.
+    'SIMPLE_HOLE_EXPANSION_GGA': FunctionalRequirements(
+        needs_gradient=False,
+        needs_tau=False,
+        functional_type='GGA'
+    ),
+
     # Hybrid GGA functionals
     'PBE0': FunctionalRequirements(
         needs_gradient=True,

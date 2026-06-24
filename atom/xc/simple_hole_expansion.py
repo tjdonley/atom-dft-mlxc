@@ -33,12 +33,16 @@ from typing import Optional
 
 import numpy as np
 
+from ..descriptors.simple.derivatives import build_spectral_gradient_operator
 from .evaluator import DensityData, XCParameters, XCPotentialData
-from .simple_hole import SIMPLE_HOLE, SIMPLEHOLEParameters, _radial_basis
+from .simple_hole import SIMPLE_HOLE, SIMPLEHOLEParameters, _bound, _radial_basis
 from .simple_hole_expansion_explicit import (
     charge_moments, coulomb_moments, enclosed_charge_switch, heg_hole,
     project_hole, radial_basis_at_origin,
 )
+
+_SIX2_3 = (3.0 * np.pi ** 2) ** (2.0 / 3.0)
+_GEA2 = 10.0 / 81.0   # second-order gradient-expansion coefficient F_x -> 1 + (10/81) s^2
 
 
 @dataclass
@@ -130,3 +134,72 @@ class SIMPLE_HOLE_EXPANSION(SIMPLE_HOLE):
 
     def _default_params(self) -> SIMPLEHOLEEXPParameters:
         return SIMPLEHOLEEXPParameters()
+
+
+@dataclass
+class SIMPLEHOLEEXPGGAParameters(SIMPLEHOLEEXPParameters):
+    functional_name: str = "SIMPLE_HOLE_EXPANSION_GGA"
+
+
+class SIMPLE_HOLE_EXPANSION_GGA(SIMPLE_HOLE_EXPANSION):
+    """Direct-expansion hole with the parameter-free second-order gradient correction.
+
+    The charge- and on-top-neutral gradient deformation of the hole enhances the energy by
+    the exact GEA2 factor in the slowly-varying limit:
+        eps_x = eps_x^map * (1 + (10/81) s^2_bounded),   s = |grad rho| / (2 k_F rho).
+    s comes from the proven-stable l=1 spectral gradient operator (k_n^1 growth, no stiff
+    Laplacian). s^2 is smoothly saturated (Lieb-Oxford tail safety; reuses ``_bound``). The
+    self-consistent potential adds the gradient channel via the spectral-operator transpose."""
+
+    def __init__(self, derivative_matrix=None, r_quad=None,
+                 quadrature_weights=None, params: Optional[XCParameters] = None):
+        super().__init__(derivative_matrix=derivative_matrix, r_quad=r_quad,
+                         quadrature_weights=quadrature_weights, params=params)
+        self._grad_op = build_spectral_gradient_operator(self._r_grid)
+
+    def _enhancement(self, rho, g):
+        """f = 1 + (10/81) s^2_b and its partials ds2b/drho, ds2b/dg (chain rule helpers)."""
+        rho = np.maximum(rho, 1e-12)
+        d8 = 4.0 * _SIX2_3 * rho ** (8.0 / 3.0)
+        s2 = g * g / d8
+        s2b, db = _bound(s2)                      # smooth saturation + derivative
+        f = 1.0 + _GEA2 * s2b
+        ds2_drho = -(8.0 / 3.0) * s2 / rho        # at fixed g
+        ds2_dg = 2.0 * g / d8
+        return f, _GEA2 * db * ds2_drho, _GEA2 * db * ds2_dg
+
+    def compute_xc(self, density_data: DensityData) -> XCPotentialData:
+        rho = np.maximum(np.asarray(density_data.rho, dtype=float), 1e-12)
+        ew = self.energy_weights
+        ewrho = ew * rho
+        C = np.array([op @ rho for op in self._ops])
+        g = self._grad_op @ rho
+        eps0 = self._eps_from_coeffs(C, rho)
+        f, df_drho, df_dg = self._enhancement(rho, g)
+        eps = eps0 * f
+
+        # C-channel adjoint, f-weighted: sum_n P_n^T[ew rho f deps0/dC_n]
+        acc = np.zeros_like(rho)
+        for n in range(len(self._ops)):
+            h = 1e-6 * (np.abs(C[n]) + 1e-8)
+            Cp = C.copy(); Cp[n] += h
+            Cm = C.copy(); Cm[n] -= h
+            deps0_dCn = (self._eps_from_coeffs(Cp, rho) - self._eps_from_coeffs(Cm, rho)) / (2.0 * h)
+            acc += self._ops[n].T @ (ewrho * f * deps0_dCn)
+        # explicit on-top-density derivative of eps0, f-weighted
+        hr = 1e-6 * (rho + 1e-8)
+        deps0_drho0 = (self._eps_from_coeffs(C, rho + hr) - self._eps_from_coeffs(C, rho - hr)) / (2.0 * hr)
+        # gradient-channel: eps0 * df, split into the local rho part and the spectral g part
+        v_x = (eps
+               + rho * f * deps0_drho0
+               + acc / ew
+               + rho * eps0 * df_drho                             # local d f/d rho at fixed g
+               + self._grad_op.T @ (ewrho * eps0 * df_dg) / ew)   # spectral gradient transpose
+        if getattr(self.params, "gauge_fix", True):
+            v_x = self._apply_gauge(v_x, eps, rho)
+        zero = np.zeros_like(rho)
+        return XCPotentialData(v_x=v_x, v_c=zero, e_x=eps, e_c=zero,
+                               de_x_dtau=None, de_c_dtau=None)
+
+    def _default_params(self) -> SIMPLEHOLEEXPGGAParameters:
+        return SIMPLEHOLEEXPGGAParameters()

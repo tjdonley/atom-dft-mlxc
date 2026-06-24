@@ -347,7 +347,7 @@ class SwitchesFlags:
             self.use_metagga = True
         
         # LDA/GGA functionals: no special flags (default False)
-        elif xc_functional in ['LDA_PZ', 'LDA_PW', 'GGA_PBE', 'SIMPLE_GGA', 'SIMPLE_SCAN', 'SIMPLE_HOLE', 'SIMPLE_HOLE_GEA', 'SIMPLE_HOLE_GGA', 'SIMPLE_HOLE_EXPANSION']:
+        elif xc_functional in ['LDA_PZ', 'LDA_PW', 'GGA_PBE', 'SIMPLE_GGA', 'SIMPLE_SCAN', 'SIMPLE_HOLE', 'SIMPLE_HOLE_GEA', 'SIMPLE_HOLE_GGA', 'SIMPLE_HOLE_EXPANSION', 'SIMPLE_HOLE_EXPANSION_GGA']:
             pass
 
         # Invalid XC functional
@@ -380,7 +380,7 @@ class SwitchesFlags:
         if xc_functional in ['EXX', 'RPA']:
             assert use_oep is True, \
                 USE_OEP_NOT_TRUE_FOR_OEP_FUNCTIONAL_ERROR.format(xc_functional)
-        elif xc_functional in ['None', 'LDA_PZ', 'LDA_PW', 'GGA_PBE', 'SIMPLE_GGA', 'SIMPLE_SCAN', 'SIMPLE_HOLE', 'SIMPLE_HOLE_GEA', 'SIMPLE_HOLE_GGA', 'SIMPLE_HOLE_EXPANSION', 'SCAN', 'RSCAN', 'R2SCAN', 'HF']:
+        elif xc_functional in ['None', 'LDA_PZ', 'LDA_PW', 'GGA_PBE', 'SIMPLE_GGA', 'SIMPLE_SCAN', 'SIMPLE_HOLE', 'SIMPLE_HOLE_GEA', 'SIMPLE_HOLE_GGA', 'SIMPLE_HOLE_EXPANSION', 'SIMPLE_HOLE_EXPANSION_GGA', 'SCAN', 'RSCAN', 'R2SCAN', 'HF']:
             assert use_oep is False, \
                 USE_OEP_NOT_FALSE_FOR_NON_OEP_FUNCTIONAL_ERROR.format(xc_functional)
         else:

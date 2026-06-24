@@ -111,6 +111,7 @@ VALID_XC_FUNCTIONAL_LIST = [
     'SIMPLE_HOLE_GEA', # exchange hole with the deterministic 4th-order GEA deformation
     'SIMPLE_HOLE_GGA', # gradient-only GEA-deformed hole (no Laplacian; fallback)
     'SIMPLE_HOLE_EXPANSION', # direct expansion of the hole in the SIMPLE monopole basis
+    'SIMPLE_HOLE_EXPANSION_GGA', # direct-expansion hole + second-order gradient correction
     'SCAN'   , # SCAN functional, meta-GGA
     'RSCAN'  , # RSCAN functional, meta-GGA
     'R2SCAN' , # R2SCAN functional, meta-GGA

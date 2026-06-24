@@ -334,3 +334,84 @@ def test_D3_scf_atoms(Z, name, exact_ex, lda_band):
     e_x = float(res["energy_components"].exchange)
     assert lda_band[0] <= e_x <= lda_band[1], \
         f"{name}: E_x={e_x:.4f} outside expected LDA-level band {lda_band} (exact {exact_ex})"
+
+
+# ======================================================================= #
+# PHASE E: parameter-free second-order gradient correction (GEA2)
+# ======================================================================= #
+def _build_gga(gauge_fix=True, n=600):
+    from atom.xc.simple_hole_expansion import SIMPLE_HOLE_EXPANSION_GGA, SIMPLEHOLEEXPGGAParameters
+    r = np.linspace(1e-3, 12.0, n)
+    w = np.gradient(r)
+    p = SIMPLEHOLEEXPGGAParameters(r_c=8.0, n_channels=24, gauge_fix=gauge_fix)
+    return SIMPLE_HOLE_EXPANSION_GGA(r_quad=r, quadrature_weights=w, params=p), r, w
+
+
+def test_E1_gea2_slope_recovered():
+    """In the slowly-varying limit F_x = eps_GGA/eps_LDA -> 1 + (10/81) s^2 (slope 10/81)."""
+    F, r, w = _build_gga()
+    mid = len(r) // 2
+    slopes = []
+    for amp in (0.02, 0.04):
+        rho = np.exp(amp * (r - 6.0))                     # gentle exp ramp -> small uniform s
+        g = F._grad_op @ rho
+        f, _, _ = F._enhancement(rho, g)
+        kF = (3.0 * np.pi ** 2 * rho[mid]) ** (1.0 / 3.0)
+        s2 = (abs(g[mid]) / (2.0 * kF * rho[mid])) ** 2
+        slopes.append((f[mid] - 1.0) / s2)
+    assert np.allclose(slopes, 10.0 / 81.0, rtol=0.02), f"slopes {slopes} vs 10/81={10/81:.4f}"
+
+
+def test_E1_gradient_adjoint_matches_fd():
+    from atom.xc.evaluator import DensityData
+    F, r, w = _build_gga(gauge_fix=False)
+    rho = 0.5 * np.exp(-0.5 * r ** 2) + 0.05 * np.exp(-0.15 * (r - 2.0) ** 2) + 0.01
+    ew = F.energy_weights
+
+    def Ex(rh):
+        C = np.array([op @ rh for op in F._ops])
+        g = F._grad_op @ rh
+        eps0 = F._eps_from_coeffs(C, np.maximum(rh, 1e-12))
+        f, _, _ = F._enhancement(np.maximum(rh, 1e-12), g)
+        return float(np.sum(ew * rh * eps0 * f))
+
+    vx = F.compute_xc(DensityData(rho=rho)).v_x
+    rng = np.random.default_rng(1)
+    for j in rng.choice(np.arange(60, len(r) - 60), 8, replace=False):
+        h = 1e-6
+        rp = rho.copy(); rp[j] += h
+        rm = rho.copy(); rm[j] -= h
+        fd = (Ex(rp) - Ex(rm)) / (2.0 * h) / ew[j]
+        assert abs(vx[j] - fd) / (abs(fd) + 1e-12) < 5e-6, f"r={r[j]:.2f}: {vx[j]:.6f} vs {fd:.6f}"
+
+
+def test_E1_reduces_to_expansion_without_gradient():
+    """Uniform density -> s=0 -> f=1 -> GGA energy density == the gradient-free expansion."""
+    from atom.xc.simple_hole_expansion import SIMPLE_HOLE_EXPANSION, SIMPLEHOLEEXPParameters
+    F, r, w = _build_gga()
+    base = SIMPLE_HOLE_EXPANSION(r_quad=r, quadrature_weights=w,
+                                params=SIMPLEHOLEEXPParameters(r_c=8.0, n_channels=24))
+    rho = np.full_like(r, 1.0)
+    C = np.array([op @ rho for op in F._ops])
+    g = F._grad_op @ rho
+    f, _, _ = F._enhancement(rho, g)
+    assert np.allclose(f, 1.0, atol=1e-10), "enhancement not unity at zero gradient"
+    eps_gga = F._eps_from_coeffs(C, rho) * f
+    eps_base = base._eps_from_coeffs(np.array([op @ rho for op in base._ops]), rho)
+    assert np.allclose(eps_gga, eps_base, rtol=1e-10)
+
+
+def test_E1_scf_converges_and_improves_He():
+    """The gradient correction converges self-consistently and improves He toward exact."""
+    from atom import AtomicDFTSolver
+    res = {}
+    for func in ("SIMPLE_HOLE_EXPANSION", "SIMPLE_HOLE_EXPANSION_GGA"):
+        s = AtomicDFTSolver(atomic_number=2, xc_functional=func, all_electron_flag=True,
+                            domain_size=12.0, max_scf_iterations=150)
+        r = s.solve()
+        assert r["converged"], f"{func}: SCF did not converge"
+        res[func] = float(r["energy_components"].exchange)
+    # GGA is closer to exact (-1.0258) than the LDA-level base
+    err_base = abs(res["SIMPLE_HOLE_EXPANSION"] + 1.0258)
+    err_gga = abs(res["SIMPLE_HOLE_EXPANSION_GGA"] + 1.0258)
+    assert err_gga < err_base, f"GGA {res['SIMPLE_HOLE_EXPANSION_GGA']:.4f} not closer than base {res['SIMPLE_HOLE_EXPANSION']:.4f}"
