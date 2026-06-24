@@ -305,7 +305,7 @@ def figure_heg():
     if clamp_start is not None:
         axes[0].axvspan(clamp_start, r_s_values[-1], color="0.92")
         axes[0].text(clamp_start * 1.4, 0.75, "clamped\n($R_{ad}=R_c$)", fontsize=8)
-    axes[0].set(xlabel=r"$r_s$ (bohr)", ylabel=r"$d_{n00}$",
+    axes[0].set(xlabel=r"$r_s$ (bohr)", ylabel=r"$\varrho_{n00}$",
                 title="(a) HEG values on the $h=0.2$ bohr grid")
     axes[0].legend(fontsize=8, loc="lower left")
 
@@ -314,7 +314,7 @@ def figure_heg():
     axes[1].loglog(r_s_values, err_grid, "o-", color="tab:blue",
                    label=f"$h=0.2$ bohr grid ($n_{{in}}={N_IN_GRID}$)")
     axes[1].set(xlabel=r"$r_s$ (bohr)",
-                ylabel=r"$\max_n |d_{n00} - (-1)^n/(n{+}1)|$",
+                ylabel=r"$\max_n |\varrho_{n00} - (-1)^n/(n{+}1)|$",
                 title="(b) deviation from the analytic HEG values")
     axes[1].legend(fontsize=8)
     fig.tight_layout()
@@ -350,9 +350,9 @@ def figure_vacuum():
         anchor = (norms if slope == 1 else powers)[0][4] / (epsilons[4] ** slope)
         ax.loglog(guide, anchor * guide**slope, "k:", lw=1.0)
         ax.set_xlabel(r"$\epsilon$")
-    axes[0].set(ylabel=r"$\Vert d_{\ell}\Vert$",
+    axes[0].set(ylabel=r"$\Vert \varrho_{\ell}\Vert$",
                 title=r"(a) coefficient decay, $\mathcal{O}(\epsilon)$ guide dotted")
-    axes[1].set(ylabel=r"$\sum_n d_{n\ell 0}^2$",
+    axes[1].set(ylabel=r"$\sum_n \varrho_{n\ell 0}^2$",
                 title=r"(b) power spectrum decay, $\mathcal{O}(\epsilon^2)$ guide")
     axes[0].legend(fontsize=8)
     axes[0].text(eps_star * 2.0, 1e-4, r"$\epsilon^*$", fontsize=9)
