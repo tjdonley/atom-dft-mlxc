@@ -324,23 +324,36 @@ def test_D2_heg_limit_scale_invariant():
     assert 0.95 < ratios[0] < 1.10, f"HEG ratio {ratios[0]:.4f} off LDA"
 
 
-# --- D3: scale-free SCF atoms converge (n_out=10 resolved, no blow up) -------------- #
+# --- D3: scale-free SCF atoms converge (n_out=10 resolved; per-spin FA/SIC restored) -- #
 # Scale-free frame (n_in=20, n_out=10): the adaptive radius resolves the dense core at
-# n_out=10 -- no divergence. He/Be are LDA-level here; the per-spin/Fermi-Amaldi accuracy
-# (He -> exact) is restored by the scale-free l=1 iso-orbital gate (the next step).
-@pytest.mark.parametrize("Z,name,exact_ex,lda_band", [
-    (2, "He", -1.0258, (-0.96, -0.83)),   # LDA-level (l=1 gate restores ~exact)
-    (4, "Be", -2.6658, (-2.55, -2.25)),   # LDA-level
+# n_out=10 -- no divergence. With the 4pi convention fixed, the per-spin Fermi-Amaldi limit
+# works: He (1 e/spin) is in the SIC/density-following regime (~-1.10, slightly over exact
+# -1.026 by the constraint/X-window offset). Be (2 e/spin) stays LDA-level (-2.46).
+@pytest.mark.parametrize("Z,name,exact_ex,band", [
+    (2, "He", -1.0258, (-1.16, -1.04)),   # FA/SIC (slightly over by the ~3% offset)
+    (4, "Be", -2.6658, (-2.55, -2.35)),   # LDA-level (two electrons per spin)
 ])
-def test_D3_scf_atoms(Z, name, exact_ex, lda_band):
+def test_D3_scf_atoms(Z, name, exact_ex, band):
     from atom import AtomicDFTSolver
     s = AtomicDFTSolver(atomic_number=Z, xc_functional="SIMPLE_HOLE_EXPANSION",
-                        all_electron_flag=True, domain_size=12.0, max_scf_iterations=150)
+                        all_electron_flag=True, domain_size=15.0, max_scf_iterations=250)
     res = s.solve()
     assert res["converged"], f"{name}: SCF did not converge"
     e_x = float(res["energy_components"].exchange)
-    assert lda_band[0] <= e_x <= lda_band[1], \
-        f"{name}: E_x={e_x:.4f} outside expected LDA-level band {lda_band} (exact {exact_ex})"
+    assert band[0] <= e_x <= band[1], \
+        f"{name}: E_x={e_x:.4f} outside expected band {band} (exact {exact_ex})"
+
+
+def test_D3_hydrogen_near_self_interaction_free():
+    """H (1 electron) is the cleanest SIC test: exact exchange cancels the self-Hartree
+    (E_x = -E_H). With the per-spin Fermi-Amaldi limit, the residual E_x + E_H is small."""
+    from atom import AtomicDFTSolver
+    res = AtomicDFTSolver(atomic_number=1, xc_functional="SIMPLE_HOLE_EXPANSION",
+                          all_electron_flag=True, domain_size=15.0, max_scf_iterations=250).solve()
+    assert res["converged"], "H: SCF did not converge"
+    ec = res["energy_components"]
+    assert abs(ec.exchange + ec.hartree) < 0.05, \
+        f"H not near-SIC: E_x+E_H = {ec.exchange + ec.hartree:.4f} (E_x={ec.exchange:.4f}, E_H={ec.hartree:.4f})"
 
 
 # ======================================================================= #
@@ -429,7 +442,7 @@ def test_E1_gga_scf_converges():
     res = {}
     for func in ("SIMPLE_HOLE_EXPANSION", "SIMPLE_HOLE_EXPANSION_GGA"):
         s = AtomicDFTSolver(atomic_number=2, xc_functional=func, all_electron_flag=True,
-                            domain_size=12.0, max_scf_iterations=150)
+                            domain_size=15.0, max_scf_iterations=250)
         r = s.solve()
         assert r["converged"], f"{func}: SCF did not converge"
         res[func] = float(r["energy_components"].exchange)

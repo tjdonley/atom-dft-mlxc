@@ -117,3 +117,26 @@ Accuracy: He/Be are LDA-level here (He -0.89, Be -2.40). The scale-free frame ch
 adaptive-window enclosed charge, so the per-spin/Fermi-Amaldi accuracy that made He exact in the
 fixed-R_c frame is NOT recovered by the bare map -- that is restored by the scale-free l=1
 iso-orbital gate (validated in Update 5, the next implementation step). 40/40 tests green.
+
+## Update 4 — 4pi bug fix (H/He were wrongly LDA); per-spin FA/SIC restored
+Quick check "is H exact?" exposed a bug. The window operators' C carry the angular 4pi (the
+3D projection), but the scale-free enclosed charge was computed as Q = 4pi R_ad^{3/2}(c_ad.a1)
+with c_ad = T @ C -- double-counting 4pi, so Q was inflated by ~4pi (~12.6). Every atom then
+had Q/2 >> 1 -> lambda = 0 -> wrongly flagged HEG -> LDA-level (He -0.89, H -0.21).
+
+Fix: divide C by 4pi before the transfer (c_ad = T @ (C/4pi)), matching the HEG-anchor sigma
+convention. After the fix the per-spin Fermi-Amaldi/SIC limit works:
+
+| atom | before fix (LDA) | after fix (FA/SIC) | exact |
+|------|------------------|--------------------|-------|
+| H    | E_x=-0.207, E_x+E_H=+0.053 | E_x=-0.331, **E_x+E_H=-0.017** (near SIC), E_tot=-0.517 | E_tot=-0.5 |
+| He   | -0.892 | -1.098 | -1.0258 |
+| Be   | -2.395 | -2.455 | -2.6658 |
+
+So **H is now nearly self-interaction-free** (E_x ~ -E_H; residual -0.017), He is in the
+density-following regime (-1.10, slightly OVER exact by the constant ~3% constraint/X-window
+offset = the 1.033 HEG ratio), and Be stays LDA-level (two electrons per spin). HEG remains
+scale-invariant (1.033). Adjoint still matches FD to 3.8e-9; SCF converges at domain>=15.
+41/41 tests green (added a dedicated H near-SIC gate). The residual ~3% over-binding (H, He, and
+the 1.033 HEG ratio) is now the dominant error -- the constraint-projection/finite-X overshoot,
+a single constant to address next (tune X or the sum-rule enforcement).

@@ -140,7 +140,10 @@ class SIMPLE_HOLE_EXPANSION(SIMPLE_HOLE):
         enclosed-charge switch, projected onto the (R_ad-scaled) sum-rule and on-top constraints."""
         rho0 = np.maximum(np.asarray(rho0, float), 1e-12)
         R_ad = self._R_ad(rho0)
-        c_ad = self._c_ad(C, R_ad)                               # (N, n_out)
+        # C from the window operators carries the angular 4pi; divide it out so c_ad are the
+        # bare adaptive coefficients (same convention as the HEG anchor sigma) -- otherwise the
+        # enclosed charge Q below is inflated by 4pi and every atom is wrongly flagged HEG.
+        c_ad = self._c_ad(C / (4.0 * np.pi), R_ad)               # (N, n_out)
         eta = (3.0 * np.pi ** 2 * rho0) ** (1.0 / 3.0) * R_ad    # = X where unclamped
         Q = 4.0 * np.pi * (R_ad ** 1.5) * (c_ad @ self._a1)      # (N,) enclosed charge
         Qsafe = np.maximum(Q, 1e-12)
