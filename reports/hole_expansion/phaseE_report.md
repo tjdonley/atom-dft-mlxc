@@ -151,3 +151,55 @@ SIMPLE invariants (power spectrum / bispectrum at l>=1), which encode the orbita
 structure the monopole channel lacks and may distinguish single-orbital from slowly-varying.
 The parameter rename (alpha_lda) and the scale-free-descriptor analysis are in place; the gate
 itself remains the monopole L2-from-HEG form (alpha_lda default 1) pending that indicator.
+
+## Update 5 — basis alignment, l>=1 separation, and the two-parameter gate
+Addressing three review points:
+
+**(1) Shared basis (confirmed) + R_c=6/n=16.** The density projection C_n and the hole
+expansion rhotilde_n use the identical SIMPLE basis (same R_c, same n_channels, same R_n0) --
+required so the exchange integral becomes a sum and the FA anchor (rhotilde=-C/Q) is defined.
+Aligned to the canonical R_c=6 (was 8). The hole EXPANSION needs n_in resolution
+(n >~ k_F R_c/pi ~ 16 at R_c=6); the exposed n_out=10 is too few (Be diverges at n=10). So
+n_channels=16 (=n_in); n_out=10 is the reduced feature count. 6/16 also beats 8/24 (He -1.030,
+Be -2.640) and matches the orbital reference data.
+
+**(2) l>=1 cleanly separates single-orbital from slowly-varying.** The monopole (l=0) distance
+could NOT separate them; including the l=1 (gradient/dipole) and l=2 channels does, because a
+radial density has nonzero l>=1 multipoles about off-center points and an orbital's gradient
+structure differs from a gas. Full l=0,1,2 SIMPLE distances:
+
+| region | D_HEG (l=0,1,2) | D_H1s (manifold) |
+|--------|-----------------|------------------|
+| He (r0=0.3-1.0) | 0.75 -> 3.4 (far from HEG) | 0.20 -> 0.49 (near H1s) |
+| Be (r0=0.3-1.0) | 1.8 -> 7.7 | 0.37 -> 0.68 |
+| slowly-varying ramp | 0.001-0.01 (HEG-like) | 0.90 (far from H1s) |
+
+(l=0 only gave He valence D_HEG~0.01, indistinguishable from the ramp.) p-/d-orbital
+reference signatures (l=1, l=2 indicators) are the natural extension for open-shell atoms.
+
+**(3) Two-parameter gate; GEA2 kept exact by normalization; one DOF to sweep.**
+
+    gate(r) = exp(-alpha_LDA D_HEG(r)) * [1 - exp(-alpha_H1s D_H1s(r))] / N,
+    N = 1 - exp(-alpha_H1s D_H1s^HEG),   D_H1s^HEG = 0.904 (uniform's distance from the H1s manifold).
+
+The /N normalization makes the slowly-varying limit (D_HEG->0, D_H1s->D_H1s^HEG) give the full
+GEA2 enhancement BY CONSTRUCTION -- GEA2 is kept intact for any (alpha_LDA, alpha_H1s). He GEA
+fraction (gated/ungated, density-weighted; ->0 = He exact):
+
+| alpha_LDA \ alpha_H1s | 0.5 | 1.0 | 2.0 | 4.0 |
+|---|---|---|---|---|
+| 0.5 | 0.115 | 0.129 | 0.154 | 0.196 |
+| 1.0 | 0.043 | 0.048 | 0.059 | 0.078 |
+| 2.0 | 0.011 | 0.013 | 0.016 | 0.022 |
+| 4.0 | 0.002 | 0.002 | 0.003 | 0.004 |
+
+alpha_LDA does most of the He cancellation (He is far from HEG once l>=1 is included); alpha_H1s
+is the secondary knob. He is ~99% recovered by alpha_LDA~2, with GEA2 exact by the
+normalization. The ratio is set empirically for He-exact; one DOF (overall scale) remains to
+sweep for the Be/general balance.
+
+**Status:** the construction is VALIDATED at the analysis level (fixed densities). Implementing
+it self-consistently requires the full l=0,1,2 SIMPLE features per grid point (multipole
+profiles + adaptive-radius pipeline + manifold distance) inside the SCF and its discrete
+adjoint -- the substantial next build. The current shipped gate remains the monopole
+L2-from-HEG form (alpha_lda); the l>=1 two-parameter gate is the validated design for it.
