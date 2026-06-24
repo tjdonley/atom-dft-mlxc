@@ -270,3 +270,67 @@ def test_C2_angular_average_vs_analytic(Z):
         ana = oh.spherical_avg_hydrogenic_1s(Z, r0, u)
         assert np.allclose(num, ana, rtol=2e-3, atol=1e-6), \
             f"Z={Z} r0={r0}: max rel {np.max(np.abs(num/ana-1)):.4f}"
+
+
+# ======================================================================= #
+# PHASE D: production functional SIMPLE_HOLE_EXPANSION (adjoint, limits, SCF)
+# ======================================================================= #
+def _build_functional(gauge_fix=True, n=500):
+    from atom.xc.simple_hole_expansion import SIMPLE_HOLE_EXPANSION, SIMPLEHOLEEXPParameters
+    r = np.linspace(1e-3, 12.0, n)
+    w = np.gradient(r)
+    p = SIMPLEHOLEEXPParameters(r_c=8.0, n_channels=24, gauge_fix=gauge_fix)
+    return SIMPLE_HOLE_EXPANSION(r_quad=r, quadrature_weights=w, params=p), r, w
+
+
+# --- D1: discrete-adjoint potential == FD of the energy --------------------------- #
+def test_D1_adjoint_matches_finite_difference():
+    from atom.xc.evaluator import DensityData
+    F, r, w = _build_functional(gauge_fix=False)
+    rho = 0.5 * np.exp(-0.5 * r ** 2) + 0.02 * np.exp(-0.1 * r ** 2)
+    ew = F.energy_weights
+
+    def Ex(rh):
+        C = np.array([op @ rh for op in F._ops])
+        return float(np.sum(ew * rh * F._eps_from_coeffs(C, np.maximum(rh, 1e-12))))
+
+    vx = F.compute_xc(DensityData(rho=rho)).v_x
+    rng = np.random.default_rng(0)
+    idx = rng.choice(np.arange(50, len(r) - 50), 8, replace=False)
+    for j in idx:
+        h = 1e-6
+        rp = rho.copy(); rp[j] += h
+        rm = rho.copy(); rm[j] -= h
+        fd = (Ex(rp) - Ex(rm)) / (2.0 * h) / ew[j]
+        assert abs(vx[j] - fd) / (abs(fd) + 1e-12) < 5e-6, \
+            f"r={r[j]:.2f}: v_x={vx[j]:.6f} fd={fd:.6f}"
+
+
+# --- D2: production (convolutional) reproduces the explicit reference (HEG) -------- #
+def test_D2_convolutional_matches_explicit_heg():
+    F, r, w = _build_functional()
+    for rho_val in (0.5, 1.0, 2.0):
+        rho = np.full_like(r, rho_val)
+        C = np.array([op @ rho for op in F._ops])
+        eps = F._eps_from_coeffs(C, rho)[len(r) // 2]
+        # explicit HEG limit ratio at the same R_c / n_channels
+        coeffs = ex.map_coeffs(lambda u, v=rho_val: np.full_like(np.atleast_1d(u), v),
+                               8.0, 24, nu=1024)
+        eps_ex = ex.eps_from_coeffs(coeffs, ex.coulomb_moments(24, 8.0))
+        assert eps == pytest.approx(eps_ex, rel=0.02), f"rho={rho_val}: conv={eps:.5f} expl={eps_ex:.5f}"
+
+
+# --- D3: self-consistent atoms converge; E_x is at the documented (LDA) level ------ #
+@pytest.mark.parametrize("Z,name,exact_ex,lda_band", [
+    (2, "He", -1.0258, (-1.10, -0.80)),   # LDA-level exchange (~10-15% under exact)
+    (4, "Be", -2.6658, (-2.70, -2.30)),
+])
+def test_D3_scf_atoms(Z, name, exact_ex, lda_band):
+    from atom import AtomicDFTSolver
+    s = AtomicDFTSolver(atomic_number=Z, xc_functional="SIMPLE_HOLE_EXPANSION",
+                        all_electron_flag=True, domain_size=12.0, max_scf_iterations=150)
+    res = s.solve()
+    assert res["converged"], f"{name}: SCF did not converge"
+    e_x = float(res["energy_components"].exchange)
+    assert lda_band[0] <= e_x <= lda_band[1], \
+        f"{name}: E_x={e_x:.4f} outside expected LDA-level band {lda_band} (exact {exact_ex})"

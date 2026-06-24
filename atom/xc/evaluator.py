@@ -658,6 +658,7 @@ def create_xc_evaluator(
     from .meta_scan import SCAN, rSCAN, r2SCAN
     from .simple_xc import SIMPLE_GGA, SIMPLE_SCAN
     from .simple_hole import SIMPLE_HOLE, SIMPLE_HOLE_GEA, SIMPLE_HOLE_GGA
+    from .simple_hole_expansion import SIMPLE_HOLE_EXPANSION
 
     # Simple mapping: functional name → class
     FUNCTIONAL_MAP = {
@@ -666,6 +667,7 @@ def create_xc_evaluator(
         'SIMPLE_HOLE': SIMPLE_HOLE,
         'SIMPLE_HOLE_GEA': SIMPLE_HOLE_GEA,
         'SIMPLE_HOLE_GGA': SIMPLE_HOLE_GGA,
+        'SIMPLE_HOLE_EXPANSION': SIMPLE_HOLE_EXPANSION,
         # LDA functionals
         'LDA_PZ': LDA_SVWN,  # Note: LDA_PZ uses VWN correlation in current implementation
         'LDA_PW': LDA_SPW,
@@ -695,7 +697,8 @@ def create_xc_evaluator(
     
     # Create and return instance with derivative matrix and r_quad
     functional_class = FUNCTIONAL_MAP[functional_name]
-    if functional_class in (SIMPLE_GGA, SIMPLE_SCAN, SIMPLE_HOLE, SIMPLE_HOLE_GEA, SIMPLE_HOLE_GGA):
+    if functional_class in (SIMPLE_GGA, SIMPLE_SCAN, SIMPLE_HOLE, SIMPLE_HOLE_GEA,
+                            SIMPLE_HOLE_GGA, SIMPLE_HOLE_EXPANSION):
         return functional_class(derivative_matrix=derivative_matrix, r_quad=r_quad,
                                 quadrature_weights=quadrature_weights, params=xc_params)
     return functional_class(derivative_matrix=derivative_matrix, r_quad=r_quad,

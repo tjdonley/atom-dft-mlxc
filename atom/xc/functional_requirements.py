@@ -121,6 +121,14 @@ _FUNCTIONAL_REQUIREMENTS: Dict[str, FunctionalRequirements] = {
         functional_type='GGA'
     ),
 
+    # SIMPLE-HOLE-EXPANSION: direct expansion of the exchange hole in the SIMPLE
+    # monopole basis; ingredients are the monopole coefficients C_n built internally.
+    'SIMPLE_HOLE_EXPANSION': FunctionalRequirements(
+        needs_gradient=False,
+        needs_tau=False,
+        functional_type='GGA'
+    ),
+
     # Hybrid GGA functionals
     'PBE0': FunctionalRequirements(
         needs_gradient=True,
