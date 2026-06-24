@@ -324,3 +324,22 @@ the fixed-R_c=6 window cannot be faithfully transferred to small R_ad = X/k_F (~
 More n_in helps but plateaus (~0.71 at rho=620); larger X is worse. This bug is real but only
 bites all-electron cores, so it is OUT OF SCOPE for the PSP target. Tools: validate_lhole.py,
 diagnose_map_ne.py, decomp_be_ne.py, uniform_highrho.py, fix_probe.py.
+
+## Update 11 — PSP anti-binding calibration works; He preservation is the open knob
+Non-SCF test on PSP densities (alpha_H1s=1.0, gate g_H1s = 1-exp(-alpha_H1s D_H1s), correction
+dH1s = -A g_H1s eps_base; lever H1s_w = sum ew rho eps_base g_H1s):
+
+| atom | E_base | E_exx | err(mHa) | <g_H1s> | A=err/lever |
+|------|--------|-------|----------|---------|-------------|
+| He | -1.0022 | -1.0019 |   -0.3 | 0.31 | 0.001 |
+| Be | -1.9924 | -1.9208 |  -71.6 | 0.57 | 0.077 |
+| Na | -6.0521 | -5.7751 | -276.9 | 0.56 | 0.085 |
+| Mg | -7.2407 | -6.9715 | -269.2 | 0.59 | 0.068 |
+
+A clusters at 0.068-0.085 across Be/Na/Mg -> a single magnitude. With mean A=0.076: Be -0.4,
+Na -27.5, Mg +35.2 mHa residual (was -71/-277/-269): ~8x reduction. BUT He over-corrected to
++23.9 mHa because g_H1s(He)=0.31 != 0. The anti-binding correction must VANISH at the
+one-electron-per-spin limit (Q_sigma -> 1) that already makes He's base exact. Recommended:
+gate the correction on the base's own one-electron-per-spin indicator (not the hydrogenic-
+manifold distance) so He is preserved by construction; then A is the lone free DOF calibrated
+on Be/Na/Mg. Tool: psp_calibrate.py.
