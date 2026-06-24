@@ -204,3 +204,21 @@ STATUS: the LDA limit is now exact AND clean at the practical n_out=10. The atom
 over-binding that masked it is gone). THE REMAINING WORK is the enhancement: make the kernel hole
 reproduce the exact (compact) ATOMIC hole, via exact-hole fixed points / moment-matching against
 orbital_hole.py references -- which finding (2) shows lands within ~1-12 mHa on the practical basis.
+
+## Full SCF benchmark with the moment-matched (exact-LDA) anchor
+
+SIMPLE_HOLE_EXPANSION_KERNEL self-consistent, vs HF (cached) / PBE-x:
+  atom  E_x(HF)   E_x(PBE)  E_x(kernel-SCF)  PBE err  kern err  conv
+  He   -1.0019   -0.9705   -1.0054            +31.4     -3.5    True
+  Li   -1.4514   -1.4481   -1.5029             +3.4    -51.5    True
+  Be   -1.9215   -1.8853   -1.6824            +36.2   +239.2    True
+  Ne   -5.4013   -5.2989   -5.0945           +102.4   +306.8    True
+  Na   -5.7280   -5.6816   -5.4876            +46.4   +240.4    True
+  Mg   -6.8577   -6.7599   -6.5197            +97.8   +338.0    True
+  MAE vs HF (mHa): PBE-x 52.9; kernel-SCF 196.6
+
+All converge. He near-exact FA (-3.5). The LDA limit is now exact (moment-matched), and the bulk
+atoms under-bind 4-6% -- this is the ENHANCEMENT GAP, now cleanly exposed (no projection
+over-binding masking it). GEA2 (10/81)s^2 is too weak for atoms. The fix (validated capturable):
+exact-hole fixed points so the kernel reproduces the exact compact atomic hole (projects to ~1-12
+mHa on the practical basis). This is the pinned checkpoint; the enhancement is the next branch.
