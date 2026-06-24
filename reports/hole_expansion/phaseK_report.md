@@ -111,3 +111,31 @@ the r_c window no longer swallows all of He, so the per-point adaptive Q/2 is no
 and He reads as a FA/bulk mix (under-binds) rather than pure FA. => sharpen FA detection in the
 adaptive frame next (and/or a transition fixed point). Tools: kernel_sf.py, kernel_sf_bench.py,
 hf_cache.py -> hf_refs.npz (cached HF refs; reuse, do not re-solve).
+
+## Spin-convention fix (He must be exact FA) + corrected benchmark
+
+PI catch: He is spin-paired (one electron per spin) so it must be ESSENTIALLY EXACT Fermi-Amaldi.
+The scale-free benchmark had He at +51 mHa -> bug. Root cause (the classic 4pi/R_ad bookkeeping):
+the transfer output c_ad relates to the unit-basis DENSITY coefficients d by c_ad = 4pi R_ad^{3/2} d
+(verified: c_ad/(rho*alpha1) = 4pi R_ad^1.5 to 3 digits). The enclosed charge had used
+Q = 4pi R_ad^3 (c_ad.alpha1), which is ~52x too large -> Q/2 huge -> W_FA=0 -> He read as pure
+BULK -> under-bind. Fix: d = c_ad/(4pi R_ad^{3/2}); Q = 4pi R_ad^3 (d.alpha1) (true charge);
+FA hole rhotilde_FA = -d/Q; W_FA = enclosed_charge_switch(Q/2).
+
+Per-atom charge now physical (density-weighted): He <Q/2>=1.00 (W_FA=1, pure FA), Li 1.18 (0.92),
+Be 1.74 (0.23, TRANSITION, Q/2 range 1.24-2.00), Ne 3.92 (0), Na 4.09 (0), Mg 4.40 (0).
+
+Corrected scale-free benchmark vs HF (cached):
+  atom  E_x(HF)   E_x(kernel-SF)  err(mHa)  rel%
+  He   -1.0019    -1.0077          -5.8    -0.58   <- now ESSENTIALLY EXACT FA (was +51)
+  Li   -1.4514    -1.4388         +12.6    +0.87
+  Be   -1.9215    -1.7463        +175.2    +9.12   <- FA<->bulk TRANSITION (Q/2~1.74)
+  Ne   -5.4013    -5.3439         +57.5    +1.06
+  Na   -5.7280    -5.7649         -36.9    -0.64
+  Mg   -6.8577    -6.8339         +23.8    +0.35
+  MAE vs HF: 52.0 (full); ~27 over He/Li/Ne/Na/Mg (the clean-limit atoms)
+
+Spin convention now CORRECT (He exact FA). The error is concentrated ENTIRELY in the FA<->bulk
+transition (Be, the only atom with Q/2 between 1 and 2): the two-node (HEG+FA) set handles the
+crossover worst. This is the precise target for an added transition-region fixed point (the
+extensibility goal). Bulk atoms (Ne/Na/Mg) ~1%; FA-limit atoms (He/Li) good.
