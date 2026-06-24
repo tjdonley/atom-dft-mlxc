@@ -203,3 +203,32 @@ it self-consistently requires the full l=0,1,2 SIMPLE features per grid point (m
 profiles + adaptive-radius pipeline + manifold distance) inside the SCF and its discrete
 adjoint -- the substantial next build. The current shipped gate remains the monopole
 L2-from-HEG form (alpha_lda); the l>=1 two-parameter gate is the validated design for it.
+
+## Update 6 — iso-orbital gate (LDA-distance + H1s-distance), non-self-consistent test
+On the corrected scale-free base (H/He near-exact), the GEA2 gradient enhancement is gated to
+turn ON only in slowly-varying regions and OFF in single-orbital regions:
+    eps_x = eps_base * (1 + g * mu * s^2_b),   mu = 10/81,
+    g(r)  = exp(-alpha_LDA D_HEG) * (1 - exp(-alpha_H1s D_H1s)) / Nrm,
+    Nrm   = 1 - exp(-alpha_H1s D_H1s^HEG)   [D_H1s^HEG = 0.904 -> g -> 1 in the slowly-varying limit].
+D_HEG = ||varrho_nlm - varrho_HEG||^2 (l=0,1,2 scale-free SIMPLE features), D_H1s = distance to
+the hydrogenic-1s manifold (Z-invariant). alpha_LDA = alpha_H1s = 1.
+
+Non-SCF test (gate + perturbative GEA2 on converged base densities):
+| density | D_HEG | D_H1s | gate | dE_x |
+|---------|-------|-------|------|------|
+| slowly-varying ramp / density wave | ~0 | ~0.90 | **1.000** | (full GEA2) |
+| H (cusp..tail) | 0.9..13 | 0.001..0.035 | **~0** | -0.0000 (preserved) |
+| He | 0.35..12 | 0.15..0.48 | 0..0.17 | -0.0043 |
+| Be | 0.17..7.6 | 0.37..2.6 | 0..0.43 | -0.0138 |
+
+Verdict: the gate behaves exactly as designed -- g=1.000 for slowly-varying (GEA2 intact via
+/Nrm), g~0 for the single-orbital H (preserved exactly). He/Be get a small cusp leak (they are
+not exactly hydrogenic-1s: D_H1s(cusp) ~ 0.15/0.37, vs ~0 for true H), giving small over-binding
+(GEA2 adds binding; atoms already near/over-exact, so GEA2 is not their corrective -- it is the
+correction for inhomogeneous bonding regions, not atoms). The construction is validated; the
+cusp leak is the iso-orbital-measure limitation (hydrogenic-1s reference doesn't perfectly match
+screened He/Be), addressable by a broader single-orbital reference or a tau-based indicator.
+
+SCF wiring (next): needs efficient per-grid-point l=0,1,2 scale-free features (l=1,2 axial
+multipole window operators + transfer, analogous to the l=0 ops) and a smooth (soft-min)
+manifold distance for a differentiable adjoint.
