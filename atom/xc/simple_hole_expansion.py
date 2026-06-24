@@ -148,8 +148,9 @@ class SIMPLE_HOLE_EXPANSION(SIMPLE_HOLE):
 @dataclass
 class SIMPLEHOLEEXPGGAParameters(SIMPLEHOLEEXPParameters):
     functional_name: str = "SIMPLE_HOLE_EXPANSION_GGA"
-    gea_gate_c: float = 1.0          # gate strength: g = exp(-c * D_HEG); larger c => GEA needs
-                                     # the density to be closer to HEG before turning on.
+    alpha_lda: float = 1.0           # HEG-gate strength: g = exp(-alpha_lda * D_HEG); larger =>
+                                     # GEA needs the density closer to HEG before turning on.
+                                     # (named alpha_lda; the symbol c is the projected coeffs C_n.)
     gea_mu: float = 10.0 / 81.0      # GEA enhancement coefficient (F_x -> 1 + g*mu*s^2). The
                                      # s^2 slope is exactly mu in the s->0 limit (g->1); tune mu
                                      # only to set the *effective* enhancement at finite gradient
@@ -162,9 +163,10 @@ class SIMPLE_HOLE_EXPANSION_GGA(SIMPLE_HOLE_EXPANSION):
     The charge- and on-top-neutral gradient deformation of the hole enhances the energy by the
     GEA2 factor, gated by how HEG-like the local density is:
         eps_x = eps_x^map * (1 + g(C) * mu * s^2_bounded),   s = |grad rho|/(2 k_F rho),
-        g(C)  = exp(-c * D_HEG(C)),   D_HEG = sum_n (C_n/C_0 - (-1)^n/(n+1))^2 .
+        g(C)  = exp(-alpha_lda * D_HEG(C)),   D_HEG = sum_n (C_n/C_0 - (-1)^n/(n+1))^2 .
     s comes from the proven-stable l=1 spectral gradient operator (k_n^1, no stiff Laplacian);
-    s^2 is smoothly saturated (``_bound``). mu = ``gea_mu`` (default 10/81), c = ``gea_gate_c``.
+    s^2 is smoothly saturated (``_bound``). mu = ``gea_mu`` (default 10/81), alpha_lda = the
+    HEG-gate strength ``alpha_lda`` (default 1; the symbol c is reserved for the coeffs C_n).
 
     THE GATE IS THE L2 DISTANCE FROM HEG IN SIMPLE FEATURE SPACE. The non-dimensional SIMPLE
     monopole features vanish at the homogeneous-gas limit; D_HEG is their squared L2 norm (the
@@ -209,10 +211,10 @@ class SIMPLE_HOLE_EXPANSION_GGA(SIMPLE_HOLE_EXPANSION):
         return np.sum((ratio - heg_ratio[:, None]) ** 2, axis=0)    # (N,)
 
     def _eps_full(self, C, rho0, g):
-        """eps_x = eps_map(C, rho0) * (1 + g(C) * mu * s^2_b(g, rho0)), g = exp(-c D_HEG(C))."""
+        """eps_x = eps_map(C, rho0) * (1 + g(C) * mu * s^2_b(g, rho0)), g = exp(-alpha_lda D_HEG(C))."""
         p = self.params
         eps0 = self._eps_from_coeffs(C, rho0)
-        gate = np.exp(-p.gea_gate_c * self._l2_distance_from_heg(C))
+        gate = np.exp(-p.alpha_lda * self._l2_distance_from_heg(C))
         f = 1.0 + gate * p.gea_mu * self._s2_bounded(rho0, g)
         return eps0 * f
 

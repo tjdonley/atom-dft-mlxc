@@ -116,3 +116,38 @@ turns GEA on more broadly and improves Be toward exact, but it turns on for **He
 Be. That is an honest limit of the monopole-only distance; the full SIMPLE distance (l>0
 channels, which carry the gradient/anisotropy) or a tau-based single-orbital indicator would
 separate He and Be differently and is the natural next refinement.
+
+## Update 4 — point-wise confirmation, scale-free check, and the iso-orbital limit
+Three findings while exploring the L2-from-HEG gate (and renaming the parameter c -> alpha_lda,
+since c denotes the projected coefficients C_n):
+
+1. **D_HEG is point-wise** (one value per r0). Its profile is *largest* in the dense core and
+   *smallest* in the tail in the fixed-R_c form; in the proper SCALE-FREE form (pipeline,
+   adaptive radius) it is small (~0.01) in He's smoothly-varying valence -- i.e. He *does* have
+   HEG-like regions, so GEA turns on there and over-corrects He as the gate strength is lowered
+   (He: -1.028 -> -1.046 -> -1.086 as alpha_lda 1 -> 0.1 -> 0.03).
+
+2. **The fixed-R_c monopole distance is NOT scale-invariant** (a hydrogenic 1s gives a
+   Z-dependent C_n/C_0), so a single H-1s reference cannot work there. The full SIMPLE pipeline
+   descriptors (adaptive-radius non-dimensionalization) ARE scale-invariant: uniform density ->
+   (-1)^n/(n+1) (Z-independent), and a hydrogenic 1s gives one universal signature for Z=1,2.
+   The H-1s construction therefore requires the scale-free descriptors, not the fixed-R_c ones.
+
+3. **The H-1s iso-orbital cancellation hits the fundamental iso-orbital problem.** Using the
+   scale-free descriptors, the distance to the H-1s *manifold* (the curve of signatures a 1s
+   traces over position -- a single point won't do, since one orbital gives different signatures
+   at cusp/valence/tail) is small for ALL of He (0.011-0.023, correctly single-orbital) -- but
+   it is *also* small for a slowly-varying ramp (0.033) and most of Be. The monopole density
+   shape cannot separate a one-electron region from a slowly-varying multi-electron region (they
+   can share rho, grad rho, lap rho). This is exactly why meta-GGAs use the kinetic-energy
+   density tau (tau_W/tau) as the iso-orbital indicator, not the density. So the H-1s-distance
+   gate, with monopole density features alone, cannot cancel He's HEG-like valence without also
+   suppressing genuine slowly-varying GEA.
+
+**Path forward.** A clean iso-orbital cancellation that recovers H/He while freeing alpha_lda
+needs an indicator beyond the monopole density: (i) the kinetic-energy density tau (a meta-GGA
+ingredient -- would require carrying tau in this exchange-only hole), or (ii) the higher-l
+SIMPLE invariants (power spectrum / bispectrum at l>=1), which encode the orbital phase/gradient
+structure the monopole channel lacks and may distinguish single-orbital from slowly-varying.
+The parameter rename (alpha_lda) and the scale-free-descriptor analysis are in place; the gate
+itself remains the monopole L2-from-HEG form (alpha_lda default 1) pending that indicator.
