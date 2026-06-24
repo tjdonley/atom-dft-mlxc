@@ -173,3 +173,34 @@ is sound and intrinsically SCF-stable; the next lever is TIGHTENING THE BULK LDA
 n_out channels, or use the base's Q_S=2 envelope inversion for the bulk anchor instead of the
 direct projection), plus the transition fixed point for Be. Tools: kernel_scf_bench.py,
 kernel_scf_check.py.
+
+## LDA limit: moment-matched HEG anchor (exact LDA at n_out=10) + convergence/exact-hole findings
+
+Three findings, then the fix:
+
+1. CONVERGENCE (brute force is impractical). HEG-hole projection -> LDA: the energy converges
+   instantly in n_out (saturated by ~16) but is limited by the WINDOW X=k_F R_ad -- X=8 -> 1.6%,
+   X=20 -> 0.24%, X=28 -> 0.13%. But X=20 needs R_ad=20/k_F <= R_c, i.e. R_c ~ 14-35 bohr for
+   valence/tail densities (vs the practical R_c=6). So converging LDA by enlarging the window is
+   IMPRACTICAL for a grid functional. (n_out must also scale with X; n_out=10 is the practical limit.)
+
+2. EXACT ATOMIC HOLE PROJECTS WELL on the practical basis. Projecting the EXACT exchange hole
+   (orbital_hole.py, general-l) onto R_c=6: Ne -> +59 (n_out=10), -0.8 mHa (n_out=16); Be -> +26,
+   +12. Atomic holes are COMPACT (short tail), so the basis is ADEQUATE for them (unlike the
+   long-tailed HEG hole). => the enhancement is fully capturable; the kernel's problem is that it
+   produces the wrong hole (LDA + weak GEA2), not that the basis is too small.
+
+3. MOMENT-MATCHED HEG ANCHOR (the LDA fix at n_out=10). The exchange energy IS the hole's Coulomb
+   moment, so pin the THREE low-order moments to the exact LDA hole's values:
+   {charge 4pi R_ad^3(rho~.alpha1)=-1, on-top, Coulomb 2pi R_ad^2(rho~.beta1)=C_LDA rho^{1/3}}.
+   Least-norm-correct the projected HEG hole to satisfy all three -> a ~6% shape deformation that
+   hits LDA EXACTLY at n_out=10 (verified eps/eps_LDA=1.00000 across rho), keeping the smooth
+   hole-SHAPE interpolation (no rho^{1/3} energy hack). Principled = moment-matching the exact hole.
+   Implemented in SIMPLE_HOLE_EXPANSION_KERNEL._kernel_eps (3-constraint anchor; the final 2-constraint
+   projection is now a no-op at the HEG limit). Adjoint still exact, SCF converges, He still FA. 47/47.
+
+STATUS: the LDA limit is now exact AND clean at the practical n_out=10. The atoms still under-bind
+(the moment-matched anchor reproduces the exact-LDA result -- LDA+GEA2 is too weak; the projection
+over-binding that masked it is gone). THE REMAINING WORK is the enhancement: make the kernel hole
+reproduce the exact (compact) ATOMIC hole, via exact-hole fixed points / moment-matching against
+orbital_hole.py references -- which finding (2) shows lands within ~1-12 mHa on the practical basis.

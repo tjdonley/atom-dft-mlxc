@@ -388,6 +388,7 @@ class SIMPLE_HOLE_EXPANSION_GGA(SIMPLE_HOLE_EXPANSION):
 
 
 _LO_FX = 1.804      # Lieb-Oxford enhancement ceiling
+_C_LDA = -(3.0 / 4.0) * (3.0 / np.pi) ** (1.0 / 3.0)   # LDA exchange: eps_x = _C_LDA rho^{1/3}
 
 
 @dataclass
@@ -449,7 +450,22 @@ class SIMPLE_HOLE_EXPANSION_KERNEL(SIMPLE_HOLE_EXPANSION):
         s2, _ = _bound((g / (2.0 * kF * rho0)) ** 2)
         chi = (_GEA2 / self._gea_R) * s2; chi_max = (_LO_FX - 1.0) / self._gea_R
         chi = chi_max * np.tanh(chi / chi_max)
-        bulk = -0.5 * rho0[:, None] * self._gX[None, :] + (chi * -rho0)[:, None] * self._dgea[None, :]
+        al, r0v, be = self._alpha1, self._r1_0, self._beta1
+        # HEG anchor MOMENT-MATCHED to the exact LDA hole on the n_out basis: pin the three
+        # low-order moments {charge int u^2 = -1, on-top, Coulomb int u = exact LDA energy}.
+        # The projected HEG hole alone gives 0.984*LDA (the basis truncates the [3j1/x]^2 tail);
+        # matching the Coulomb (=energy) moment to C_LDA rho^{1/3} deforms it (~6%) to hit LDA
+        # exactly at n_out=10. Principled: the energy IS the hole's Coulomb moment.
+        heg = -0.5 * rho0[:, None] * self._gX[None, :]               # (N, n_out) projected HEG
+        a_row = 4.0 * np.pi * (R_ad ** 3)[:, None] * al[None, :]     # charge-moment row
+        e_row = 2.0 * np.pi * (R_ad ** 2)[:, None] * be[None, :]     # Coulomb (energy) row
+        A3 = np.stack([a_row, np.broadcast_to(r0v, a_row.shape), e_row], axis=1)   # (N,3,n_out)
+        rhs3 = np.stack([-1.0 - np.sum(a_row * heg, axis=1),
+                         -0.5 * rho0 - heg @ r0v,
+                         _C_LDA * rho0 ** (1.0 / 3.0) - np.sum(e_row * heg, axis=1)], axis=1)
+        lam3 = np.linalg.solve(A3 @ np.transpose(A3, (0, 2, 1)), rhs3[..., None])[..., 0]   # (N,3)
+        heg = heg + np.einsum('nk,nkm->nm', lam3, A3)               # exact-LDA HEG hole on basis
+        bulk = heg + (chi * -rho0)[:, None] * self._dgea[None, :]
         fa = -d / Qs[:, None]
         coeffs = (1.0 - W)[:, None] * bulk + W[:, None] * fa
         ontop = (1.0 - W) * (-0.5 * rho0) + W * (-rho0 / Qs)
