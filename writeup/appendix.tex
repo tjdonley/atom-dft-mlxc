@@ -484,11 +484,13 @@ The validation above establishes that the descriptors are convergent and covaria
 this appendix maps the \emph{practical} limits --- where each feature family, used as
 a functional ingredient, stays invariant on a realistic grid and where it fails. We
 stress four ingredients through $\ell=3$ --- the reduced gradient $s$, the reduced
-Laplacian $q$, the power spectrum $\tilde P_{n\ell}$ (32 entries), and the bispectrum
-(all triangle triples, 6656 entries) --- on five superposition densities built from
-single-atom radial densities: pseudo-H$_2$, pseudo-N$_2$, pseudo-H$_2$O (O$+$2H at
-$0.96$~\AA, $104.5^\circ$), and FCC bulk Al and Pt (clusters filling the window). The
-cutoff is fixed at $\Rc=6$~bohr; the realistic spacings are $h=0.1,0.2,0.3$~bohr; the
+Laplacian $q$, the power spectrum $\tilde P_{n\ell}$ (40 entries), and the bispectrum
+(all triangle triples, $1.3\times10^4$ entries) --- on five superposition densities
+built from single-atom radial densities: pseudo-H$_2$, pseudo-N$_2$, pseudo-H$_2$O
+(O$+$2H at $0.96$~\AA, $104.5^\circ$), and FCC bulk Al and Pt (clusters filling the
+window). Everything is run at the fixed production setting ($\Rc=6$~bohr, $\nout=10$,
+$\nin=20$, so $\Lambda_{\max}=\nin/\nout=2$); the realistic spacings are
+$h=0.1,0.2,0.3$~bohr; the
 ground truth is the analytic continuum-quadrature reference (for $\tilde P$ and the
 bispectrum) and a finite-difference gradient/Laplacian of the analytic density (for
 $s,q$). We flag any relative error $>10\%$ whose feature magnitude is above a
@@ -497,66 +499,65 @@ information). The four tests are translation (sub-grid registration), rotation
 (random rigid rotations), uniform scaling, and grid-spacing sensitivity; the script
 \texttt{invariant\_stress\_test.py} reproduces every number and figure.
 
-\paragraph*{Rotation and translation are robust.}
-Across 8 random rotations the rotation-invariant features ($s,q,\tilde P$, bispectrum)
-hold to $\le1.4\%$ at $h=0.2$ for every system and center (median $<0.5\%$) --- the
-grid breaks rotational symmetry only at the static-quadrature level. Under sub-grid
-registration shifts the deviation stays $\le1\%$ except at the bare pseudo-H$_2$
-nuclear cusp, where it reaches $6.5\%$ (the cusp is the hardest case for any uniform
-grid; pseudopotential and bulk densities are smooth and stay $\lesssim1\%$).
+\paragraph*{Rotation and translation are robust (except $q$).}
+Across 8 random rotations the power spectrum, bispectrum, and reduced gradient $s$ hold
+to $\lesssim1\%$ at $h=0.2$ for every system and center (median $\ll1\%$) --- the grid
+breaks rotational symmetry only at the static-quadrature level. Under sub-grid
+registration the deviation stays $\lesssim1\%$ except at the bare pseudo-H$_2$ nuclear
+cusp, where it reaches $\sim$10--12\% (the cusp is the hardest case for any uniform
+grid; pseudopotential and bulk densities are smooth and stay $\lesssim1\%$). The reduced
+Laplacian $q$ is the exception: it is invariant in the mean, but where its magnitude is
+small (e.g.\ the off-axis pseudo-H$_2$ center) the noise in its reconstruction produces
+large fractional excursions under both rotation and translation ($\sim$70--90\%),
+already a warning that $q$ is not a usable ingredient.
 
 \paragraph*{Grid-spacing: $\tilde P$ and the bispectrum converge; $q$ is a
 reconstruction problem, not a grid problem.}
 The power spectrum and bispectrum converge as $\mathcal O(h^2)$ toward the continuum
 (Fig.~\ref{fig:stress-grid}), reaching the $10\%$ flag only for the cusped pseudo-H$_2$
-at the coarsest $h=0.3$; at $h=0.2$ all systems are within $\sim$6\% and the smooth
-ones within $\sim$2\%. The \emph{grid-discretization} error of $s$ and $q$ is likewise
-small. Their limitation is instead the \emph{reconstruction} fidelity (continuum
-feature versus the exact derivative): $s$ is faithful in molecules ($\le4\%$ for
-N$_2$, H$_2$O), but $q$ --- the $\ell=0$ Bessel-eigenvalue contraction --- is
+at the coarsest $h=0.3$; at $h=0.2$ all systems are within $\sim$3\% and the smooth
+ones within $\sim$1\%. The \emph{grid-discretization} error of $s$ and $q$ is likewise
+small. Their limitation is instead the \emph{reconstruction} fidelity (reconstructed
+feature versus the exact derivative): $s$ is faithful in molecules ($\le$few percent
+for N$_2$, H$_2$O), but $q$ --- the $\ell=0$ Bessel-eigenvalue contraction --- is
 unreliable in dense environments, off by tens to hundreds of times at the bulk metal
-sites ($\sim\!60\times$ for Al, $\sim\!900\times$ for the Pt octahedral interstitial).
+sites ($\sim\!30\times$ and $\sim\!160\times$ for the Al site and octahedral
+interstitial, $\sim\!400\times$ for the Pt octahedral interstitial).
 This is the practical confirmation that the dimensionless Laplacian cannot be carried
 as a functional ingredient (Sec.~\ref{sec:gea}, App.~\ref{app:gea}); the high-symmetry
 bulk sites are inversion centers where $\nabla\rho\equiv0$, so $s$ itself vanishes
 there and its relative error is not informative, whereas $q$ is genuinely large and
 genuinely wrong.
 
-\paragraph*{Uniform scaling: an inner-channel resolution limit, not a clamp.}
-At the grid-matched channel count $\nin=16$ (the $\nin\!\simeq\!\Rc/2h$ pairing for
-$h=0.2$, $\Rc=6$) the dimensionless features deviate under uniform scaling more than
-the raw descriptors of Fig.~\ref{fig:scale} would suggest --- the apparent
-deviations grow with $|\lambda-1|$ and are largest for the bispectrum and the dense
-bulk systems. This is \emph{not} the adaptive-radius clamp: across every system and
-scaling here $\Rad$ stays well below $\Rc$ (e.g.\ $0.3$--$3$~bohr; never clamped). Nor
-is it a grid artifact --- the continuum-quadrature descriptors show the same
-deviation. It is the \emph{inner-channel resolution} bound of the scale transform,
-$k^*\lambda\lesssim\nin\pi/\Rc$ (Sec.~\ref{sec:scale}): the transfer that
-reconstructs the dilated-window descriptors needs enough inner channels to represent
-the dilated sampling, and $\nin=16$ at $\Rc=6$ exhausts that resolution sooner than
-the $\nin\!\ge\!32$ used for the continuum results of Fig.~\ref{fig:scale}. Raising
-$\nin$ collapses the deviation back to the Fig.~\ref{fig:scale} level
-(Fig.~\ref{fig:stress-scaleres}): the descriptor-vector deviation at $\lambda=1.67$
-falls from $\sim\!19\%$ ($\nin=16$) to $\sim\!1\%$ ($\nin=32$) to $\sim\!0.2\%$
-($\nin=48$), exactly the documented convergence. (The per-entry \emph{maximum}
-relative error of Fig.~\ref{fig:stress-scale} further amplifies this over the
-vector-norm metric, since it is dominated by the smallest, near-floor power-spectrum
-and bispectrum entries.) The practical statement is therefore not that the features
-fail to be scale-invariant, but that \emph{scale-invariant use of the
-transfer-reconstructed features requires $\nin\gtrsim32$} --- i.e.\ a grid fine enough
-($h\lesssim0.1$~bohr at $\Rc=6$) to supply the inner channels, or a channel count
-decoupled from the grid spacing.
+\paragraph*{Uniform scaling: usable within $\Lambda_{\max}$, resolution-gated, not a clamp.}
+Restricting the scaling to within the theoretical range $\lambda\le\Lambda_{\max}=2$ (set
+by the production $\nin=20$, $\nout=10$), the power spectrum and bispectrum stay near
+$1\%$ and the reduced gradient near $10\%$ (median $\sim$7\%; Fig.~\ref{fig:stress-scale});
+$q$ is again the worst. The residual scale deviation is \emph{not} the adaptive-radius
+clamp --- across every system and scaling here $\Rad$ stays well below $\Rc$
+($0.3$--$3$~bohr; never clamped) --- nor a grid artifact (the continuum-quadrature
+features show the same deviation). It is the \emph{inner-channel resolution} bound of the
+scale transform, $k^*\lambda\lesssim\nin\pi/\Rc$ (Sec.~\ref{sec:scale}): the transfer that
+reconstructs the dilated-window features needs enough inner channels to represent the
+dilated sampling. The reduced gradient is the most demanding because its slope weights
+$g^{(1)}_n\propto k_n$ emphasize the highest channels, so it converges last; raising
+$\nin$ tightens the whole set systematically (Fig.~\ref{fig:stress-scaleres}: the
+descriptor-vector deviation at $\lambda=1.67$ falls from $\sim$19\% at $\nin=16$ through
+$\sim$13\% at the production $\nin=20$ to $\sim$1\% at $\nin=32$ and $\sim$0.2\% at
+$\nin=48$). Scale invariance is thus exact in principle and a controllable
+resolution/cost trade-off in practice: a target dilation range $\Lambda$ is bought by
+fixing $\nin\gtrsim\nout\Lambda$ (App.~\ref{app:params}).
 
 \paragraph*{Summary.}
-At $h\le0.2$~bohr the power spectrum, the bispectrum, and the reduced gradient $s$ are
-practically usable under rotation, translation, and grid refinement; the reduced
-Laplacian $q$ is not reliably reconstructable (catastrophically so in bulk metals,
-where its $\ell=0$ eigenvalue sum is ill-conditioned), consistent with the $q$-free,
-second-order functional of the main text. Scale invariance holds as the theory
-predicts, but only once the inner-channel count resolves the dilation
-($\nin\gtrsim32$); at the coarse grid-matched $\nin=16$ it is the apparent soft spot,
-so adequate radial resolution (or an $\nin$ decoupled from $h$) is the requirement for
-applying the transferred features to strongly scaled or condensed-phase densities.
+At the production setting the power spectrum, the bispectrum, and the reduced gradient
+$s$ are practically usable under all four operations --- rotation and translation
+($\lesssim1\%$), grid refinement ($\mathcal O(h^2)$), and uniform scaling within
+$\Lambda_{\max}$ ($\tilde P$/bispectrum $\sim1\%$, $s$ $\lesssim10\%$, tightening with
+$\nin$). The reduced Laplacian $q$ fails on multiple counts --- rotation/translation
+noise where it is small, and a reconstruction against the exact $\nabla^2\rho$ that is
+off by tens to hundreds of times in bulk metals (its $\ell=0$ eigenvalue sum is
+ill-conditioned) --- so it is excluded, consistent with the $q$-free, second-order
+functional of the main text.
 
 \begin{figure*}[tb]
 \centering
@@ -575,15 +576,15 @@ effect.)}
 \begin{figure*}[tb]
 \centering
 \includegraphics[width=0.82\textwidth]{figures/invariance_scale.pdf}
-\caption{Scale invariance at $h=0.2$~bohr: relative deviation of each feature family
-from its $\lambda=1$ value under uniform scaling $\rho\to\lambda^3\rho(\lambda r)$,
-one curve per system and evaluation center (deviations floored at $10^{-6}$ for the
-log axis; dashed line, the $10\%$ flag). Invariance holds only in a narrow window
-about $\lambda=1$ and degrades steeply for stronger scaling and for the extended/bulk
-systems. The deviation is dominated by the inner-channel resolution of the scale
-transform at the grid-matched $\nin=16$ (Fig.~\ref{fig:stress-scaleres}), not by the
-adaptive-radius clamp (which is never reached here), and the per-entry maximum
-amplifies the smallest near-floor entries.}
+\caption{Scale invariance at $h=0.2$~bohr, production $\nin=20$: relative deviation of
+each feature family from its $\lambda=1$ value under uniform scaling
+$\rho\to\lambda^3\rho(\lambda r)$, one curve per system and evaluation center
+(deviations floored at $10^{-6}$ for the log axis; dashed line, the $10\%$ flag). The
+power spectrum, bispectrum, and reduced gradient grow gradually with $|\lambda-1|$
+within $\Lambda_{\max}=2$, while the reduced Laplacian is largest. The deviation is the
+inner-channel resolution of the scale transform (Fig.~\ref{fig:stress-scaleres}), not
+the adaptive-radius clamp (never reached here: $\Rad<\Rc$ throughout), and the per-entry
+maximum shown amplifies the smallest near-floor entries.}
 \label{fig:stress-scale}
 \end{figure*}
 
@@ -594,12 +595,12 @@ amplifies the smallest near-floor entries.}
 Continuum-quadrature descriptor-vector deviation
 $D(\lambda)=\lVert \varrho(\lambda)-\varrho(1)\rVert/\lVert \varrho(1)\rVert$ under uniform scaling, for
 increasing inner-channel counts $\nin$, at $\Rc=6$~bohr (the adaptive radius is
-unclamped throughout). The deviation falls systematically with $\nin$ --- from the
-grid-matched $\nin=16$ down to $\nin=64$ --- collapsing below the Fig.~\ref{fig:scale}
-continuum level (dotted) once $\nin\gtrsim32$. The scale non-invariance is therefore
-the documented inner-channel resolution bound $k^*\lambda\lesssim\nin\pi/\Rc$, not a
-breakdown of the construction: with enough radial channels the transferred features
-are scale-invariant as the theory requires.}
+unclamped throughout). The deviation falls systematically with $\nin$ --- from $\nin=16$
+through the production $\nin=20$ to $\nin=48$ --- collapsing below the
+Fig.~\ref{fig:scale} continuum level (dotted) once $\nin\gtrsim32$. The scale
+non-invariance is therefore the documented inner-channel resolution bound
+$k^*\lambda\lesssim\nin\pi/\Rc$, not a breakdown of the construction: with enough radial
+channels the transferred features are scale-invariant as the theory requires.}
 \label{fig:stress-scaleres}
 \end{figure*}
 

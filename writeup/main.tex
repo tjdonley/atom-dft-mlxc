@@ -204,19 +204,19 @@ Under a rotation $\mathcal R$ the features transform as rank-$\ell$ spherical
 tensors, $\varrho_{n\ell m}\mapsto\sum_{m'}D^{(\ell)}_{mm'}(\mathcal R)\,\varrho_{n\ell m'}$
 (App.~\ref{app:nondim}): they are rotationally \emph{covariant}, whereas a density
 functional needs inputs that are rotationally \emph{invariant}. We construct
-invariants in three ways --- the dimensionless gradient (and Laplacian) ingredients
-of the gradient expansion, the power spectrum and bispectrum that form a complete
-basis, and targeted projections of specific physical operators.
+invariants in three ways --- the dimensionless reduced gradient and Laplacian, the
+power spectrum and bispectrum that form a complete basis, and targeted projections of
+specific physical operators.
 
 \subsubsection{Dimensionless gradient and Laplacian}
 \label{sec:gea}
 
-The gradient expansion of the exchange energy provides exact constraints on any
-density functional~\cite{Antoniewicz_1985,Perdew_1996}. Its ingredients, the reduced
+The dimensionless inhomogeneity measures used by semilocal functionals --- the reduced
 gradient $s=|\nabla\rho|/(2\kF\rho)$ and reduced Laplacian $q=\nabla^2\rho/(4\kF^2\rho)$
-(with $\kF=(3\pi^2\rho)^{1/3}$), are explicit contractions of the SIMPLE features:
-$\nabla\rho$ is a vector (rank $1$) and $\nabla^2\rho$ a scalar (rank $0$), so they
-live in the $\ell=1$ and $\ell=0$ channels,
+(with $\kF=(3\pi^2\rho)^{1/3}$) --- are recovered directly from the SIMPLE features,
+with no fit or empirical decoder. Since $\nabla\rho$ is a vector (rank $1$) and
+$\nabla^2\rho$ a scalar (rank $0$), they are spectral contractions of the $\ell=1$ and
+$\ell=0$ channels,
 \begin{equation}
 \label{eq:sq}
 s=c_s\sqrt{\sum_{m}\Big(\sum_n g^{(1)}_n\,\varrho_{n1m}\Big)^2},\qquad
@@ -226,19 +226,17 @@ with fixed parameter-free spectral weights --- $g^{(1)}_n\propto R'_{n1}(0)$ (th
 slope at the origin) and $g^{(0)}_n\propto k_n^2 R_{n0}(0)$ (the Bessel eigenvalue,
 $k_n=z_{n0}/\Rc$) --- and constants $c_s,c_q$ (App.~\ref{app:gea}). The
 non-dimensionalization already supplies the $1/(2\kF\rho)$ and $1/(4\kF^2\rho)$
-factors, so no empirical decoder is needed; the reduced gradient is just the $\ell=1$
-power of the spectrally-weighted features and inherits their rotational and scale
-invariance.
+factors, so $s$ is simply the $\ell=1$ power of the spectrally-weighted features and
+inherits their rotational and scale invariance.
 
-The reduced gradient is well-behaved and is the ingredient the functional uses
-(Sec.~\ref{sec:hole}): within the basis resolution it agrees with direct finite
-differences to $\sim1\%$ (Sec.~\ref{sec:results-cartesian}), feeding the exact
-second-order coefficient $\mu=10/81$. The reduced Laplacian is reconstructable by the
-same construction but \emph{not numerically usable}: like a standard finite-difference
+The two ingredients differ sharply in practice. The reduced gradient is well-behaved,
+agreeing with direct finite differences to $\sim1\%$ within the basis resolution
+(Sec.~\ref{sec:results-cartesian}). The reduced Laplacian is recoverable by the same
+construction but \emph{not numerically usable}: like a standard finite-difference
 Laplacian, the $\ell=0$ eigenvalue sum weighted by $k_n^2$ amplifies high-wavevector
 noise, and its relative reconstruction error reaches tens to hundreds of percent in
-dense environments (Sec.~\ref{sec:results-cartesian}, App.~\ref{app:gea}). We
-therefore carry the expansion only to second order in $s$ and exclude $q$.
+dense environments (Sec.~\ref{sec:results-cartesian}, App.~\ref{app:gea}). The reduced
+gradient is therefore a reliable ingredient and the Laplacian is not.
 
 \subsubsection{Power spectrum, bispectrum, and operator projections}
 \label{sec:operators}
@@ -250,8 +248,12 @@ are useful. Generic invariants form a \emph{complete basis} for rotationally inv
 multilinear functionals of the density --- the power spectrum
 $\tilde P_{n\ell}=\sum_m \varrho_{n\ell m}^2$, the bispectrum, and higher
 Clebsch--Gordan trees --- systematically improvable as $\Rc$ and the resolution
-increase. Alternatively one can \emph{target a specific operator} whose symmetry is
-known and project it directly onto the features.
+increase. This route is especially favorable for machine-learned functionals: rather
+than a fixed, hand-chosen descriptor set, the model is handed a complete, orthonormal,
+systematically convergent projection of the local environment, so its accuracy can be
+improved in a controlled way simply by extending the basis. Alternatively one can
+\emph{target a specific operator} whose symmetry is known and project it directly onto
+the features.
 
 The decisive targeted example is the Coulomb operator $1/u$. Orthonormality converts
 any rotation-invariant $\nu$-point kernel into a finite contraction
@@ -271,9 +273,13 @@ form of Eq.~\eqref{eq:dnlm}], and the operator is the radial Coulomb contraction
 \end{equation}
 with weights $w_n=4\pi\int_0^{\Rc}R_n(u)\,u\,du$. The $1/u$ weight reduces the volume
 measure $u^2du$ to $u\,du$: the projection keeps the long-range $1/r$ dependence that
-semilocal functionals miss --- it is \emph{not} merely the average density. The same
-contraction with a model exchange hole in place of the bare kernel yields the
-self-Coulomb $\Phi_S$ of Eq.~\eqref{eq:eps-x}, the basis for the functional below.
+semilocal functionals miss --- it is \emph{not} merely the average density. Contracted
+with the local density itself, Eq.~\eqref{eq:coulomb} is the Hartree energy of the
+environment enclosed within $\Rc$, so the Coulomb projection converts the density
+directly into an approximate local energy scale (used in Sec.~\ref{sec:results-scale}
+to calibrate $\Rc$ and $\nout$). More generally, projecting other physical operators
+onto the features in the same way supplies the building blocks for physics-based
+functionals.
 
 \subsection{Exchange-hole functional}
 \label{sec:hole}
@@ -565,17 +571,28 @@ for $h\lesssim0.25$~bohr.}
 \subsubsection{Stability of invariants on Cartesian grids}
 \label{sec:results-cartesian}
 
-On the 3D Cartesian systems the invariants are stable under the symmetry operations a
-functional must respect (Fig.~\ref{fig:cartesian}; full breakdown in
-App.~\ref{app:stress}). Under random rotations the rotation-invariant features ($s$,
-$\tilde P$, the bispectrum, and $q$) hold to $\le1.4\%$; under sub-grid translation
-they stay $\le1\%$ except at the bare pseudo-H$_2$ cusp ($6.5\%$); and the power
-spectrum and bispectrum converge as $\mathcal O(h^2)$ toward the continuum ($\le6\%$
-at $h=0.2$). Uniform scaling is the one resolution-gated property: deviations grow
-once $\lambda$ exceeds $\Lambda_{\max}=\nin/\nout$ but are recovered by raising $\nin$
-(App.~\ref{app:stress}), not a breakdown of the construction. The reduced Laplacian
-$q$ is the lone casualty: its reconstruction error reaches tens to hundreds of times
-the value in dense bulk environments, confirming that $q$ cannot be carried.
+We assess the invariants at the fixed production settings ($\Rc=6$~bohr, $\nout=10$,
+$\nin=20$, so $\Lambda_{\max}=\nin/\nout=2$), pooled over the five Cartesian systems
+(Fig.~\ref{fig:cartesian}; full breakdown in App.~\ref{app:stress}). The power spectrum,
+bispectrum, and reduced gradient $s$ are robust: random rotation and sub-grid translation
+move them by $\lesssim1\%$ (a few percent only at the bare pseudo-H$_2$ cusp), grid
+refinement converges as $\mathcal O(h^2)$ ($\le3\%$ at $h=0.2$), and uniform scaling
+within $\Lambda_{\max}$ holds the power spectrum and bispectrum to $\sim1\%$ and the
+reduced gradient to $\lesssim10\%$ (median $\sim7\%$; the gradient is the most
+resolution-demanding feature and tightens further with $\nin$, App.~\ref{app:stress}).
+The reduced Laplacian $q$ is the exception on two counts: where its magnitude is small it
+is rotation/translation-noisy, and --- decisively --- its reconstruction against the
+exact $\nabla^2\rho$ is wrong by factors of tens to hundreds in dense bulk environments
+(Fig.~\ref{fig:cartesian}b). $q$ is therefore excluded.
+
+The two panels of Fig.~\ref{fig:cartesian} measure the same finite-resolution
+reconstruction error at different points: the true reduced gradient is exactly
+scale-invariant, so panel (b) reports the reconstruction error at the unscaled density
+($\sim$few percent at $\nin=20$), while the scaling column of panel (a) reports how that
+error \emph{changes} with $\lambda$ --- it grows as the dilated density shifts content to
+higher wavevectors that the fixed $\nin$ resolves less well, reaching $\sim$10\% by
+$\lambda\!\sim\!1.5$. Both shrink together as $\nin$ increases; neither reflects any
+motion of the exact $s$.
 
 \emph{Reduced gradient in energies.} The reconstructed $s$ tracks a direct
 finite-difference gradient to within $\sim5$--$6\%$ at the atom-site and off-axis
@@ -595,14 +612,21 @@ as the functional ingredient, with the reduced Laplacian $q$ excluded.
 \begin{figure}[tb]
 \centering
 \includegraphics[width=\columnwidth]{figures/invariance_summary.pdf}
-\caption{Invariance of the SIMPLE invariants on 3D Cartesian grids ($\Rc=6$~bohr):
-worst-case relative deviation of each feature family ($s$, $q$, power spectrum
-$\tilde P$, bispectrum) under rotation, sub-grid translation, uniform scaling, and
-grid refinement, maximized over the five test systems; dashed line is the $10\%$ flag.
-Rotation, translation, and grid refinement are well controlled for $s$, $\tilde P$,
-and the bispectrum; uniform scaling is resolution-gated (recoverable by raising $\nin$,
-App.~\ref{app:stress}); the reduced Laplacian $q$ is broadly flagged. Detailed
-per-test panels are in App.~\ref{app:stress}.}
+\caption{SIMPLE invariants at the fixed production settings ($\Rc=6$~bohr, $\nout=10$,
+$\nin=20$; $\Lambda_{\max}=\nin/\nout=2$), pooled over the five test systems (box:
+quartiles; whiskers: 5--95\%; points: outliers; dashed line: the $10\%$ flag).
+\textbf{(a)} \emph{Invariance} --- relative deviation of each family ($s$, $q$, power
+spectrum $\tilde P$, bispectrum) under random rotation, sub-grid translation, uniform
+scaling (within $\lambda\le\Lambda_{\max}$), and grid refinement vs the continuum.
+Rotation, translation, and grid refinement are well controlled; under scaling the power
+spectrum and bispectrum stay near $1\%$ and the reduced gradient near $10\%$ (it is the
+most resolution-demanding and tightens with $\nin$; App.~\ref{app:stress}).
+\textbf{(b)} \emph{Reconstruction accuracy} --- relative error of the reconstructed $s$
+and $q$ against the exact (finite-difference) gradient/Laplacian: $s$ is accurate
+($\sim$few percent), whereas $q$ is wrong by factors up to $\sim$$10^2$ in dense
+environments. The reduced gradient and the spectra are thus both invariant and accurate,
+while the reduced Laplacian is not reconstructable and is excluded. Detailed per-test
+panels are in App.~\ref{app:stress}.}
 \label{fig:cartesian}
 \end{figure}
 

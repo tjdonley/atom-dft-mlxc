@@ -7,8 +7,10 @@ invariant, but to find where each feature breaks on real-space grids.
 Features tested (through l=3):
   * s   -- dimensionless reduced gradient   |grad rho| / (2 k_F rho)        [l=1]
   * q   -- dimensionless reduced Laplacian  grad^2 rho / (4 k_F^2 rho)      [l=0, known unstable]
-  * P   -- power spectrum   P_{nl} = sum_m d_{nlm}^2                        (32 entries)
-  * B   -- bispectrum (real-CG, all triangle triples l1<=l2<=l3)           (6656 entries)
+  * P   -- power spectrum   P_{nl} = sum_m rho_{nlm}^2                      (40 entries)
+  * B   -- bispectrum (real-CG, all triangle triples l1<=l2<=l3)           (13000 entries)
+
+Run at the fixed production settings R_c=6 bohr, n_out=10, n_in=20 (Lambda_max=2).
 
 Systems (densities = linear combinations of single-atom radial densities; not SCF):
   pseudo-H2, pseudo-N2, pseudo-H2O, bulk Al (FCC), bulk Pt (FCC).
@@ -70,8 +72,15 @@ from atom.descriptors.simple.invariants import (  # noqa: E402
 from atom.descriptors.simple.rotations import (  # noqa: E402
     real_sph_harm, real_wigner_d, random_rotation_matrix,
 )
-from atom.descriptors.simple.params import L_MAX, N_OUT  # noqa: E402
+from atom.descriptors.simple.params import L_MAX  # noqa: E402
 from atom.solver import AtomicDFTSolver  # noqa: E402
+
+# Fixed production parameters (R_c=6 bohr set by the override above). n_out and n_in
+# are decoupled from the grid: n_in is the design choice n_out*Lambda_max (Lambda_max=2),
+# giving N_conv=n_in*(l_max+1)^2=320 at l_max=3 (App. parameter selection). The whole
+# invariance suite is run at these fixed values for a practical assessment.
+N_OUT = 10
+NIN = 20
 
 _DATA = Path(__file__).resolve().parent / "data"
 _FIG = Path(__file__).resolve().parent.parent / "figures"
@@ -475,14 +484,14 @@ def test_grid_sensitivity():
         key = f"{sysname}/{cname}"
         out[key] = {"per_h": {}, "reconstruction_vs_fd": {}}
         for h in SPACINGS:
-            n_in = n_in_for(h)
+            n_in = NIN                                # fixed production inner channels
             st = LatticeStencil(h, n_in)
             gf = grid_features(cl, st)
             cf = continuum_features(cl, n_in)
             out[key]["per_h"][h] = {g: summarize(gf[g], cf[g], g) for g in GROUPS}
             del st
-        # reconstruction ceiling at the finest channel count
-        cf_fine = continuum_features(cl, n_in_for(min(SPACINGS)))
+        # reconstruction ceiling at the production channel count
+        cf_fine = continuum_features(cl, NIN)
         out[key]["reconstruction_vs_fd"] = {
             "s": float(abs(cf_fine["s"][0] - fd_s) / max(abs(fd_s), 1e-30)),
             "q": float(abs(cf_fine["q"][0] - fd_q) / max(abs(fd_q), 1e-30)),
@@ -500,7 +509,7 @@ def test_rotation():
     print(f"\n=== (2) rotational invariance (spread over {N_ROT} rotations, h={H_INV}) ===")
     rng = np.random.default_rng(_SEED)
     rots = [random_rotation_matrix(rng) for _ in range(N_ROT)]
-    n_in = n_in_for(H_INV)
+    n_in = NIN
     st = LatticeStencil(H_INV, n_in)
     out = {}
     for sysname, cname, builder in _iter_cases():
@@ -528,7 +537,7 @@ def test_rotation():
 def test_translation():
     """Deviation under sub-grid registration shifts (system fixed, lattice shifted)."""
     print(f"\n=== (1) translation invariance (sub-grid shifts, h={H_INV}) ===")
-    n_in = n_in_for(H_INV)
+    n_in = NIN
     base_st = LatticeStencil(H_INV, n_in, frac=(0.0, 0.0, 0.0))
     out = {}
     for sysname, cname, builder in _iter_cases():
@@ -555,7 +564,7 @@ def test_translation():
 def test_scale():
     """Deviation of the dimensionless features under uniform scaling vs lambda=1."""
     print(f"\n=== (3) scale invariance (uniform lambda sweep, h={H_INV}) ===")
-    n_in = n_in_for(H_INV)
+    n_in = NIN
     st = LatticeStencil(H_INV, n_in)
     out = {}
     for sysname, cname, builder in _iter_cases():
@@ -579,7 +588,7 @@ def _stack_d(d, lmax=L_MAX):
     return np.concatenate([np.asarray(d[l]).ravel() for l in range(lmax + 1)])
 
 
-RES_NINS = (16, 32, 48, 64)
+RES_NINS = (16, 20, 32, 48)   # 20 = production n_in
 RES_SYSTEMS = [("pseudo-N2", "atom"), ("pseudo-N2", "offaxis"), ("pseudo-H2", "atom")]
 
 
@@ -717,42 +726,134 @@ def plot_scale(results_scale):
     plt.close(fig)
 
 
-def plot_invariance_summary(results):
-    """Condensed main-text figure: worst-case relative deviation of each feature group
-    (s, q, power spectrum, bispectrum) under each invariance test (rotation, translation,
-    uniform scaling, grid spacing), maximized over systems and centers, at the production
-    R_c=6, n_out... settings. Shows s/power/bispectrum robust (<10%) under
-    rotation/translation/grid while q is broadly flagged; scaling is resolution-gated."""
-    glabels = {"s": r"$s$", "q": r"$q$", "power_spectrum": r"$\tilde P$",
+_GLABEL_SUM = {"s": r"$s$", "q": r"$q$", "power_spectrum": r"$\tilde P$",
                "bispectrum": "bispec."}
-    gcolor = {"s": "tab:blue", "q": "tab:red", "power_spectrum": "tab:green",
-              "bispectrum": "tab:purple"}
+_GCOLOR_SUM = {"s": "tab:blue", "q": "tab:red", "power_spectrum": "tab:green",
+               "bispectrum": "tab:purple"}
 
-    def worst(test, g):
-        d = results[test]
-        if test == "grid_sensitivity":
-            return max(_perh(d[k]["per_h"], 0.2)[g]["max"] for k in d)
-        return max(d[k][g]["max"] for k in d)
 
-    tests = [("rotation", "rotation"), ("translation", "translation"),
-             ("scale", "scaling"), ("grid_sensitivity", "grid $h{=}0.2$")]
-    fig, ax = plt.subplots(figsize=(6.4, 3.8))
-    x = np.arange(len(tests))
-    w = 0.2
-    for i, g in enumerate(GROUPS):
-        vals = [max(worst(t, g), 1e-4) for t, _ in tests]
-        ax.bar(x + (i - 1.5) * w, vals, w, color=gcolor[g], label=glabels[g])
+def _entry_rel_devs(samples, ref, group):
+    """Pooled per-entry relative deviations of each sample vs ref, keeping only
+    above-floor reference entries (the floor makes a large relative error on a
+    near-zero feature non-meaningful)."""
+    ref = np.atleast_1d(np.asarray(ref, float))
+    mag = np.abs(ref)
+    floor = max(FLOOR[group], 1e-3 * float(mag.max()) if mag.size else 0.0)
+    keep = mag > floor
+    if not np.any(keep):
+        return np.array([])
+    out = [np.abs(np.atleast_1d(s) - ref)[keep] / mag[keep] for s in samples]
+    return np.concatenate(out) if out else np.array([])
+
+
+def summary_distributions(h=H_INV, n_rot=N_ROT):
+    """Distributions behind the condensed main-text figure. Two aspects are kept
+    separate because they answer different questions:
+
+      * INVARIANCE -- how much a feature *changes* under a symmetry operation it should
+        respect (rotation, sub-grid translation, uniform scaling within the theoretical
+        range Lambda<=Lambda_max=n_in/n_out, grid refinement vs the continuum). q is
+        invariant here (a rotation/translation/grid-consistent scalar), so it looks fine.
+
+      * RECONSTRUCTION ACCURACY -- how close the *reconstructed value* is to the exact
+        gradient/Laplacian (finite-difference ground truth). This is where the reduced
+        Laplacian q fails catastrophically (tens-to-hundreds x in dense environments),
+        while the reduced gradient s stays accurate.
+
+    Returns (inv, recon, meta): inv[test][group] and recon[group] are pooled arrays of
+    relative deviations across the test systems."""
+    n_in = NIN
+    lam_max = n_in / N_OUT
+    lam_hi = 0.8 * lam_max                                   # stay safely within Lambda_max
+    lams = [l for l in (0.65, 0.8, 0.9, 1.1, 1.25, 1.5) if (1.0 / lam_hi) <= l <= lam_hi]
+    rng = np.random.default_rng(_SEED)
+    rots = [random_rotation_matrix(rng) for _ in range(n_rot)]
+    st = LatticeStencil(h, n_in)
+    shift_st = [LatticeStencil(h, n_in, frac=tuple((f * _SHIFT_DIR) % 1.0)) for f in SHIFTS]
+
+    inv = {t: {g: [] for g in GROUPS} for t in ("rotation", "translation", "scale", "grid")}
+    recon = {"s": [], "q": []}
+    print(f"  summary: h={h}, n_in={n_in}, Lambda_max={lam_max:.1f}, "
+          f"scale lambda in [{min(lams):.2f},{max(lams):.2f}] (<= Lambda_max)")
+    for sysname, cname, builder in _iter_cases():
+        cl = Cluster(builder())
+        rot_feats = [grid_features(cl.rotated(R), st) for R in rots]
+        ref_grid = grid_features(cl, st)
+        trans_feats = [grid_features(cl, sst) for sst in shift_st]
+        scale_feats = [grid_features(cl.scaled(lam), st) for lam in lams]
+        cont = continuum_features(cl, n_in)
+        for g in GROUPS:
+            mean = np.mean([f[g] for f in rot_feats], axis=0)
+            inv["rotation"][g].append(_entry_rel_devs([f[g] for f in rot_feats], mean, g))
+            inv["translation"][g].append(_entry_rel_devs([f[g] for f in trans_feats], ref_grid[g], g))
+            inv["scale"][g].append(_entry_rel_devs([f[g] for f in scale_feats], ref_grid[g], g))
+            inv["grid"][g].append(_entry_rel_devs([ref_grid[g]], cont[g], g))
+        # reconstruction accuracy vs the exact gradient/Laplacian (finite differences)
+        fd_s, fd_q = fd_s_q(cl)
+        if abs(fd_s) > 1e-2:                                 # skip symmetry centers where grad rho=0
+            recon["s"].append(abs(ref_grid["s"][0] - fd_s) / abs(fd_s))
+        if abs(fd_q) > 1e-2:
+            recon["q"].append(abs(ref_grid["q"][0] - fd_q) / abs(fd_q))
+        print(f"    {sysname}/{cname} done")
+    inv = {t: {g: (np.concatenate(inv[t][g]) if any(a.size for a in inv[t][g])
+                   else np.array([1e-6])) for g in GROUPS} for t in inv}
+    recon = {g: np.array(recon[g]) if recon[g] else np.array([1e-6]) for g in recon}
+    return inv, recon, {"h": h, "n_in": n_in, "lambda_max": lam_max,
+                        "lambda_range": [min(lams), max(lams)], "n_rot": n_rot}
+
+
+def _box(ax, data_by_group, groups, label):
+    """Grouped box-and-whisker (5-95 percentile whiskers) of relative deviations."""
+    w = 0.8 / len(groups)
+    x = np.arange(len(label))
+    for i, g in enumerate(groups):
+        data = [np.maximum(np.asarray(data_by_group[k][g], float), 1e-6) for k in range(len(label))]
+        bp = ax.boxplot(data, positions=x + (i - (len(groups) - 1) / 2) * w, widths=w * 0.85,
+                        patch_artist=True, whis=(5, 95), showfliers=True,
+                        flierprops=dict(marker=".", ms=2, mfc=_GCOLOR_SUM[g],
+                                        mec=_GCOLOR_SUM[g], alpha=0.4),
+                        medianprops=dict(color="k", lw=0.9))
+        for box in bp["boxes"]:
+            box.set(facecolor=_GCOLOR_SUM[g], alpha=0.65)
     ax.axhline(FLAG, color="0.4", ls="--", lw=0.9)
-    ax.text(len(tests) - 0.5, FLAG * 1.15, "10% flag", fontsize=7, color="0.4", ha="right")
     ax.set_yscale("log")
     ax.set_xticks(x)
-    ax.set_xticklabels([lab for _, lab in tests])
-    ax.set(ylabel="max rel. deviation (over systems)",
-           title=r"Invariance of SIMPLE features on 3D Cartesian grids ($R_c=6$)")
-    ax.legend(fontsize=8, ncol=4, loc="upper left")
-    fig.tight_layout()
+    ax.set_xticklabels(label)
+
+
+def plot_invariance_summary(inv, recon, meta):
+    fig, (axa, axb) = plt.subplots(1, 2, figsize=(9.6, 4.2),
+                                   gridspec_kw={"width_ratios": [3, 1]})
+    tests = ["rotation", "translation", "scale", "grid"]
+    tlab = ["rotation", "translation",
+            "scaling\n" + r"($\lambda\leq%.1f$)" % meta["lambda_range"][1],
+            r"grid $h{=}0.2$"]
+    _box(axa, [{g: inv[t][g] for g in GROUPS} for t in tests], GROUPS, tlab)
+    axa.text(3.5, FLAG * 1.25, "10% flag", fontsize=7, color="0.4", ha="right")
+    axa.set(ylabel="relative deviation (over systems)",
+            title=r"(a) invariance: rotation / translation / scaling ($\leq\Lambda_{\max}$) / grid")
+    handles = [plt.Rectangle((0, 0), 1, 1, fc=_GCOLOR_SUM[g], alpha=0.65) for g in GROUPS]
+    axa.legend(handles, [_GLABEL_SUM[g] for g in GROUPS], fontsize=8, ncol=4, loc="upper left")
+
+    # panel (b): reconstruction accuracy vs the exact gradient/Laplacian
+    _box(axb, [{"s": recon["s"], "q": recon["q"]}], ["s", "q"], ["recon."])
+    axb.set(title="(b) reconstruction\nvs exact",
+            ylabel=r"$|f_{\rm SIMPLE}-f_{\rm exact}|/|f_{\rm exact}|$")
+    axb.legend([plt.Rectangle((0, 0), 1, 1, fc=_GCOLOR_SUM[g], alpha=0.65) for g in ("s", "q")],
+               [r"$s$ (gradient)", r"$q$ (Laplacian)"], fontsize=8, loc="upper left")
+    fig.suptitle(r"SIMPLE invariants at production settings: "
+                 r"$s$, $\tilde P$, bispectrum usable; $q$ not reconstructable",
+                 fontsize=10.5)
+    fig.tight_layout(rect=[0, 0, 1, 0.95])
     fig.savefig(_FIG / "invariance_summary.pdf")
     plt.close(fig)
+
+
+def make_summary_figure():
+    """Recompute the distributions (not stored in JSON) and draw the summary figure."""
+    inv, recon, meta = summary_distributions()
+    plot_invariance_summary(inv, recon, meta)
+    print(f"wrote invariance_summary.pdf (Lambda_max={meta['lambda_max']:.1f})")
 
 
 def regen_from_json():
@@ -765,7 +866,7 @@ def regen_from_json():
               f"(1) Translation: max dev. over sub-grid shifts, h={H_INV} bohr; dashed = 10% flag")
     plot_scale(r["scale"])
     plot_scale_resolution(r["scale_resolution"])
-    plot_invariance_summary(r)
+    make_summary_figure()   # recomputes the distributions (not stored in JSON)
     print(f"regenerated invariance_* (incl. invariance_summary) from {_OUT.name}")
 
 
@@ -800,7 +901,7 @@ def main():
               f"(1) Translation: max dev. over sub-grid shifts, h={H_INV} bohr; dashed = 10% flag")
     plot_scale(scale)
     plot_scale_resolution(scale_res)
-    plot_invariance_summary(results)
+    make_summary_figure()
     print(f"wrote invariance_*.pdf to {_FIG}/   ({time.time()-t0:.0f}s total)")
 
 
