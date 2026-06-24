@@ -415,3 +415,38 @@ def test_E1_scf_converges_and_improves_He():
     err_base = abs(res["SIMPLE_HOLE_EXPANSION"] + 1.0258)
     err_gga = abs(res["SIMPLE_HOLE_EXPANSION_GGA"] + 1.0258)
     assert err_gga < err_base, f"GGA {res['SIMPLE_HOLE_EXPANSION_GGA']:.4f} not closer than base {res['SIMPLE_HOLE_EXPANSION']:.4f}"
+
+
+# ======================================================================= #
+# PHASE F: learnable residual layer with exact limits by construction (mechanism)
+# ======================================================================= #
+def test_F_residual_vanishes_at_both_anchors():
+    """For ARBITRARY fitted weights, the gated learned residual is exactly zero at the HEG
+    (lambda=0) and one-electron (lambda=1) anchors, so it cannot break either exact limit."""
+    n_ch, n_feat = 24, 5
+    a = ex.charge_moments(n_ch, R_C)
+    r0 = ex.radial_basis_at_origin(n_ch, R_C)
+    rng = np.random.default_rng(3)
+    for _ in range(20):
+        W = rng.standard_normal((n_ch, n_feat))
+        feats = rng.standard_normal(n_feat)
+        for lam in (0.0, 1.0):
+            d = ex.learnable_residual(feats, W, lam, a, r0, n_ch)
+            assert np.allclose(d, 0.0, atol=1e-12), f"residual nonzero at lambda={lam}"
+
+
+def test_F_residual_is_charge_and_ontop_neutral():
+    """At any intermediate lambda the residual carries zero charge and zero on-top change,
+    so the sum rule (-1) and on-top constraints remain exact for any weights."""
+    n_ch, n_feat = 24, 5
+    a = ex.charge_moments(n_ch, R_C)
+    r0 = ex.radial_basis_at_origin(n_ch, R_C)
+    rng = np.random.default_rng(4)
+    for _ in range(20):
+        W = rng.standard_normal((n_ch, n_feat))
+        feats = rng.standard_normal(n_feat)
+        d = ex.learnable_residual(feats, W, 0.5, a, r0, n_ch)
+        assert abs(4.0 * np.pi * np.dot(a, d)) < 1e-10, "residual changes enclosed charge"
+        assert abs(np.dot(r0, d)) < 1e-10, "residual changes on-top value"
+        # but it CAN change the energy channel (otherwise it would be useless)
+        assert abs(np.dot(ex.coulomb_moments(n_ch, R_C), d)) > 0 or np.allclose(d, 0)

@@ -250,3 +250,33 @@ def eps_x_map(density_profile, r_c, n_channels, nu=512):
     """Exchange energy per particle from the parameter-free map."""
     b = coulomb_moments(n_channels, r_c)
     return eps_from_coeffs(map_coeffs(density_profile, r_c, n_channels, nu=nu), b)
+
+
+# =========================================================================== #
+# Phase F: learnable residual layer with the exact limits enforced by construction
+#
+# A data-driven correction to the parameter-free hole coefficients that CANNOT break
+# the HEG (lambda=0) or one-electron (lambda=1) limits, regardless of the fitted weights:
+#
+#   rhotilde = rhotilde_paramfree + lambda(1-lambda) * (W_mat @ features) ; then constraint-project.
+#
+# The gate g = lambda(1-lambda) vanishes at both anchors (lambda in {0,1}), so the learned
+# term is active only in the intermediate (inhomogeneous, partially-enclosed) regime -- exactly
+# where the parameter-free map is weakest. The final 2-constraint projection keeps the sum rule
+# and on-top exact. Features are rotation-invariant scalars (here: the enclosed charge Q and the
+# reduced gradient s; in production, the SIMPLE power spectrum / bispectrum slot in unchanged).
+# =========================================================================== #
+def learnable_residual(features, weights, lam, a, r0_vals, n_channels):
+    """Constrained learned correction to the hole coefficients.
+
+    features : (n_feat,) rotation-invariant scalars at the point.
+    weights  : (n_channels, n_feat) fitted matrix.
+    lam      : enclosed-charge switch value at the point.
+    Returns the gated, charge-/on-top-neutral coefficient correction (n_channels,)."""
+    gate = lam * (1.0 - lam)
+    delta = gate * (np.asarray(weights) @ np.asarray(features))      # (n_channels,)
+    # project the correction itself to be charge- and on-top-NEUTRAL so it cannot move the
+    # sum rule or the on-top value (limits stay exact); leaves the energy channel free.
+    A = np.vstack([4.0 * np.pi * np.asarray(a), np.asarray(r0_vals)])   # (2, n_channels)
+    Ginv = np.linalg.inv(A @ A.T)
+    return delta - A.T @ (Ginv @ (A @ delta))
