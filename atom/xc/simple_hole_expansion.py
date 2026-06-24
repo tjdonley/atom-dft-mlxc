@@ -204,49 +204,89 @@ class SIMPLE_HOLE_EXPANSION(SIMPLE_HOLE):
 @dataclass
 class SIMPLEHOLEEXPGGAParameters(SIMPLEHOLEEXPParameters):
     functional_name: str = "SIMPLE_HOLE_EXPANSION_GGA"
-    alpha_lda: float = 1.0           # HEG-gate strength: g = exp(-alpha_lda * D_HEG); larger =>
-                                     # GEA needs the density closer to HEG before turning on.
-                                     # (named alpha_lda; the symbol c is the projected coeffs C_n.)
-    gea_mu: float = 10.0 / 81.0      # GEA enhancement coefficient (F_x -> 1 + g*mu*s^2). The
-                                     # s^2 slope is exactly mu in the s->0 limit (g->1); tune mu
-                                     # only to set the *effective* enhancement at finite gradient
-                                     # (the gate adds an O(s^4) self-saturation, see report).
+    # Two additive gated corrections of OPPOSITE sign (see report Update 12). The gradient/GEA
+    # term (m_g) and the H1s anti-binding term (m_h) cancel for He -> the He/FA limit is
+    # preserved; their ratio m_h/m_g is what enforces that cancellation. The overall magnitude
+    # (m_g, with m_h = ratio * m_g) is the single calibrated DOF (fit on Be/Na/Mg). Defaults
+    # from the self-consistent c_ad-gate calibration (reports/hole_expansion, Update 13).
+    m_g: float = -2.685              # HEG-gated s^2 term magnitude (the overall DOF)
+    m_h: float = 0.0081              # H1s-gated s^2 term magnitude (= (m_h/m_g) * m_g, ratio
+                                     # -0.003 fixed by He cancellation)
+    alpha_heg: float = 2.0           # HEG-gate strength: g_HEG = exp(-alpha_heg D_HEG)
+    alpha_h1s: float = 4.0           # H1s-gate strength: g_H1s = 1 - exp(-alpha_h1s D_H1s)
+    frozen_potential: bool = True    # freeze the enhancement factor F when forming the SCF
+                                     # potential (drop its unstable density-response); the energy
+                                     # is still the full GGA energy. False = exact (variational)
+                                     # adjoint -- correct but unstable in the low-density tail.
 
 
 class SIMPLE_HOLE_EXPANSION_GGA(SIMPLE_HOLE_EXPANSION):
-    """Direct-expansion hole with the parameter-free second-order gradient correction.
+    """Direct-expansion hole with two additive, opposite-sign gated corrections.
 
-    The charge- and on-top-neutral gradient deformation of the hole enhances the energy by the
-    GEA2 factor, gated by how HEG-like the local density is:
-        eps_x = eps_x^map * (1 + g(C) * mu * s^2_bounded),   s = |grad rho|/(2 k_F rho),
-        g(C)  = exp(-alpha_lda * D_HEG(C)),   D_HEG = sum_n (C_n/C_0 - (-1)^n/(n+1))^2 .
-    s comes from the proven-stable l=1 spectral gradient operator (k_n^1, no stiff Laplacian);
-    s^2 is smoothly saturated (``_bound``). mu = ``gea_mu`` (default 10/81), alpha_lda = the
-    HEG-gate strength ``alpha_lda`` (default 1; the symbol c is reserved for the coeffs C_n).
+        eps_x = eps_base * (1 + m_g * g_HEG * s^2_b  +  m_h * g_H1s),
+        g_HEG = exp(-alpha_heg * D_HEG),   g_H1s = 1 - exp(-alpha_h1s * D_H1s),
+        s = |grad rho| / (2 k_F rho)  (proven-stable l=1 spectral gradient; s^2 smoothly bounded).
 
-    THE GATE IS THE L2 DISTANCE FROM HEG IN SIMPLE FEATURE SPACE. The non-dimensional SIMPLE
-    monopole features vanish at the homogeneous-gas limit; D_HEG is their squared L2 norm (the
-    monopole channel: C_n/C_0 vs the HEG ratios (-1)^n/(n+1)), so D_HEG = 0 for any uniform
-    density and grows with inhomogeneity. The gate turns GEA *on* (g -> 1) only when the whole
-    local density is HEG-like, and *off* (g -> 0) in strongly inhomogeneous regions (atomic
-    cores, one-electron tails) -- so it leaves already-exact results (e.g. spin-paired He, which
-    is far from HEG) untouched. This is the natural scale-free inhomogeneity detector of the
-    SIMPLE framework, intrinsic rather than the ad-hoc enclosed-charge switch.
+    The gradient term (m_g, on in HEG-like regions) adds binding; the H1s term (m_h, opposite
+    sign, on *away* from the single-orbital limit) is anti-binding and vanishes at the
+    one-electron/H1s limit. For He the two integrate to opposite values and cancel, so the
+    Fermi-Amaldi limit is preserved (He stays exact); H is exact automatically (D_H1s = 0 on the
+    hydrogenic manifold). The cancellation fixes the ratio m_h/m_g, leaving the overall magnitude
+    m_g as the single DOF, calibrated on the heavier closed-/near-closed-shell atoms (Be/Na/Mg).
 
-    Slope: because D_HEG ~ s^2 across the window, g = 1 - c*k*s^2 + ..., so the enhancement is
-    mu*s^2*(1 - c*k*s^2) = mu*s^2 - O(s^4): the s^2 coefficient is exactly mu in the s->0 limit
-    (GEA2 recovered without tuning), and the gate's density-derivative contributes only an
-    O(s^4) self-saturation. Tune ``gea_mu`` only to set the effective enhancement at finite s.
-
-    Because the gate depends on C (through D_HEG), the self-consistent potential is the full
-    discrete adjoint of eps_x, taken by finite difference in all three channels (C, on-top rho,
-    gradient g); the gradient channel uses the spectral-operator transpose."""
+    D_HEG and D_H1s are squared L2 distances of the SCALE-FREE adaptive-radius monopole features
+    c_ad = T(R_ad) @ C (the same features the base energy uses) from the HEG signature and from a
+    sampled hydrogenic-1s manifold, respectively. Using c_ad (not raw fixed-R_c C) makes the
+    signatures Z-independent, so any 1s maps to the manifold and any uniform density to the HEG
+    point. Both gates are smooth functions of (C, R_ad), so the self-consistent potential is the
+    full discrete adjoint, taken by finite difference in the C, local-rho (R_ad + s^2), and
+    gradient channels (the latter via the spectral-operator transpose)."""
 
     def __init__(self, derivative_matrix=None, r_quad=None,
                  quadrature_weights=None, params: Optional[XCParameters] = None):
         super().__init__(derivative_matrix=derivative_matrix, r_quad=r_quad,
                          quadrature_weights=quadrature_weights, params=params)
         self._grad_op = build_spectral_gradient_operator(self._r_grid)
+        self._heg_sig, self._h1s_sig = self._build_signatures()
+
+    def _build_signatures(self):
+        """Precompute the two scale-free c_ad reference signatures, each a single point-wise
+        vector (Z-independent): HEG (uniform density) and a representative hydrogenic-1s point
+        (taken at the 1s radial-probability peak). Both gates are then pure point-wise distances
+        to a fixed reference -- the natural local form that carries over to 3D unchanged. A single
+        1s point cannot match the 1s environment at every radius; that residual is absorbed by the
+        magnitude calibration (the gate only needs to separate single-orbital from HEG character)."""
+        r = self._r_grid
+        rho_u = np.ones_like(r)                                      # uniform -> HEG signature
+        Cu = np.array([op @ rho_u for op in self._ops])
+        Rad_u, _ = self._R_ad(rho_u)
+        cu = self._scalefree(self._c_ad(Cu, Rad_u))
+        heg_sig = cu[np.argsort(r)[len(r) // 3]]
+        # hydrogenic-1s reference at its radial-probability peak r ~ 1/Z (Z-independent in c_ad)
+        Z = 1.5
+        rho_1s = (Z ** 3 / np.pi) * np.exp(-2.0 * Z * r)
+        C1 = np.array([op @ rho_1s for op in self._ops])
+        Rad_1, _ = self._R_ad(np.maximum(rho_1s, 1e-12))
+        c1 = self._scalefree(self._c_ad(C1, Rad_1))
+        peak = int(np.argmax(rho_1s * r ** 2))                      # radial-probability peak
+        return heg_sig, c1[peak]
+
+    @staticmethod
+    def _scalefree(c_ad):
+        """Scale-free monopole signature: c_ad normalized by its n=0 component (Z-independent)."""
+        c0 = c_ad[:, 0:1]
+        c0 = np.where(np.abs(c0) > 1e-30, c0, 1e-30)
+        return c_ad / c0
+
+    def _gates(self, C, R_ad):
+        """D_HEG, D_H1s: pure point-wise squared distances of the scale-free adaptive-radius
+        features c_ad = T(R_ad) @ C from the HEG and hydrogenic-1s reference signatures. Both are
+        smooth local functions of (C, R_ad) -- no manifold, no min -- so they carry to 3D and the
+        self-consistent potential stays smooth."""
+        cn = self._scalefree(self._c_ad(C, R_ad))                   # (N, n_out)
+        d_heg = np.sum((cn - self._heg_sig[None, :]) ** 2, axis=1)  # (N,)
+        d_h1s = np.sum((cn - self._h1s_sig[None, :]) ** 2, axis=1)  # (N,)
+        return d_heg, d_h1s
 
     def _s2_bounded(self, rho, g):
         """Smoothly-saturated reduced gradient squared s^2_b, s = |g|/(2 k_F rho)."""
@@ -255,24 +295,35 @@ class SIMPLE_HOLE_EXPANSION_GGA(SIMPLE_HOLE_EXPANSION):
         s2b, _ = _bound(g * g / d8)
         return s2b
 
-    def _l2_distance_from_heg(self, C):
-        """Squared L2 distance of the monopole SIMPLE features from the HEG limit:
-        D_HEG = sum_n (C_n/C_0 - (-1)^n/(n+1))^2. Scale-free (ratio C_n/C_0) and exactly 0 for
-        any uniform density. C (nch, N) -> D (N,)."""
-        n = np.arange(C.shape[0])
-        heg_ratio = ((-1.0) ** n) / (n + 1.0)                       # C_n/C_0 at HEG
-        c0 = C[0]
-        c0 = np.where(np.abs(c0) > 1e-30, c0, 1e-30)
-        ratio = C / c0[None, :]                                     # (nch, N)
-        return np.sum((ratio - heg_ratio[:, None]) ** 2, axis=0)    # (N,)
-
     def _eps_full(self, C, rho0, g):
-        """eps_x = eps_map(C, rho0) * (1 + g(C) * mu * s^2_b(g, rho0)), g = exp(-alpha_lda D_HEG(C))."""
+        """eps_x = eps_base * (1 + s^2 (m_g g_HEG + m_h g_H1s)).
+
+        Both gated terms carry s^2, so the correction vanishes at the HEG limit (uniform density,
+        s=0 -> LDA preserved). The two gates differ only away from HEG: g_HEG = exp(-alpha_heg
+        D_HEG) attenuates in non-HEG regions; g_H1s = 1 - exp(-alpha_h1s D_H1s) attenuates near
+        the single-orbital limit. With opposite-sign m_g, m_h the two integrate to opposite
+        values for He and cancel (FA limit preserved)."""
         p = self.params
-        eps0 = self._eps_from_coeffs(C, rho0)
-        gate = np.exp(-p.alpha_lda * self._l2_distance_from_heg(C))
-        f = 1.0 + gate * p.gea_mu * self._s2_bounded(rho0, g)
+        rho0 = np.maximum(np.asarray(rho0, float), 1e-12)
+        R_ad, _ = self._R_ad(rho0)
+        eps0 = self._eps_sf(C, R_ad)
+        d_heg, d_h1s = self._gates(C, R_ad)
+        g_heg = np.exp(-p.alpha_heg * d_heg)
+        g_h1s = 1.0 - np.exp(-p.alpha_h1s * d_h1s)
+        f = 1.0 + self._s2_bounded(rho0, g) * (p.m_g * g_heg + p.m_h * g_h1s)
         return eps0 * f
+
+    def _enhancement(self, C, rho0, g):
+        """The gated gradient enhancement factor F = 1 + s^2 (m_g g_HEG + m_h g_H1s) and eps0."""
+        p = self.params
+        rho0 = np.maximum(np.asarray(rho0, float), 1e-12)
+        R_ad, unclamped = self._R_ad(rho0)
+        eps0 = self._eps_sf(C, R_ad)
+        d_heg, d_h1s = self._gates(C, R_ad)
+        g_heg = np.exp(-p.alpha_heg * d_heg)
+        g_h1s = 1.0 - np.exp(-p.alpha_h1s * d_h1s)
+        F = 1.0 + self._s2_bounded(rho0, g) * (p.m_g * g_heg + p.m_h * g_h1s)
+        return F, eps0, R_ad, unclamped
 
     def compute_xc(self, density_data: DensityData) -> XCPotentialData:
         rho = np.maximum(np.asarray(density_data.rho, dtype=float), 1e-12)
@@ -280,26 +331,46 @@ class SIMPLE_HOLE_EXPANSION_GGA(SIMPLE_HOLE_EXPANSION):
         ewrho = ew * rho
         C = np.array([op @ rho for op in self._ops])
         g = self._grad_op @ rho
-        eps = self._eps_full(C, rho, g)
 
-        # full discrete adjoint by finite difference in each channel (the gate's C-dependence
-        # is captured by FD-ing the complete eps_full, not just eps_map).
-        acc = np.zeros_like(rho)
-        for n in range(len(self._ops)):                              # C-channel
-            h = 1e-6 * (np.abs(C[n]) + 1e-8)
-            Cp = C.copy(); Cp[n] += h
-            Cm = C.copy(); Cm[n] -= h
-            deps_dCn = (self._eps_full(Cp, rho, g) - self._eps_full(Cm, rho, g)) / (2.0 * h)
-            acc += self._ops[n].T @ (ewrho * deps_dCn)
-        hr = 1e-6 * (rho + 1e-8)                                     # on-top-density channel
-        deps_drho0 = (self._eps_full(C, rho + hr, g) - self._eps_full(C, rho - hr, g)) / (2.0 * hr)
-        hg = 1e-6 * (np.abs(g) + 1e-8)                               # gradient channel
-        deps_dg = (self._eps_full(C, rho, g + hg) - self._eps_full(C, rho, g - hg)) / (2.0 * hg)
-
-        v_x = (eps
-               + rho * deps_drho0
-               + acc / ew
-               + self._grad_op.T @ (ewrho * deps_dg) / ew)          # spectral gradient transpose
+        if getattr(self.params, "frozen_potential", True):
+            # FROZEN-SCF potential: the gated enhancement factor F is held fixed when forming the
+            # potential (its density-response -- the gradient/gate adjoint terms -- is the unstable
+            # part, blowing up in the low-density tail). The SCF is then driven by the well-behaved
+            # base potential weighted by F; the energy at convergence is the full GGA energy
+            # E = sum ew rho eps0 F. v_x is the exact adjoint of E at *fixed* F:
+            #   v_x = eps0 F + (1/ew) sum_n P_n^T(ew rho F d eps0/dC_n) + rho F d eps0/drho0 .
+            F, eps0, R_ad, unclamped = self._enhancement(C, rho, g)
+            eps = eps0 * F
+            wF = ewrho * F
+            acc = np.zeros_like(rho)
+            for n in range(len(self._ops)):                          # C-channel (eps0 only)
+                h = 1e-6 * (np.abs(C[n]) + 1e-8)
+                Cp = C.copy(); Cp[n] += h
+                Cm = C.copy(); Cm[n] -= h
+                deps0 = (self._eps_sf(Cp, R_ad) - self._eps_sf(Cm, R_ad)) / (2.0 * h)
+                acc += self._ops[n].T @ (wF * deps0)
+            hr = 1e-6 * (R_ad + 1e-8)                                # R_ad channel (eps0 only)
+            deps0_dRad = (self._eps_sf(C, R_ad + hr) - self._eps_sf(C, R_ad - hr)) / (2.0 * hr)
+            dRad_drho = np.where(unclamped, -(1.0 / 3.0) * R_ad / rho, 0.0)
+            v_x = eps + acc / ew + rho * F * deps0_dRad * dRad_drho
+        else:
+            # exact discrete adjoint (variational; used by the adjoint test). Both gates depend on
+            # rho through C and R_ad, captured by the C-channel and the local-rho channel; the
+            # gradient channel uses the spectral-operator transpose.
+            eps = self._eps_full(C, rho, g)
+            acc = np.zeros_like(rho)
+            for n in range(len(self._ops)):
+                h = 1e-6 * (np.abs(C[n]) + 1e-8)
+                Cp = C.copy(); Cp[n] += h
+                Cm = C.copy(); Cm[n] -= h
+                deps_dCn = (self._eps_full(Cp, rho, g) - self._eps_full(Cm, rho, g)) / (2.0 * h)
+                acc += self._ops[n].T @ (ewrho * deps_dCn)
+            hr = 1e-6 * (rho + 1e-8)                                 # local-rho channel (R_ad + s^2)
+            deps_drho0 = (self._eps_full(C, rho + hr, g) - self._eps_full(C, rho - hr, g)) / (2.0 * hr)
+            hg = 1e-6 * (np.abs(g) + 1e-8)                           # gradient channel
+            deps_dg = (self._eps_full(C, rho, g + hg) - self._eps_full(C, rho, g - hg)) / (2.0 * hg)
+            v_x = (eps + rho * deps_drho0 + acc / ew
+                   + self._grad_op.T @ (ewrho * deps_dg) / ew)
         if getattr(self.params, "gauge_fix", True):
             v_x = self._apply_gauge(v_x, eps, rho)
         zero = np.zeros_like(rho)

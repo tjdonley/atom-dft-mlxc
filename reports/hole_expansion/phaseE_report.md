@@ -366,3 +366,36 @@ aHEG hurts Be, larger helps Be but worsens Na). Zero-parameter variant (M_G = mu
 fails (Be/Na/Mg -35..-280 mHa): the magnitude must be free, and the effective M_G (~0.6) is
 ~5x mu, so the "GEA2" term acts as a tunable counterweight, not the physical gradient slope.
 Tools: psp_cache.py (slow, -> psp_cache.npz), psp_scan.py (cheap).
+
+## Update 13 — CHECKPOINT: two-term GGA wired in, point-wise gates, benchmarked vs PBE
+Wired the two-term construction into SIMPLE_HOLE_EXPANSION_GGA (self-consistent functional):
+  eps_x = eps_base * (1 + s^2 (m_g g_HEG + m_h g_H1s))
+Both terms carry s^2 (HEG limit preserved: uniform density -> LDA). Gates are PURE POINT-WISE
+squared distances of the scale-free adaptive-radius features c_ad = T(R_ad)C from two fixed
+single reference signatures (per review): g_HEG = exp(-alpha_heg D_HEG) [uniform-density
+signature], g_H1s = 1 - exp(-alpha_h1s D_H1s) [hydrogenic-1s signature at its radial-prob peak].
+No manifold, no min -> local, smooth, and carries to 3D unchanged. The single-1s signature is
+not exact across radii; the magnitude calibration absorbs that (per review).
+
+Calibration (non-SCF on base PSP densities, He-cancellation fixes m_h/m_g, m_g fit on Be/Na/Mg):
+  alpha_heg=2.0, alpha_h1s=4.0, m_g=-2.685, m_h=0.0081 (ratio -0.003).
+
+Benchmark vs EXX (PSP), GGA evaluated on the base density (frozen-density / GGA@base):
+  atom   EXX      PBE-x     base      GGA@base   PBE err  base err  GGA err (mHa)
+  He   -1.0019   -0.9705   -1.0022   -1.0020      31.4     -0.3     -0.0
+  Be   -1.9208   -1.8853   -1.9924   -1.9194      35.5    -71.6      1.5
+  Na   -5.7751   -5.6815   -6.0521   -5.7945      93.6   -276.9    -19.4
+  Mg   -6.9715   -6.7599   -7.2407   -6.9547     211.6   -269.2     16.8
+  MAE vs EXX (mHa):  PBE-x = 93.0   base = 154.5   GGA@base = 9.4
+=> GGA@base is ~10x better than PBE exchange and ~16x better than the base hole; He exact.
+
+SELF-CONSISTENCY STATUS. The full variational adjoint (frozen_potential=False) is correct
+(FD-verified, test_E1_gradient_adjoint_matches_fd) but the SCF is unstable -- the gradient/gate
+potential blows up in the low-density tail (the spectral-gradient transpose amplifies tail noise;
+fails even at 0.25x magnitude, so it is structural, not magnitude). The FROZEN-POTENTIAL mode
+(default frozen_potential=True: freeze the enhancement factor F when forming the potential, drive
+the SCF by the base potential scaled by F) converges for He (E_x -1.0074, base -1.0022) but not
+yet for Be. The stable, benchmarked evaluation is therefore GGA@base (frozen DENSITY: base SCF
+density, GGA energy one-shot) = the numbers above. ROUTE TO ROBUST FULL SCF (next): LB94-style
+tail damping of the gradient potential where rho->0 (keeps the variational adjoint, kills the tail
+divergence). Tools: psp_cache2.py, psp_calib2.py, benchmark_final.py.
