@@ -442,6 +442,98 @@ fitting. Those requiring the kinetic-energy density --- the tight single-orbital
 Lieb--Oxford bound $F_x(s,\alpha{=}0)\le1.174$ and one-electron self-correlation
 freedom --- lie outside this orbital-free, exchange-only construction.
 
+\subsection{Direct-expansion hole and gradient-corrected functional}
+\label{sec:hole-expansion}
+
+\emph{(This subsection records a second, more flexible hole construction built on the
+same features and a gradient correction with an iso-orbital gate; it is under active
+development and the self-consistent benchmarks reported here are preliminary.)}
+
+The single-envelope model [Eq.~\eqref{eq:ansatz}] fixes the hole to one universal
+shape $S$ scaled by $\zeta$. A more flexible construction expands the
+spherically-averaged hole monopole \emph{directly} in the scale-free SIMPLE radial
+basis,
+\begin{equation}
+\label{eq:hole-direct}
+\bar n_x(r_0,u)=\sum_n \tilde\varrho_{n}(r_0)\,R_{n0}(u),
+\end{equation}
+so the hole is a vector of coefficients $\{\tilde\varrho_n\}$ rather than a single
+scale. Because the $1/u$ weight keeps only the monopole, the energy per electron
+[Eq.~\eqref{eq:exact-hole}] is a dot product,
+\begin{equation}
+\label{eq:eps-direct}
+\varepsilon_x(r_0)=2\pi\sum_n \tilde\varrho_n(r_0)\,b_n,\qquad
+b_n=\int_0^{\Rc}\!R_{n0}(u)\,u\,du ,
+\end{equation}
+and the exact constraints become linear in $\{\tilde\varrho_n\}$: the normalization
+sum rule $4\pi\sum_n\tilde\varrho_n a_n=-1$ (with $a_n=\int_0^{\Rc}R_{n0}u^2du$ the
+enclosed charge) and the on-top value. The coefficients are produced by a
+parameter-free map of the local monopole features that interpolates between the
+homogeneous-gas hole (LDA limit, C4) and the negative of the local density
+(Fermi--Amaldi one-electron limit, C5), formed on the same adaptive-radius frame
+[$\Rad=\min(\xi^*/\kF,\Rc)$, Eq.~\eqref{eq:transfer}] so uniform scaling (C3) holds
+within the window. With the on-top scale fixed by the enclosed-charge sum rule
+($Q_S{=}2$), hydrogen is reproduced to $\sim2$~mHa (a near-exact self-interaction
+correction), spin-paired He to $\sim2$~mHa, and Be within $\sim2\%$.
+
+\paragraph*{Gradient correction with an iso-orbital gate.}
+The monopole hole is blind to $\nabla\rho$, so as before a gradient correction must
+be added. Here it is built from \emph{two} gated terms acting on the LDA enhancement,
+\begin{equation}
+\label{eq:F-twoterm}
+\varepsilon_x=\varepsilon_x^{0}\,F,\qquad
+F=1+s^2\big(m_g\,g_{\mathrm{HEG}}+m_h\,g_{\mathrm{H1s}}\big),
+\end{equation}
+where $\varepsilon_x^{0}$ is the gradient-free direct-expansion energy and $s$ is the
+SIMPLE reduced gradient [Eq.~\eqref{eq:sq}]. The gates are pure \emph{point-wise}
+squared distances of the local scale-free features from two fixed reference
+signatures,
+$g_{\mathrm{HEG}}=e^{-\alpha_{\mathrm{HEG}}D_{\mathrm{HEG}}}$ and
+$g_{\mathrm{H1s}}=1-e^{-\alpha_{\mathrm{H1s}}D_{\mathrm{H1s}}}$, with
+$D_{\mathrm{HEG}}$ the distance from the uniform-gas signature and $D_{\mathrm{H1s}}$
+the distance from a hydrogenic-$1s$ signature (each a single feature vector, so the
+gate carries over to three dimensions unchanged). Both terms carry $s^2$, so the
+homogeneous limit ($s\to0$) is untouched (C4); $g_{\mathrm{H1s}}$ vanishes on the
+single-orbital manifold, so the one-electron limit (C5) survives. The two terms have
+opposite sign and are tied so they \emph{cancel} for a spin-paired two-electron atom,
+which preserves the Fermi--Amaldi limit there and fixes the ratio $m_h/m_g$; the
+overall magnitude $m_g$ is then the single calibrated degree of freedom, set on the
+heavier closed-shell atoms.
+
+\paragraph*{Tail instability and damping.}
+The raw factor in Eq.~\eqref{eq:F-twoterm} is not bounded below. In the low-density
+tail the reduced gradient saturates while the HEG gate stays finite, so with the
+calibrated (large, negative) $m_g$ the factor passes through zero and turns negative;
+$F<0$ flips the sign of $\varepsilon_x$ (a spurious \emph{positive} exchange-energy
+density), which makes the self-consistent exchange potential diverge and the SCF fail
+to converge --- a structural failure of the bare form, present even at a quarter of
+the calibrated magnitude. We damp it with a soft floor in the spirit of the LB94
+asymptotic correction~\cite{vanLeeuwen_1994},
+\begin{equation}
+\label{eq:F-floor}
+F=F_0+\tfrac1k\ln\!\Big(1+e^{\,k\,(1+e-F_0)}\Big),\qquad
+e=s^2\big(m_g g_{\mathrm{HEG}}+m_h g_{\mathrm{H1s}}\big),
+\end{equation}
+which is the identity in the bulk (where $1+e$ is well above $F_0$) and lifts $F$
+smoothly to a small positive floor $F_0$ only in the tail, keeping
+$\varepsilon_x<0$ and the potential finite. With the floor and a potential that
+freezes the enhancement factor when it is differentiated, the functional converges
+self-consistently for the closed-shell atoms tested. Two caveats are worth recording.
+First, the floor removes a genuinely \emph{unphysical} negative-$F$ contribution that
+had artificially lowered the non-self-consistent tail energy, so the floored,
+physical functional is less accurate than that uncorrected estimate suggested.
+Second, the two-term cancellation that pins the Fermi--Amaldi limit is imposed on a
+fixed density and drifts by a few mHa once the density relaxes self-consistently.
+Across He, Be, Na, and Mg (pseudopotential, valence only) the self-consistent
+exchange energies reach a mean absolute error of $\sim\!30$~mHa against the exact
+(optimized-effective-potential) reference --- roughly three times closer than PBE
+exchange and five times closer than the gradient-free hole --- with a residual
+over-binding of $40$--$60$~mHa on Na and Be that remains the target of further work.
+The all-electron core is excluded deliberately: there the adaptive window collapses
+($\Rad\!\to\!0$ at the nuclear cusp) and the fixed-$\Rc$ transfer no longer resolves
+the hole, a separate breakdown outside the pseudopotential regime in which the
+functional is intended to operate.
+
 \subsection{Numerical implementation}
 \label{sec:impl}
 
