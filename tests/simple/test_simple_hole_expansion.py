@@ -112,3 +112,87 @@ def test_A2_sum_rule_tail_deficit():
     coeffs = ex.project_hole(ex.heg_hole(rho), R_C, N_CHAN, nu=1024)
     q = ex.enclosed_charge(coeffs, a)
     assert -1.0 < q < -0.90, f"sum rule {q:.4f} outside expected tail band"
+
+
+# ======================================================================= #
+# PHASE B: parameter-free map (anchors + enclosed-charge switch + constraints)
+# ======================================================================= #
+def _uniform(rho):
+    return lambda u: np.full_like(np.atleast_1d(u), rho, dtype=float)
+
+
+def _hydrogenic_1s(Z):
+    return lambda u: (Z ** 3 / np.pi) * np.exp(-2.0 * Z * np.atleast_1d(u))
+
+
+# --- B1: HEG limit (lambda=0) -> LDA, with both constraints exact ------------ #
+@pytest.mark.parametrize("rho", [0.5, 2.0, 5.0])
+def test_B1_heg_limit_reproduces_lda(rho):
+    coeffs, diag = ex.map_coeffs(_uniform(rho), R_C, N_CHAN, nu=1024, return_diagnostics=True)
+    assert diag["lambda"] == pytest.approx(0.0), f"expected HEG (lambda=0), got {diag['lambda']}"
+    eps = ex.eps_from_coeffs(coeffs, ex.coulomb_moments(N_CHAN, R_C))
+    ratio = eps / float(ex.lda_exchange_per_particle(rho))
+    # Within the finite-window band (constraints enforced exactly; deviation shrinks with R_c).
+    assert ratio == pytest.approx(1.0, abs=0.025), f"rho={rho}: ratio={ratio:.5f}"
+
+
+def test_B1_constraints_exact_in_heg():
+    rho = 2.0
+    coeffs, diag = ex.map_coeffs(_uniform(rho), R_C, N_CHAN, nu=1024, return_diagnostics=True)
+    a = ex.charge_moments(N_CHAN, R_C)
+    r0 = ex.radial_basis_at_origin(N_CHAN, R_C)
+    assert ex.enclosed_charge(coeffs, a) == pytest.approx(-1.0, abs=1e-6)
+    assert ex.on_top(coeffs, r0) == pytest.approx(-0.5 * rho, abs=1e-6)  # W=1/2 in bulk
+
+
+def test_B1_heg_deviation_shrinks_with_window():
+    """The (small) HEG-limit deviation from LDA is a finite-R_c tail artifact: it decreases
+    monotonically as the window grows."""
+    rho = 0.5
+    devs = []
+    for rc in (6.0, 10.0, 14.0):
+        n = int(2 * (3 * np.pi ** 2 * rho) ** (1 / 3) * rc / np.pi) + 6
+        eps = ex.eps_x_map(_uniform(rho), rc, n, nu=2048)
+        devs.append(abs(eps / float(ex.lda_exchange_per_particle(rho)) - 1.0))
+    assert devs[0] > devs[1] > devs[2], f"deviation not shrinking with R_c: {devs}"
+
+
+# --- B2: one-electron limit (lambda=1) -> self-interaction-free --------------- #
+def test_B2_one_electron_is_sic():
+    """H-like 1s at the center: window holds ~1 electron -> lambda=1 -> hole = -density.
+    eps_x(0) = -1/2 v_H(0) = -0.5 (Z=1), the exact self-interaction correction."""
+    coeffs, diag = ex.map_coeffs(_hydrogenic_1s(1.0), R_C, N_CHAN, nu=1024, return_diagnostics=True)
+    assert diag["lambda"] == pytest.approx(1.0, abs=1e-3), f"expected 1e (lambda=1), got {diag['lambda']}"
+    eps = ex.eps_from_coeffs(coeffs, ex.coulomb_moments(N_CHAN, R_C))
+    assert eps == pytest.approx(-0.5, abs=0.03), f"eps_x(0)={eps:.5f} (SIC -0.5)"
+
+
+def test_B2_one_electron_constraints():
+    coeffs, diag = ex.map_coeffs(_hydrogenic_1s(1.0), R_C, N_CHAN, nu=1024, return_diagnostics=True)
+    a = ex.charge_moments(N_CHAN, R_C)
+    r0 = ex.radial_basis_at_origin(N_CHAN, R_C)
+    assert ex.enclosed_charge(coeffs, a) == pytest.approx(-1.0, abs=1e-6)
+    # on-top -> -rho (W=1 in the one-electron limit), not -rho/2
+    assert ex.on_top(coeffs, r0) == pytest.approx(-diag["rho0"], abs=1e-6)
+
+
+def test_B2_projection_barely_perturbs_1e_anchor():
+    """The constraint projection leaves the one-electron anchor (hole=-density) nearly fixed
+    when it already nearly satisfies the constraints (Q_window ~ 1)."""
+    a = ex.charge_moments(N_CHAN, R_C)
+    r0 = ex.radial_basis_at_origin(N_CHAN, R_C)
+    C = ex.density_coeffs(_hydrogenic_1s(1.0), R_C, N_CHAN, nu=1024)
+    rho0 = 1.0 ** 3 / np.pi
+    fixed = ex.constraint_project(-C, a, r0, sum_target=-1.0, ontop_target=-rho0)
+    assert np.linalg.norm(fixed - (-C)) < 1e-2, f"shift {np.linalg.norm(fixed + C):.2e}"
+
+
+# --- B3: the enclosed-charge switch is smooth and monotone -------------------- #
+def test_B3_switch_smooth_monotone():
+    q = np.linspace(0.0, 3.0, 301)
+    lam = ex.enclosed_charge_switch(q)
+    assert lam[0] == pytest.approx(1.0) and lam[-1] == pytest.approx(0.0)
+    assert np.all(np.diff(lam) <= 1e-12), "switch not monotone non-increasing"
+    # C^2 (quintic smoothstep): first and second differences are continuous (no spikes)
+    d2 = np.diff(lam, 2)
+    assert np.max(np.abs(d2)) < 0.01, f"second difference spike {np.max(np.abs(d2)):.3f}"

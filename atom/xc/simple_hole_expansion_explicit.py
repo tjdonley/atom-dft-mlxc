@@ -165,3 +165,88 @@ def lda_exchange_per_particle(rho):
     """eps_x^unif = -3/(4 pi) (3 pi^2 rho)^{1/3}."""
     rho = np.maximum(np.asarray(rho, float), 1e-12)
     return -3.0 / (4.0 * np.pi) * (3.0 * np.pi ** 2 * rho) ** (1.0 / 3.0)
+
+
+# =========================================================================== #
+# Phase B: the parameter-free map  M: {density monopole} -> {hole coeffs}
+#
+# Two anchors, blended by a smooth enclosed-charge switch lambda(Q), then
+# projected onto the two exact constraints (sum rule, on-top):
+#
+#   HEG anchor  rhotilde^HEG = project(-(rho/2) S(k_F u))         (lambda -> 0, bulk)
+#   1e  anchor  rhotilde^1e  = -C_n  (hole = -density)            (lambda -> 1, Q <= 1 electron)
+#   rhotilde = (1-lambda) rhotilde^HEG + lambda rhotilde^1e
+#
+# On-top is NOT universally -rho/2: like the W = 1/Q_S prefactor of the production
+# hole, it runs from -rho/2 (bulk pair, W=1/2) to -rho (one electron, W=1). We encode
+# W = (1+lambda)/2 so each anchor meets its own on-top and the blend interpolates
+# (verified against simple_hole_explicit.hole_solve: uniform W=0.5, H1s-center W=1.0).
+# Sum rule int n_x = -1 is enforced exactly in both limits.
+# =========================================================================== #
+def density_coeffs(density_profile, r_c, n_channels, nu=512):
+    """Monopole coefficients C_n = int rho_avg(u) R_{n0}(u) u^2 du of the local
+    spherically-averaged density profile (the production C_n = P_n @ rho)."""
+    return project_hole(density_profile, r_c, n_channels, nu=nu)
+
+
+def heg_anchor(rho_on_top, r_c, n_channels, nu=512):
+    """HEG hole coefficients at the local scale set by the on-top density rho(r0):
+    project -(rho/2) S(k_F u), k_F = (3 pi^2 rho)^{1/3}. (lambda -> 0 limit.)"""
+    return project_hole(heg_hole(rho_on_top), r_c, n_channels, nu=nu)
+
+
+def _quintic_smoothstep(t):
+    """C^2 smoothstep 6t^5 - 15t^4 + 10t^3 on [0,1] (0 outside via clip)."""
+    t = np.clip(t, 0.0, 1.0)
+    return t ** 3 * (10.0 + t * (-15.0 + 6.0 * t))
+
+
+def enclosed_charge_switch(q_window, q_lo=1.0, q_hi=2.0):
+    """Smooth (C^2) monotone switch lambda(Q): 1 for Q <= q_lo (one-electron / SIC), 0 for
+    Q >= q_hi (>= one pair, HEG/bulk), quintic Hermite in between. Mirrors the production
+    Fermi-Amaldi switch (Q_S <= 2 -> FA branch)."""
+    return 1.0 - _quintic_smoothstep((q_window - q_lo) / (q_hi - q_lo))
+
+
+def constraint_project(coeffs, a, r0_vals, sum_target=-1.0, ontop_target=None):
+    """Least-norm correction so coeffs satisfy the two exact linear constraints:
+        sum rule  4 pi (a . coeffs) = sum_target          (= -1)
+        on-top    (r0_vals . coeffs) = ontop_target
+    via  coeffs <- coeffs + A^T (A A^T)^{-1} (c - A coeffs),  A the 2xN constraint matrix.
+    The min-norm shift spreads across channels and stays tiny when the anchors nearly
+    satisfy the constraints already."""
+    A = np.vstack([4.0 * np.pi * np.asarray(a), np.asarray(r0_vals)])  # (2, N)
+    c = np.array([sum_target, ontop_target], dtype=float)
+    resid = c - A @ coeffs
+    gram = A @ A.T  # (2,2)
+    return coeffs + A.T @ np.linalg.solve(gram, resid)
+
+
+def map_coeffs(density_profile, r_c, n_channels, nu=512, return_diagnostics=False):
+    """Parameter-free map: local density profile -> hole monopole coefficients rhotilde.
+
+    rho_on_top = rho_avg(0); Q_window = 4 pi sum_n C_n a_n; lambda from the switch; blend
+    the HEG and one-electron anchors; project onto the sum-rule and (lambda-interpolated)
+    on-top constraints."""
+    a = charge_moments(n_channels, r_c)
+    r0 = radial_basis_at_origin(n_channels, r_c)
+    C = density_coeffs(density_profile, r_c, n_channels, nu=nu)
+    rho0 = float(np.atleast_1d(density_profile(np.array([0.0])))[0])
+    q_window = 4.0 * np.pi * float(np.dot(C, a))
+    lam = float(enclosed_charge_switch(q_window))
+
+    coeffs_heg = heg_anchor(rho0, r_c, n_channels, nu=nu)
+    coeffs_1e = -C
+    coeffs = (1.0 - lam) * coeffs_heg + lam * coeffs_1e
+
+    W = 0.5 * (1.0 + lam)                       # 1/2 (bulk) -> 1 (one electron)
+    coeffs = constraint_project(coeffs, a, r0, sum_target=-1.0, ontop_target=-W * rho0)
+    if return_diagnostics:
+        return coeffs, {"lambda": lam, "Q_window": q_window, "rho0": rho0, "W": W}
+    return coeffs
+
+
+def eps_x_map(density_profile, r_c, n_channels, nu=512):
+    """Exchange energy per particle from the parameter-free map."""
+    b = coulomb_moments(n_channels, r_c)
+    return eps_from_coeffs(map_coeffs(density_profile, r_c, n_channels, nu=nu), b)
