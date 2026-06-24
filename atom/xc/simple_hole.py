@@ -236,23 +236,19 @@ class SIMPLEHOLEGEAParameters(SIMPLEHOLEParameters):
 
 
 class SIMPLE_HOLE_GEA(SIMPLE_HOLE):
-    """Parameter-free exchange hole with the deterministic fourth-order GEA deformation
-    [Eq. (fx)]. The HEG envelope is deformed, S(x;c) = [g0(x) + c phi(x)]^2 with
-    phi = j_l(kappa x) (l>=1), and the single amplitude
+    """DEPRECATED / experimental: exchange hole with the deterministic fourth-order GEA
+    deformation, carrying (10/81) s^2 + (146/2025) q^2 - (73/405) s^2 q via the envelope
+    amplitude. This variant requires the reduced Laplacian q (l=0 spectral operator),
+    which is numerically unstable (writeup App. "Practical limits") and is NOT carried in
+    the production functional. The production hole is the second-order, gradient-only
+    SIMPLE_HOLE_GGA below; SIMPLE_HOLE_GEA is retained only for reference/diagnostics.
 
-        c(r0) = (1/rho_resp) [ (10/81) s^2 + (146/2025) q^2 - (73/405) s^2 q ]
-
-    carries the gradient expansion: q = reduced Laplacian (l=0 spectral operator),
-    s^2 = reduced gradient squared (l=1). The prefactor rho_resp = dF_x/dc is a one-time
-    HEG calibration of the envelope response, so the small-(s,q) expansion of the
-    enhancement factor F_x = eps_x/eps_x^unif reproduces Eq. (fx) by construction (the
-    coefficients are imposed, not fit). The HEG limit (s,q -> 0 => c -> 0 => bare hole)
-    and Fermi-Amaldi limit (phi(0)=0 => on-top untouched) are preserved structurally.
-
-    PRELIMINARY (synced to the writeup; validated/tuned in Phase D): the q (l=0) adjoint
-    is stiff and is intended to run under the frozen-gradient dual loop in the SCF
-    (writeup App.); here the full single-loop adjoint is provided for the energy and the
-    direct potential."""
+    Construction (for reference): the HEG envelope is deformed, S(x;c) = [g0(x) + c
+    phi(x)]^2 with phi = j_l(kappa x) (l>=1); the prefactor rho_resp = dF_x/dc is a
+    one-time HEG calibration, so the small-gradient expansion of F_x = eps_x/eps_x^unif
+    reproduces the GEA coefficients by construction (imposed, not fit). The HEG limit
+    (gradients -> 0 => bare hole) and Fermi-Amaldi limit (phi(0)=0 => on-top untouched)
+    are preserved structurally. The q (l=0) channel does not converge robustly in SCF."""
 
     _USE_LAP = True   # SIMPLE_HOLE_GGA sets False (gradient-only; no stiff l=0 channel)
 
@@ -378,11 +374,13 @@ class SIMPLEHOLEGGAParameters(SIMPLEHOLEGEAParameters):
 
 
 class SIMPLE_HOLE_GGA(SIMPLE_HOLE_GEA):
-    """Gradient-only GEA-deformed hole: matches the second-order gradient expansion
-    $(10/81)s^2$ [Eq. (fx)] and ignores the reduced Laplacian (the $q^2$ and $s^2q$
-    terms). A fallback for when the $\\ell=0$ Laplacian adjoint makes the full
-    SIMPLE_HOLE_GEA too stiff to converge: with no $q$ channel the stiff $\\ell=0$
-    adjoint (and the slow per-channel Laplacian) is absent entirely."""
+    """PRODUCTION exchange hole (the functional of the writeup): the second-order,
+    scale-free GEA-deformed hole matching $F_x\\to1+(10/81)s^2$ [Eq. (fx)] via the
+    $\\ell=1$ gradient only, with the reduced Laplacian $q$ excluded (the $q^2$ and
+    $s^2q$ terms dropped). Because there is no $\\ell=0$ Laplacian channel, the stiff,
+    unstable $q$ adjoint is absent entirely and the functional is self-consistent and
+    stable; its $\\ell=1$ adjoint grows only as $k_n^1$ and is well-conditioned. This is
+    the hole carried throughout the paper; SIMPLE_HOLE_GEA (4th-order) is deprecated."""
     _USE_LAP = False
 
     def _default_params(self) -> SIMPLEHOLEGGAParameters:

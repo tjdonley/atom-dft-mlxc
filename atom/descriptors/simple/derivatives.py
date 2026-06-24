@@ -84,9 +84,11 @@ class _SpectralLaplacian:
     l=1 gradient, with the milder k_n^1 growth, is stable as a folded matrix.)
 
     Supports ``L @ rho`` (forward) and ``L.T @ y`` (adjoint). The adjoint reverses
-    the order and re-forms the singular kernel, so it is intrinsically stiff; in the
-    self-consistent loop this is mitigated by the frozen-gradient dual loop
-    (writeup App.; flagged for Phase D).
+    the order and re-forms the singular kernel, so it is intrinsically stiff. In
+    practice the reduced Laplacian q is numerically unstable (like a standard discrete
+    Laplacian) and is NOT carried in the production functional --- the SIMPLE hole uses
+    the second-order gradient s only; q is excluded (writeup App. "Practical limits").
+    This operator is retained for diagnostics and the deprecated 4th-order variant.
 
     No constant-annihilation is applied (unlike the l=1 gradient): for the k_n^2
     channel ``forward(1)`` is itself a large truncation artifact (a constant does not
