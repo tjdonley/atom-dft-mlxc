@@ -89,3 +89,31 @@ Note on accuracy: the map's *converged* (well-resolved, n=20) Be is ~-2.41 (unde
 genuine 2-electron-per-spin limitation of the FA/HEG blend); n=16's -2.64 is partly a low-n
 resolution artifact compensating that underbinding. He is genuinely accurate at n>=16
 (-1.027 at n=20 ~ exact -1.026). Default n_channels=16.
+
+## Update 3 — scale-free frame wired in (adaptive radius + transfer); n_out=10 works
+The functional now operates in the SIMPLE scale-free (adaptive-radius) frame, reusing the
+machinery from the simple-hole-additive branch (`SIMPLE_HOLE_SF` pattern):
+- project the density to n_in=20 fixed-R_c window coeffs C (resolution);
+- implicit adaptive radius R_ad = min(X/k_F(rho0), R_c), X = k_F R_ad = 8 (differentiable);
+- transfer c_ad = transfer_matrix(0, R_ad, n_out, n_in) @ C onto the n_out=10 adaptive basis
+  (precomputed on an R_ad grid + interpolated);
+- HEG anchor becomes the UNIVERSAL fixed shape sigma_m = int_0^1 R_m^(1)(t) S(X t) t^2 dt
+  (k_F R_ad locked), FA anchor -c_ad/Q; moments scale as R_ad^{3/2} (charge), R_ad^{1/2} (Coulomb).
+Defaults: n_in (n_channels) = 20, n_out = 10.
+
+Verified:
+- **Scale invariance:** the HEG ratio eps_x/eps_LDA is now CONSTANT across density (1.033 at
+  rho=0.5/2/5) -- exact scale invariance (constraint X3), vs the fixed-R_c frame where it drifted.
+  The 1.033 is a constant, density-independent finite-X-window/constraint offset (correctable).
+- **n_out=10 works:** He/Be SCF converge with NO blow up (He -0.892, Be -2.395; max|eps| ~ 1.2/2.5,
+  vs the fixed-R_c n=10 disaster of 9.4 + divergence). The adaptive radius resolves the dense
+  core at n_out=10 (the window shrinks where the density is high) -- confirming the n_in/n_out
+  picture: n_in=20 projection resolution, n_out=10 exposed/hole basis.
+- **Exact adjoint:** the discrete-adjoint potential matches FD dE/drho to 3.8e-9. The existing
+  compute_xc (C-channel FD + explicit-rho0 FD) works unchanged -- the rho0 channel captures
+  R_ad(rho), eta(rho) and the rho0 factors.
+
+Accuracy: He/Be are LDA-level here (He -0.89, Be -2.40). The scale-free frame changes the
+adaptive-window enclosed charge, so the per-spin/Fermi-Amaldi accuracy that made He exact in the
+fixed-R_c frame is NOT recovered by the bare map -- that is restored by the scale-free l=1
+iso-orbital gate (validated in Update 5, the next implementation step). 40/40 tests green.

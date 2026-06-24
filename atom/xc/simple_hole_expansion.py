@@ -39,85 +39,131 @@ from typing import Optional
 
 import numpy as np
 
+from scipy.special import spherical_jn
+
+from ..descriptors.simple.bessel import RadialBesselBasis
 from ..descriptors.simple.derivatives import build_spectral_gradient_operator
+from ..descriptors.simple.pipeline import transfer_matrix
 from .evaluator import DensityData, XCParameters, XCPotentialData
-from .simple_hole import SIMPLE_HOLE, SIMPLEHOLEParameters, _bound, _radial_basis
-from .simple_hole_expansion_explicit import (
-    charge_moments, coulomb_moments, enclosed_charge_switch, heg_hole,
-    project_hole, radial_basis_at_origin,
-)
+from .simple_hole import SIMPLE_HOLE, SIMPLEHOLEParameters, _bound
+from .simple_hole_expansion_explicit import enclosed_charge_switch
 
 _SIX2_3 = (3.0 * np.pi ** 2) ** (2.0 / 3.0)
 _GEA2 = 10.0 / 81.0   # second-order gradient-expansion coefficient F_x -> 1 + (10/81) s^2
+_X_WINDOW = 8.0       # dimensionless hole window X = k_F R_ad (the implicit scale lock)
+
+
+def _envelope(x):
+    """HEG exchange-hole envelope S(x) = [3 j_1(x)/x]^2."""
+    x = np.maximum(np.asarray(x, float), 1e-12)
+    return (3.0 * spherical_jn(1, x) / x) ** 2
 
 
 @dataclass
 class SIMPLEHOLEEXPParameters(SIMPLEHOLEParameters):
-    """Direct-expansion hole settings. ``n_channels`` monopole channels resolve the hole
-    (need n_channels >~ k_F R_c/pi where the density is high; see Phase-A report)."""
+    """Scale-free direct-expansion hole settings (SIMPLE adaptive-radius frame).
+
+    ``n_channels`` = n_in: the fixed-R_c window resolution used to project the density.
+    ``n_out`` = the adaptive-radius hole/feature basis (the exposed SIMPLE feature count).
+    The implicit adaptive radius R_ad = min(x_window/k_F(rho), R_c) makes the hole scale-free,
+    so n_out=10 resolves it (the dense core gets a small window). The SIMPLE ``transfer_matrix``
+    re-expresses the n_in window coefficients on the n_out adaptive basis in closed form."""
     functional_name: str = "SIMPLE_HOLE_EXPANSION"
-    # Shared SIMPLE basis for BOTH the density projection C_n and the hole expansion (same R_c,
-    # same n_channels) -- required so the integral becomes a sum and the FA anchor (rhotilde =
-    # -C/Q) is well-defined. R_c = 6 bohr matches the canonical SIMPLE features. n_channels is
-    # the *resolution* (n_in): the hole needs n >~ k_F R_c/pi (~16 at R_c=6); the exposed
-    # SIMPLE feature count n_out=10 is too few to resolve the hole (Be diverges at n=10).
     r_c: float = 6.0
-    n_channels: int = 16
-    n_rho_table: int = 96           # HEG-anchor table resolution in log(rho)
-    rho_table_min: float = 1.0e-4
-    rho_table_max: float = 1.0e2
+    n_channels: int = 20            # n_in: fixed-R_c projection resolution
+    n_out: int = 10                 # adaptive-radius hole basis (exposed feature count)
+    x_window: float = _X_WINDOW     # dimensionless hole window X = k_F R_ad
+    n_rad: int = 48                 # R_ad-grid for the precomputed transfer matrices
+    n_eta: int = 400                # eta-grid for the universal HEG-anchor shape sigma(eta)
 
 
 class SIMPLE_HOLE_EXPANSION(SIMPLE_HOLE):
-    """Exchange-only direct-expansion exchange hole, self-consistent. Parameter-free."""
+    """Exchange-only scale-free direct-expansion exchange hole, self-consistent. Parameter-free.
+
+    The hole is expanded on the IMPLICIT adaptive-radius basis: project the density to n_in
+    fixed-R_c window coefficients C, set R_ad = min(X/k_F(rho0), R_c), transfer
+    c_ad = T(R_ad) @ C onto the n_out adaptive basis, and expand the hole there. Because
+    k_F R_ad = X is locked (where unclamped), the hole is represented at a density-independent
+    dimensionless scale -> scale invariance, and n_out=10 suffices (the dense core gets a small
+    window). The HEG anchor is then a UNIVERSAL fixed shape sigma_m = int_0^1 R_m^(1)(t) S(X t)
+    t^2 dt; the moments scale as R_ad^{3/2} (charge) and R_ad^{1/2} (self-Coulomb)."""
 
     def __init__(self, derivative_matrix=None, r_quad=None,
                  quadrature_weights=None, params: Optional[XCParameters] = None):
         super().__init__(derivative_matrix=derivative_matrix, r_quad=r_quad,
                          quadrature_weights=quadrature_weights, params=params)
         p = self.params
-        nch, rc = p.n_channels, p.r_c
-        # per-basis-function moments and on-top values (closed form)
-        self._a = charge_moments(nch, rc)               # enclosed charge a_n
-        self._b = coulomb_moments(nch, rc)              # self-Coulomb b_n
-        self._r0n = radial_basis_at_origin(nch, rc)     # R_{n0}(0)
-        # constraint matrix A (sum rule row, on-top row) and its 2x2 Gram inverse
-        self._A = np.vstack([4.0 * np.pi * self._a, self._r0n])      # (2, nch)
-        self._Ginv = np.linalg.inv(self._A @ self._A.T)              # (2, 2)
-        # HEG-anchor table rhotilde^HEG(rho0): project -(rho/2) S(k_F u) on a log-rho grid
-        self._rho_tab = np.logspace(np.log10(p.rho_table_min), np.log10(p.rho_table_max),
-                                    p.n_rho_table)
-        self._heg_tab = np.array([project_hole(heg_hole(rho), rc, nch, nu=1024)
-                                  for rho in self._rho_tab])          # (n_rho, nch)
+        self._n_in = p.n_channels
+        self._n_out = int(getattr(p, "n_out", 10))
+        self._X = float(getattr(p, "x_window", _X_WINDOW))
+        # unit-window adaptive monopole basis R_m^(1) on [0,1]: moments + on-top
+        basis = RadialBesselBasis(self._n_out - 1, 0, 1.0)
+        xu, wu = np.polynomial.legendre.leggauss(600)
+        t = 0.5 * (xu + 1.0); wt = 0.5 * wu
+        Rb1 = basis.evaluate(0, t)                               # (n_out, nt)
+        self._a1 = Rb1 @ (wt * t ** 2)                           # unit-window charge moments
+        self._b1 = Rb1 @ (wt * t)                                # unit-window self-Coulomb moments
+        self._r0_1 = basis.evaluate(0, np.array([1e-9]))[:, 0]   # R_m^(1)(0)
+        # universal HEG-anchor shape sigma(eta) = int R_m^(1)(t) S(eta t) t^2 dt; eta = k_F R_ad <= X
+        self._etas = np.linspace(1e-3, self._X, int(getattr(p, "n_eta", 400)))
+        with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
+            self._sigma = np.array([Rb1 @ (wt * t ** 2 * _envelope(eta * t)) for eta in self._etas])
+        # transfer matrices T(R_ad) = transfer_matrix(0, R_ad, n_out, n_in), precomputed + interp
+        n_rad = int(getattr(p, "n_rad", 48))
+        self._rad_grid = np.linspace(p.r_c / n_rad, p.r_c, n_rad)
+        self._T_grid = np.stack([transfer_matrix(0, float(ra), self._n_out, self._n_in)
+                                 for ra in self._rad_grid])      # (n_rad, n_out, n_in)
 
-    def _heg_anchor(self, rho0):
-        """Interpolate the HEG-anchor coefficients at on-top densities rho0 (vectorized)."""
-        lr = np.log10(np.clip(rho0, self._rho_tab[0], self._rho_tab[-1]))
-        lt = np.log10(self._rho_tab)
-        # column-wise linear interpolation -> (nch, N)
-        return np.array([np.interp(lr, lt, self._heg_tab[:, n]) for n in range(self._a.size)])
+    def _R_ad(self, rho0):
+        """Implicit adaptive radius R_ad = min(X/k_F(rho0), R_c) (explicit, differentiable)."""
+        kF = (3.0 * np.pi ** 2 * np.maximum(rho0, 1e-12)) ** (1.0 / 3.0)
+        return np.minimum(self._X / np.maximum(kF, 1e-12), self.params.r_c)
+
+    def _c_ad(self, C, R_ad):
+        """Adaptive-radius density features c_ad (N, n_out) = T(R_ad) @ C, via interpolation."""
+        rg = self._rad_grid
+        k = np.clip(np.searchsorted(rg, R_ad), 1, rg.size - 1)
+        f = np.clip((R_ad - rg[k - 1]) / (rg[k] - rg[k - 1]), 0.0, 1.0)
+        Tb = (1.0 - f)[:, None, None] * self._T_grid[k - 1] + f[:, None, None] * self._T_grid[k]
+        return np.einsum('Noi,iN->No', Tb, C)                    # (N, n_out)
+
+    def _sigma_at(self, eta):
+        """Universal HEG-anchor shape sigma(eta) (N, n_out), interpolated on the eta grid."""
+        et = self._etas
+        k = np.clip(np.searchsorted(et, eta), 1, et.size - 1)
+        f = np.clip((eta - et[k - 1]) / (et[k] - et[k - 1]), 0.0, 1.0)
+        return (1.0 - f)[:, None] * self._sigma[k - 1] + f[:, None] * self._sigma[k]
 
     def _map_coeffs(self, C, rho0):
-        """Parameter-free map: production monopole coeffs C (nch, N) and the local on-top
-        density rho0 (N,) -> hole coeffs rhotilde (nch, N). The switch acts on the PER-SPIN
-        enclosed charge Q/2 (exchange is same-spin); the SIC/few-electron anchor is the
-        Fermi-Amaldi density-following hole -Cm/Q (int -> -1, on-top -rho0/Q)."""
+        """Scale-free map: n_in window coeffs C (n_in, N) + on-top density rho0 (N,) -> adaptive
+        hole coeffs rhotilde (N, n_out). HEG <-> Fermi-Amaldi anchors blended by the per-spin
+        enclosed-charge switch, projected onto the (R_ad-scaled) sum-rule and on-top constraints."""
         rho0 = np.maximum(np.asarray(rho0, float), 1e-12)
-        Cm = C / (4.0 * np.pi)                                   # explicit convention
-        Q = 4.0 * np.pi * (self._a @ Cm)                        # (N,) total enclosed charge
+        R_ad = self._R_ad(rho0)
+        c_ad = self._c_ad(C, R_ad)                               # (N, n_out)
+        eta = (3.0 * np.pi ** 2 * rho0) ** (1.0 / 3.0) * R_ad    # = X where unclamped
+        Q = 4.0 * np.pi * (R_ad ** 1.5) * (c_ad @ self._a1)      # (N,) enclosed charge
         Qsafe = np.maximum(Q, 1e-12)
-        lam = enclosed_charge_switch(0.5 * Q)                   # per-spin switch (Q/2)
-        coeffs = (1.0 - lam)[None, :] * self._heg_anchor(rho0) + lam[None, :] * (-Cm / Qsafe[None, :])
-        # on-top target: HEG pair -rho/2 -> FA -rho/Q; sum rule always -1
+        lam = enclosed_charge_switch(0.5 * Q)                    # per-spin switch (exchange is same-spin)
+        heg = -(0.5 * rho0)[:, None] * (R_ad ** 1.5)[:, None] * self._sigma_at(eta)   # HEG anchor
+        fa = -c_ad / Qsafe[:, None]                              # Fermi-Amaldi anchor
+        coeffs = (1.0 - lam)[:, None] * heg + lam[:, None] * fa  # (N, n_out)
         ontop = (1.0 - lam) * (-0.5 * rho0) + lam * (-rho0 / Qsafe)
-        c = np.vstack([np.full_like(rho0, -1.0), ontop])        # (2, N) targets
-        resid = c - self._A @ coeffs                            # (2, N)
-        return coeffs + self._A.T @ (self._Ginv @ resid)        # (nch, N)
+        # 2-constraint least-norm projection with R_ad-dependent rows (vectorized 2x2 solve):
+        A0 = 4.0 * np.pi * (R_ad ** 1.5)[:, None] * self._a1[None, :]    # sum-rule row (N, n_out)
+        A1 = (R_ad ** -1.5)[:, None] * self._r0_1[None, :]               # on-top row    (N, n_out)
+        g00 = np.sum(A0 * A0, axis=1); g01 = np.sum(A0 * A1, axis=1); g11 = np.sum(A1 * A1, axis=1)
+        r0 = -1.0 - np.sum(A0 * coeffs, axis=1); r1 = ontop - np.sum(A1 * coeffs, axis=1)
+        det = np.maximum(g00 * g11 - g01 ** 2, 1e-300)
+        x0 = (g11 * r0 - g01 * r1) / det; x1 = (g00 * r1 - g01 * r0) / det
+        return coeffs + x0[:, None] * A0 + x1[:, None] * A1      # (N, n_out)
 
     def _eps_from_coeffs(self, C, rho0):
-        """eps_x per point from monopole coeffs C (nch, N) and on-top density rho0 (N,)."""
-        coeffs = self._map_coeffs(C, rho0)
-        return 0.5 * 4.0 * np.pi * (self._b @ coeffs)           # (N,)
+        """eps_x per point: 1/2 * 4pi * R_ad^{1/2} * sum_m rhotilde_m b_m^(1) [Eq. (eps)]."""
+        rho0 = np.maximum(np.asarray(rho0, float), 1e-12)
+        R_ad = self._R_ad(rho0)
+        coeffs = self._map_coeffs(C, rho0)                       # (N, n_out)
+        return 0.5 * 4.0 * np.pi * (R_ad ** 0.5) * (coeffs @ self._b1)   # (N,)
 
     def compute_xc(self, density_data: DensityData) -> XCPotentialData:
         """Self-consistent exchange via the direct-expansion hole. The potential is the
