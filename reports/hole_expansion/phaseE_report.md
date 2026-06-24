@@ -343,3 +343,26 @@ one-electron-per-spin limit (Q_sigma -> 1) that already makes He's base exact. R
 gate the correction on the base's own one-electron-per-spin indicator (not the hydrogenic-
 manifold distance) so He is preserved by construction; then A is the lone free DOF calibrated
 on Be/Na/Mg. Tool: psp_calibrate.py.
+
+## Update 12 — He-pinned two-term construction: one DOF, ~30 mHa floor (PSP, non-SCF)
+Correct construction (per review): TWO additive gated corrections with OPPOSITE sign whose
+ratio is fixed by demanding they CANCEL for He (FA limit preserved), leaving the overall
+magnitude as the lone DOF:
+  eps = eps_base + M_G g_HEG s^2 eps_base + M_H g_H1s eps_base
+  g_HEG = exp(-aHEG D_HEG)  (gradient/GEA2 term, on in HEG-like regions)
+  g_H1s = 1 - exp(-aH1s D_H1s)  (anti-binding, zero at the H1s/one-electron limit)
+He-exact: M_G I_G(He) + M_H I_H(He) = -err(He)  -> fixes M_H/M_G. H is exact automatically
+(on the manifold, g_H1s=0). One free M_G calibrated on Be/Na/Mg.
+
+Non-SCF on PSP densities (cached SCF + features; scan is cheap). He is exact (0.0) at EVERY
+(aHEG,aH1s). Best one-DOF (min-max over Be/Na/Mg): aHEG=0.5, aH1s=8, M_G=0.628, M_H/M_G=-0.19:
+  base err (mHa): He -0.3, Be -71.6, Na -276.9, Mg -269.2
+  corrected (mHa): He 0.0, Be -29.5, Na -30.6, Mg +29.4   (2-9x reduction; ~0.4-1.5% of E_x)
+
+FLOOR: across the whole alpha grid Na sits at ~-30 and Mg at ~+29 (~60 mHa apart, opposite
+signs). Na wants more correction, Mg less; one magnitude cannot split them -- the irreducible
+one-DOF residual against the Na/Mg pair. The gate shape only trades this against Be (smaller
+aHEG hurts Be, larger helps Be but worsens Na). Zero-parameter variant (M_G = mu = 10/81)
+fails (Be/Na/Mg -35..-280 mHa): the magnitude must be free, and the effective M_G (~0.6) is
+~5x mu, so the "GEA2" term acts as a tunable counterweight, not the physical gradient slope.
+Tools: psp_cache.py (slow, -> psp_cache.npz), psp_scan.py (cheap).
