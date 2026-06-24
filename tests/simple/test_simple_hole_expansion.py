@@ -568,3 +568,44 @@ def test_KERNEL_T4_rbf_reproduces_fixed_points():
     # empty fixed-point set -> the default (HEG anchor stand-in)
     dflt = rng.standard_normal(_KCH)
     assert np.allclose(ex.rbf_interpolant(np.zeros(2), [], default=dflt), dflt)
+
+
+# ======================================================================= #
+# PHASE KERNEL-SCF: production scale-free kernel functional
+# ======================================================================= #
+def test_KERNEL_SCF_adjoint_matches_fd():
+    """The exact variational adjoint v_x of the kernel functional matches FD of E_x (<5e-6)."""
+    from atom.xc.evaluator import DensityData
+    from atom.xc.simple_hole_expansion import (SIMPLE_HOLE_EXPANSION_KERNEL,
+                                               SIMPLEHOLEEXPKERNELParameters)
+    r = np.linspace(1e-3, 12.0, 500); w = np.gradient(r)
+    F = SIMPLE_HOLE_EXPANSION_KERNEL(r_quad=r, quadrature_weights=w,
+                                     params=SIMPLEHOLEEXPKERNELParameters(gauge_fix=False))
+    ew = F.energy_weights
+    rho = 0.5 * np.exp(-0.5 * r ** 2) + 0.05 * np.exp(-0.15 * (r - 2.0) ** 2) + 1e-3
+
+    def Ex(rh):
+        C = np.array([op @ rh for op in F._ops]); g = F._grad_op @ rh
+        return float(np.sum(ew * rh * F._kernel_eps(C, np.maximum(rh, 1e-12), g)))
+
+    vx = F.compute_xc(DensityData(rho=rho)).v_x
+    rng = np.random.default_rng(1)
+    for j in rng.choice(np.arange(60, len(r) - 60), 6, replace=False):
+        h = 1e-6
+        rp = rho.copy(); rp[j] += h; rm = rho.copy(); rm[j] -= h
+        fd = (Ex(rp) - Ex(rm)) / (2.0 * h) / ew[j]
+        assert abs(vx[j] - fd) / (abs(fd) + 1e-12) < 5e-6, f"r={r[j]:.2f}: {vx[j]:.6f} vs {fd:.6f}"
+
+
+def test_KERNEL_SCF_converges_and_He_is_FA():
+    """The kernel functional converges self-consistently (PSP) with the exact adjoint (no
+    floor/freeze), and spin-paired He (one electron per spin) is near-exact Fermi-Amaldi."""
+    from atom import AtomicDFTSolver
+    hf = AtomicDFTSolver(atomic_number=2, xc_functional="HF", all_electron_flag=False,
+                         max_scf_iterations=300).solve()
+    ker = AtomicDFTSolver(atomic_number=2, xc_functional="SIMPLE_HOLE_EXPANSION_KERNEL",
+                          all_electron_flag=False, max_scf_iterations=300).solve()
+    assert hf["converged"] and ker["converged"]
+    Ehf = float(hf["energy_components"].hf_exchange)
+    Ek = float(ker["energy_components"].exchange)
+    assert abs(Ek - Ehf) < 0.015, f"He kernel {Ek:.4f} not near-FA HF {Ehf:.4f}"

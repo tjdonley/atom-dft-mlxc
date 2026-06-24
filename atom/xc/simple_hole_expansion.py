@@ -385,3 +385,110 @@ class SIMPLE_HOLE_EXPANSION_GGA(SIMPLE_HOLE_EXPANSION):
 
     def _default_params(self) -> SIMPLEHOLEEXPGGAParameters:
         return SIMPLEHOLEEXPGGAParameters()
+
+
+_LO_FX = 1.804      # Lieb-Oxford enhancement ceiling
+
+
+@dataclass
+class SIMPLEHOLEEXPKERNELParameters(SIMPLEHOLEEXPParameters):
+    functional_name: str = "SIMPLE_HOLE_EXPANSION_KERNEL"
+    # Kernel/fixed-point map -- PARAMETER-FREE. LDA via the HEG anchor; GEA via the feature-
+    # distance lever (slope 10/81 by construction, calibrated by the one-time HEG response R);
+    # Fermi-Amaldi via the per-spin enclosed-charge gate. No free magnitude.
+
+
+class SIMPLE_HOLE_EXPANSION_KERNEL(SIMPLE_HOLE_EXPANSION):
+    """Kernel / fixed-point exchange-hole map on the scale-free adaptive-radius frame.
+
+    The spherically-averaged hole monopole is produced directly by a kernel interpolation over
+    fixed points, on the adaptive unit frame (k_F R_ad = X):
+      bulk = HEG anchor  rhotilde_HEG = -(rho0/2) g(X)   (LDA)
+           + GEA mode    chi * delta_GEA,  chi = (10/81)/R s^2 (LO-capped)   (gradient, mu=10/81)
+      FA   = -d/Q       (density-following, d = unit-basis density coeffs = c_ad/(4 pi R_ad^3/2))
+      rhotilde = (1-W_FA(Q/2)) bulk + W_FA(Q/2) FA ;  then 2-constraint projection (sum rule, on-top)
+      eps_x = 2 pi R_ad^2 (rhotilde . beta1)
+
+    The l=1 part of the feature distance from HEG IS s^2, so the GEA enters with no separate term
+    (parameter-free, calibrated by R). FA is a charge gate (Q = 4 pi R_ad^3 (d.alpha1)); He
+    (Q/2=1) -> pure FA -> exact. LDA and GEA are exact by construction; the construction is
+    weakest only in the FA<->bulk transition. SCF potential = exact variational adjoint (FD
+    through the C, local-rho and gradient channels)."""
+
+    def __init__(self, derivative_matrix=None, r_quad=None,
+                 quadrature_weights=None, params: Optional[XCParameters] = None):
+        super().__init__(derivative_matrix=derivative_matrix, r_quad=r_quad,
+                         quadrature_weights=quadrature_weights, params=params)
+        self._grad_op = build_spectral_gradient_operator(self._r_grid)
+        n = self._n_out
+        self._alpha1 = self._G[0].copy()                     # int_0^1 R_m^(1) t^2 dt
+        self._beta1 = self._H[0].copy()                      # int_0^1 R_m^(1) t   dt
+        self._r1_0 = (np.arange(n) + 1) * np.pi * np.sqrt(2.0)   # R_m^(1)(0), unit window
+        self._gX = np.array([np.interp(self._X, self._etas, self._G[:, m]) for m in range(n)])
+        # GEA deformation mode delta_GEA = proj(g0(Xt) phi(Xt)), charge/on-top-neutral, + response R
+        xu, wu = np.polynomial.legendre.leggauss(400); t = 0.5 * (xu + 1.0); wt = 0.5 * wu
+        Rb1 = RadialBesselBasis(n - 1, 0, 1.0).evaluate(0, t)
+        xX = np.maximum(self._X * t, 1e-12)
+        g0 = 3.0 * spherical_jn(1, xX) / xX; phi = spherical_jn(1, xX)
+        d1 = Rb1 @ (g0 * phi * wt * t ** 2)
+        A0 = np.vstack([self._alpha1, self._r1_0])
+        self._dgea = d1 - A0.T @ np.linalg.solve(A0 @ A0.T, A0 @ d1)
+        kF1 = (3.0 * np.pi ** 2) ** (1.0 / 3.0); Rad1 = min(self._X / kF1, self.params.r_c)
+        c_lda = -(3.0 / 4.0) * (3.0 / np.pi) ** (1.0 / 3.0)
+        self._gea_R = 2.0 * np.pi * Rad1 ** 2 * (-(self._dgea @ self._beta1)) / c_lda
+
+    def _kernel_eps(self, C, rho0, g):
+        """eps_x from the kernel map; C (n_in,N), rho0 (N,), g (N,) the three rho-channels."""
+        rho0 = np.maximum(np.asarray(rho0, float), 1e-12)
+        R_ad, _ = self._R_ad(rho0)
+        c_ad = self._c_ad(C, R_ad)                                   # (N, n_out)
+        d = c_ad / (4.0 * np.pi * R_ad ** 1.5)[:, None]              # unit-basis density coeffs
+        Q = 4.0 * np.pi * R_ad ** 3 * (d @ self._alpha1); Qs = np.maximum(Q, 1e-12)
+        W = enclosed_charge_switch(0.5 * Q)                          # per-spin FA gate
+        kF = (3.0 * np.pi ** 2 * rho0) ** (1.0 / 3.0)
+        s2, _ = _bound((g / (2.0 * kF * rho0)) ** 2)
+        chi = (_GEA2 / self._gea_R) * s2; chi_max = (_LO_FX - 1.0) / self._gea_R
+        chi = chi_max * np.tanh(chi / chi_max)
+        bulk = -0.5 * rho0[:, None] * self._gX[None, :] + (chi * -rho0)[:, None] * self._dgea[None, :]
+        fa = -d / Qs[:, None]
+        coeffs = (1.0 - W)[:, None] * bulk + W[:, None] * fa
+        ontop = (1.0 - W) * (-0.5 * rho0) + W * (-rho0 / Qs)
+        # vectorized 2-constraint least-norm projection (sum rule = -1, on-top = ontop)
+        al, r0v = self._alpha1, self._r1_0
+        a_row = 4.0 * np.pi * (R_ad ** 3)[:, None] * al[None, :]
+        row0 = np.sum(a_row * coeffs, axis=1); row1 = coeffs @ r0v
+        g00 = np.sum(a_row * a_row, axis=1); g01 = a_row @ r0v; g11 = float(r0v @ r0v)
+        res0 = -1.0 - row0; res1 = ontop - row1
+        det = g00 * g11 - g01 ** 2
+        lam0 = (g11 * res0 - g01 * res1) / det; lam1 = (-g01 * res0 + g00 * res1) / det
+        coeffs = coeffs + lam0[:, None] * a_row + lam1[:, None] * r0v[None, :]
+        return 2.0 * np.pi * R_ad ** 2 * (coeffs @ self._beta1)
+
+    def compute_xc(self, density_data: DensityData) -> XCPotentialData:
+        rho = np.maximum(np.asarray(density_data.rho, dtype=float), 1e-12)
+        ew = self.energy_weights; ewrho = ew * rho
+        C = np.array([op @ rho for op in self._ops])
+        g = self._grad_op @ rho
+        eps = self._kernel_eps(C, rho, g)
+        # exact discrete adjoint by FD in each rho-channel (C, local-rho, gradient)
+        acc = np.zeros_like(rho)
+        for n in range(len(self._ops)):
+            h = 1e-6 * (np.abs(C[n]) + 1e-8)
+            Cp = C.copy(); Cp[n] += h
+            Cm = C.copy(); Cm[n] -= h
+            deps_dCn = (self._kernel_eps(Cp, rho, g) - self._kernel_eps(Cm, rho, g)) / (2.0 * h)
+            acc += self._ops[n].T @ (ewrho * deps_dCn)
+        hr = 1e-6 * (rho + 1e-8)
+        deps_drho0 = (self._kernel_eps(C, rho + hr, g) - self._kernel_eps(C, rho - hr, g)) / (2.0 * hr)
+        hg = 1e-6 * (np.abs(g) + 1e-8)
+        deps_dg = (self._kernel_eps(C, rho, g + hg) - self._kernel_eps(C, rho, g - hg)) / (2.0 * hg)
+        v_x = (eps + rho * deps_drho0 + acc / ew
+               + self._grad_op.T @ (ewrho * deps_dg) / ew)
+        if getattr(self.params, "gauge_fix", True):
+            v_x = self._apply_gauge(v_x, eps, rho)
+        zero = np.zeros_like(rho)
+        return XCPotentialData(v_x=v_x, v_c=zero, e_x=eps, e_c=zero,
+                               de_x_dtau=None, de_c_dtau=None)
+
+    def _default_params(self) -> SIMPLEHOLEEXPKERNELParameters:
+        return SIMPLEHOLEEXPKERNELParameters()

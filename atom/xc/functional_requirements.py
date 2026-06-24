@@ -136,6 +136,13 @@ _FUNCTIONAL_REQUIREMENTS: Dict[str, FunctionalRequirements] = {
         functional_type='GGA'
     ),
 
+    # SIMPLE-HOLE-EXPANSION-KERNEL: kernel/fixed-point hole map (LDA-from-GEA + FA).
+    'SIMPLE_HOLE_EXPANSION_KERNEL': FunctionalRequirements(
+        needs_gradient=False,
+        needs_tau=False,
+        functional_type='GGA'
+    ),
+
     # Hybrid GGA functionals
     'PBE0': FunctionalRequirements(
         needs_gradient=True,

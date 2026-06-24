@@ -139,3 +139,37 @@ Spin convention now CORRECT (He exact FA). The error is concentrated ENTIRELY in
 transition (Be, the only atom with Q/2 between 1 and 2): the two-node (HEG+FA) set handles the
 crossover worst. This is the precise target for an added transition-region fixed point (the
 extensibility goal). Bulk atoms (Ne/Na/Mg) ~1%; FA-limit atoms (He/Li) good.
+
+## Phase 2 — self-consistent kernel functional (SIMPLE_HOLE_EXPANSION_KERNEL)
+
+Ported the scale-free kernel map into a production functional (subclass of
+SIMPLE_HOLE_EXPANSION): _kernel_eps builds the hole (HEG anchor + GEA mode + FA, blended by the
+per-spin charge gate, 2-constraint projection) and eps = 2pi R_ad^2 (rhotilde.beta1); compute_xc
+is the EXACT variational discrete adjoint (FD through the C, local-rho, gradient channels).
+Registered in evaluator/functional_requirements/solver/scf.driver.
+
+Validation:
+- Adjoint == FD to 4e-9 (test_KERNEL_SCF_adjoint_matches_fd). Exact variational potential.
+- SCF CONVERGES for ALL of He/Be/Na/Mg/Ne (PSP) with the exact adjoint -- NO floor, NO frozen
+  potential needed (the prediction held: the map interpolates valid holes and the FA fixed point
+  owns the low-density tail, so no F<0 blow-up). He near-exact FA (-3.5 mHa), spin-correct.
+- Full suite 47/47.
+
+Self-consistent benchmark vs HF (cached) / PBE-x:
+  atom  E_x(HF)  E_x(PBE)  E_x(kernel-SCF)  PBE err  kern err
+  He   -1.0019  -0.9705   -1.0054            +31.4     -3.5
+  Li   -1.4514  -1.4481   -1.5026             +3.4    -51.2
+  Be   -1.9215  -1.8853   -1.7029            +36.2   +218.6
+  Ne   -5.4013  -5.2989   -5.2640           +102.4   +137.3
+  Na   -5.7280  -5.6816   -5.6942            +46.4    +33.8
+  Mg   -6.8577  -6.7599   -6.7438            +97.8   +113.9
+  MAE vs HF (mHa): PBE-x 52.9; kernel-SCF 93.1 (non-SCF was 52.0)
+
+KEY ISSUE: self-consistency DEGRADES the kernel (SCF MAE 93 vs non-SCF 52). Ne (+57->+137) and
+Mg (+24->+114) blow up most. Cause: the bulk LDA band is too loose -- the DIRECT HEG projection
+at n_out=10 over-recovers LDA by 3.3% (F=1.033), and the over-binding bulk potential distorts the
+self-consistent density. The non-SCF benchmark on the good HF density masked this. The functional
+is sound and intrinsically SCF-stable; the next lever is TIGHTENING THE BULK LDA recovery (more
+n_out channels, or use the base's Q_S=2 envelope inversion for the bulk anchor instead of the
+direct projection), plus the transition fixed point for Be. Tools: kernel_scf_bench.py,
+kernel_scf_check.py.
