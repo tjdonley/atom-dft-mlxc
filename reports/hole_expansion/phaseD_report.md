@@ -65,3 +65,27 @@ This confirms the framework reproduces spin-paired He exactly (the representatio
 limit — Phase C already showed the exact He hole projects to 0.05%); the earlier miss was purely
 the spin convention in the map's switch. The discrete adjoint (D1) and explicit/convolutional
 agreement (D2) are unaffected and remain green.
+
+## Update 2 — n_in / n_out and the n=10 "blow up" (clarification)
+The earlier claim that n=10 "blows up" was imprecise. Diagnosis:
+- On a FIXED Be density (no SCF) the map gives FINITE energies at every n (n=10: -3.38,
+  n=16: -2.55, n=20: -2.42 vs exact -2.67). Truncation only degrades accuracy -- it does not
+  blow up, as expected.
+- The -5e14 at n=10 was an SCF SELF-CONSISTENCY instability: the under-resolved dense Be core
+  produces a too-deep (but finite, max|eps|~9.4 at the nucleus) exchange potential that
+  positive-feedbacks over SCF iterations. n=16 and n=20 are SCF-stable (He -1.030/-1.027,
+  Be -2.640/-2.407).
+
+Why n>=16 is needed for the HOLE here (not n_out=10): the current functional uses a SINGLE
+fixed-R_c SIMPLE basis for BOTH the density projection and the hole expansion (no adaptive-
+radius transfer). In that frame the dense core needs n >~ k_F R_c/pi (~16 at R_c=6). In the
+PROPER SIMPLE pipeline -- project at n_in=16-20 (resolution), transfer to n_out=10 scale-free
+descriptors at the ADAPTIVE radius -- n_out=10 would resolve the hole, because the adaptive
+window co-scales with the local density (the dense core gets a small window). Implementing that
+transfer (the scale-free frame) is what makes n_out=10 sufficient and removes the n=10 SCF
+instability; it is the documented next architectural step.
+
+Note on accuracy: the map's *converged* (well-resolved, n=20) Be is ~-2.41 (underbinding -- the
+genuine 2-electron-per-spin limitation of the FA/HEG blend); n=16's -2.64 is partly a low-n
+resolution artifact compensating that underbinding. He is genuinely accurate at n>=16
+(-1.027 at n=20 ~ exact -1.026). Default n_channels=16.
