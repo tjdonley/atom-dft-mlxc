@@ -164,3 +164,28 @@ Next: stabilize the scale-free transfer at larger R_c (better conditioning / lar
 regularized transfer) so R_ad can grow and H converges; or give the delocalized one-electron
 hole a non-windowed treatment. The same finite-window over-count is the 1.033 HEG offset and He's
 slight over-binding -- one structural issue, addressed by fixing the large-R_c transfer.
+
+## Update 6 — two implementation bugs found (not truncation); both pushbacks correct
+Two checks (HEG convergence; transfer conditioning) confirm the residual is NOT fundamental:
+
+(1) **Min-norm constraint projection overshoots.** The pure HEG anchor (no projection) converges
+to LDA exactly: ratio 0.984 (X=8) -> 0.996 -> 1.000 as X grows with n_out scaled (analytic
+(4/9)int_0^inf S x dx = 1.000). The functional's 1.033 is the min-norm sum-rule projection
+turning a -1.7% truncation into a +3.3% overshoot (a +5% swing). The prior SF enforces the sum
+rule via the zeta-scale (Q_S=2), not a min-norm projection -> no overshoot.
+FIX: enforce the sum rule through the hole scale, not a min-norm coefficient projection.
+
+(2) **Raw c_ad exposes the ill-conditioned transfer (R_c>6 divergence).** cond(transfer) grows
+fast with R_ad (R_c=6: ~1-24; R_c=8: 5.8e3 at n_out=10; R_c=12: 1e7). But the prior SF ran at
+R_c=8 with WORSE conditioning (3.9e11, n_out=24) and was stable -- because SF uses c_ad only
+through stable contractions (g.c_ad, h.c_ad; the envelope tables damp high frequencies). The
+direct expansion uses the raw transferred c_ad DIRECTLY as hole coefficients (FA = -c_ad/Q),
+amplifying the ill-conditioned high-frequency content -> divergence at R_c>6.
+FIX: regularize the transfer (truncate small singular values) / use stable contractions.
+
+Consequence for H: the HEG/He over-binding is bug (1); H additionally has the FA /Q over-count
+(Q_window=0.91<1, delocalized one-electron hole truncated by the window), which needs R_ad to
+grow toward the full atom -- requiring R_c>6, unblocked by fix (2). With both fixes the
+construction should reach the prior SF accuracy (<1 mHa) and converge H -> -E_H. So the exact H
+limit is recoverable; the current residual is implementation (projection + raw-c_ad transfer),
+not physics.
