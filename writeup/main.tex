@@ -479,9 +479,11 @@ coefficients $\mathbf c=T(\Rad)\,\mathbf C$
 enclosed-charge ratio [Eq.~\eqref{eq:eps-x}]
 \begin{equation}
 \label{eq:eps-base-ratio}
-\varepsilon_x=-\tfrac12\,\frac{\Phi_S(\eta^*)}{Q_S(\eta^*)},\qquad
-Q_S(\eta)=\Rad^{3/2}\!\sum_m c_m\,g_m(\eta),\quad
+\begin{gathered}
+\varepsilon_x=-\tfrac12\,\frac{\Phi_S(\eta^*)}{Q_S(\eta^*)},\\
+Q_S(\eta)=\Rad^{3/2}\!\sum_m c_m\,g_m(\eta),\\
 \Phi_S(\eta)=\Rad^{1/2}\!\sum_m c_m\,h_m(\eta),
+\end{gathered}
 \end{equation}
 with envelope-projection tables $g_m(\eta)=\int_0^1 R_{m0}(t)\,S(\eta t)\,t^2dt$,
 $h_m(\eta)=\int_0^1 R_{m0}(t)\,S(\eta t)\,t\,dt$ and a single on-top scale $\eta^*$.
@@ -533,8 +535,10 @@ the calibrated magnitude. We damp it with a soft floor in the spirit of the LB94
 asymptotic correction~\cite{vanLeeuwen_1994},
 \begin{equation}
 \label{eq:F-floor}
-F=F_0+\tfrac1k\ln\!\Big(1+e^{\,k\,(1+e-F_0)}\Big),\qquad
+\begin{gathered}
+F=F_0+\tfrac1k\ln\!\Big(1+e^{\,k\,(1+e-F_0)}\Big),\\
 e=s^2\big(m_g g_{\mathrm{HEG}}+m_h g_{\mathrm{H1s}}\big),
+\end{gathered}
 \end{equation}
 which is the identity in the bulk (where $1+e$ is well above $F_0$) and lifts $F$
 smoothly to a small positive floor $F_0$ only in the tail, keeping
