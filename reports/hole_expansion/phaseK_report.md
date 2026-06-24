@@ -82,3 +82,32 @@ than the bare LDA band -> GEA helping). Mg +119 ~= 1.6% of E_x = the fixed-R_c L
 the concrete target for an added transition-region fixed point (the extensibility goal). No
 blow-ups; the construction is sound on real atoms even before the scale-free frame. Tool:
 kernel_atom_bench.py.
+
+## Scale-free non-SCF benchmark (the correct frame; vs HF, cached)
+
+REVISED to the scale-free adaptive-radius frame (SIMPLE features are always scale-free -- never
+build fixed-R_c). kernel_eps_sf: C=[op@rho]; R_ad=X/k_F; c_ad=T(R_ad)C; eps=2pi R_ad^2 (rho~.beta1);
+hole = (1-W_FA)[HEG(-rho/2 g(X)) + chi delta_GEA] + W_FA(-c_ad/Q); per-point 2-constraint
+projection. Validated: uniform -> F=1.033 CONSTANT across rho (scale-free; 3.3% is the n_out=10
+projection band, not a drift); ramp -> GEA slope 0.122 vs 10/81=0.123 (from the actual l=1
+gradient operator).
+
+Non-SCF on cached HF densities (hf_refs.npz; HF converges for Ne where PSP-EXX did not;
+E_x = hf_exchange):
+
+  atom  E_x(HF)   E_x(kernel-SF)  err(mHa)  rel%
+  He   -1.0019    -0.9511          +50.9    +5.1
+  Li   -1.4514    -1.4798          -28.4    -2.0
+  Be   -1.9215    -1.8594          +62.2    +3.2
+  Ne   -5.4013    -5.3439          +57.5    +1.1
+  Na   -5.7280    -5.7694          -41.4    -0.7
+  Mg   -6.8577    -6.8356          +22.1    +0.3
+  MAE vs HF (mHa): kernel-SF = 43.7
+
+vs fixed-R_c kernel (MAE 61, with Li +143 / Mg +119 outliers) and PBE-x (75). The scale-free
+frame removes the systematic LDA-band offset (errors balanced +/-5%, mixed sign) and the
+fixed-R_c outliers (Li +143->-28, Mg +119->+22); Ne now included. Regression: He +51 mHa (+5%) --
+the r_c window no longer swallows all of He, so the per-point adaptive Q/2 is not <=1 throughout
+and He reads as a FA/bulk mix (under-binds) rather than pure FA. => sharpen FA detection in the
+adaptive frame next (and/or a transition fixed point). Tools: kernel_sf.py, kernel_sf_bench.py,
+hf_cache.py -> hf_refs.npz (cached HF refs; reuse, do not re-solve).
