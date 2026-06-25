@@ -40,15 +40,26 @@ open frontier is **functional design** (Theory I.C / Results II.B), flagged in-p
 
 ## Exchange-hole functional (Theory I.C) — in progress
 
-| Eq. | Explicit (maps to text) | Production (speed) |
-|---|---|---|
-| (exact-hole),(ansatz),(eps-x),(Fx-S) | `xc/simple_hole_explicit.py:hole_solve` (direct `u`-integral) | `xc/simple_hole.py:_eps_from_coeffs` (precomputed `α,β` envelope tables, monotonic on-top inversion) |
-| (QPhi) on-top `Q_S(ζ)=2` | `hole_solve` (`brentq`) | `_eps_from_coeffs` (`np.interp` on the monotonic `Q_S(ζ)` table — same machinery as `adaptive_radius`) |
-| (adjoint),(adjoint-discrete) | — | `simple_hole.py:compute_xc` (operator-transpose adjoint; `gauge_fix=False` = pure adjoint) |
-| (amp),(fx) second-order scale-free deformation | `simple_hole_explicit.py:hole_solve_def` (full `[g0+χφ]²`) | **`simple_hole.py:SIMPLE_HOLE_GGA`** — production: one envelope mode whose amplitude carries the exact `(10/81)s²`, one HEG-calibrated constant (not fit), LO-saturated. `SIMPLE_HOLE` is the bare hole; **`SIMPLE_HOLE_GEA`** (4th-order `q²,s²q`) is a **deprecated/experimental** variant retained for reference — it requires the unstable `q` channel and does not converge robustly. |
+The production construction is the **kernel-mapped fixed-point hole**
+`xc/simple_hole_expansion.py:SIMPLE_HOLE_KERNEL_FP`: the hole is expanded directly in the
+radial SIMPLE basis (`eq:hole-direct`), the energy is the direct hole integral
+`ε_x = 2π R_ad² (ϱ̃·β)` (`eq:eps-direct`), and the coefficients (scale-free shape `σ`) are
+interpolated over fixed points by a kernel whose per-`ℓ` SIMPLE distances are the kernel
+coordinates (`ℓ=1` ≡ `s²`). There is **no explicit gradient term and no enhancement factor**.
 
-`tests/simple/test_simple_hole.py` asserts production ≈ explicit `hole_solve` on the
-same density, and the discrete adjoint == FD of the energy.
+| Eq. | Explicit reference (maps to text) | Production (`SIMPLE_HOLE_KERNEL_FP`) |
+|---|---|---|
+| (exact-hole),(hole-direct),(eps-direct) | `xc/simple_hole_explicit.py:hole_solve` (direct `u`-integral); `simple_hole_expansion_explicit.py:eps_x_map` | `_kernel_eps` (direct hole integral over the basis Coulomb moments `β`) |
+| LDA limit (C4) | `simple_hole_expansion_explicit.py:heg_anchor` (moment-matched HEG hole) | `_heg_mm` — anchors the kernel at the HEG node so `F_x=1` exactly at finite basis |
+| Fermi–Amaldi (C5) | `map_coeffs` (`-C/Q`), `enclosed_charge_switch` | `W_FA` charge gate blends the density-following hole |
+| GEA2 (C6) `F_x→1+(10/81)s²` | — | `_build_fp_nodes` fixes the `ℓ=1` node amplitude `c_G` so the slope is exact (no GEA term) |
+| exact-hole references | `xc/orbital_hole.py` (exact atomic holes → kernel fixed points) | `_build_fp_nodes` adds them as further nodes; each carries only the deviation beyond LDA |
+| (adjoint) | — | `compute_xc` (discrete adjoint through C/ρ/gradient channels; `gauge_fix=False` = pure adjoint) |
+
+`tests/simple/test_simple_hole_expansion.py` (PHASE FP) asserts the uniform→LDA limit
+(`F_x=1`), the GEA2 slope `10/81` from the `ℓ=1` kernel node, the discrete adjoint == FD of
+the direct-integral energy, and SCF convergence (reference-free reduces to LDA+FA). The base
+machinery (`SIMPLE_HOLE_EXPANSION`, `SIMPLE_HOLE`) is covered by PHASE A–D.
 
 ## Numerical implementation (Theory I.D) / 3D validation (App.)
 
@@ -70,15 +81,19 @@ same density, and the discrete adjoint == FD of the energy.
 ## Done (this phase)
 - Feature definitions and invariant construction **finalized** and folded into the main
   writeup (Theory I.A–B, Results II.A); `q` dropped; `R_c=6`, `n_out=10`, `ℓ_max≤3`.
-- Hole revised to the second-order scale-free form (`SIMPLE_HOLE_GGA`); `SIMPLE_HOLE_GEA`
-  (4th-order) retained only as a deprecated experimental variant.
+- Hole construction is the kernel-mapped fixed-point form (`SIMPLE_HOLE_KERNEL_FP`):
+  direct hole-integral energy, coefficients interpolated over fixed points, LDA enforced by
+  anchoring the kernel and GEA2 by the `ℓ=1` node amplitude (no explicit GEA term). The old
+  envelope-deformation variants (`SIMPLE_HOLE_GEA`/`GGA`) and the bolt-on-GEA kernel prototype
+  were removed.
 - Spectral `s`/`q` operators; `test_scale_free_gradient.py` tests spectral-`s`-vs-FD;
   invariant stress-test + parameter-selection scripts added (SI `app:stress`, `app:params`).
 
 ## Open (next phase: functional design)
-1. **Exchange-hole functional** (Theory I.C / Results II.B): the second-order scale-free
-   hole is preliminary; validate/benchmark vs OEP/HF across the periodic table and tune
-   the envelope. The richer-functional route is explicit `ℓ≥1` hole multipoles
-   (App.~`app:hole`), not the deprecated `q`-based GEA4.
+1. **Exchange-hole functional** (Theory I.C / Results II.B): reference-free the functional
+   reduces to LDA+FA on atoms (the kernel-GEA is a slowly-varying limit that does not reach
+   atomic inhomogeneity); atom binding comes from adding exact atomic holes as kernel fixed
+   points. The active next step is the full referenced self-consistent benchmark vs OEP/HF
+   across the periodic table. The richer-functional route is explicit `ℓ≥1` hole multipoles.
 2. **Self-consistent benchmarks**: KS gaps; open-shell N/P vs the unrestricted
    exact-exchange reference.

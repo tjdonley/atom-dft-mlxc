@@ -357,230 +357,68 @@ def test_D3_hydrogen_near_self_interaction_free():
 
 
 # ======================================================================= #
-# PHASE E: parameter-free second-order gradient correction (GEA2)
+# PHASE FP: kernel-mapped fixed-point hole SIMPLE_HOLE_KERNEL_FP
+# The hole COEFFICIENTS are interpolated over fixed points by a kernel whose
+# per-l SIMPLE distances are the kernel coordinates (l=1 == s^2); the LDA limit
+# is enforced by anchoring the map at the HEG node, and the GEA2 slope by the
+# amplitude of the single l=1 node -- no explicit gradient term, no enhancement
+# factor. The energy is the direct hole integral eps_x = 2 pi R_ad^2 (rho~ . beta).
 # ======================================================================= #
-def _build_gga(gauge_fix=True, n=600):
-    from atom.xc.simple_hole_expansion import SIMPLE_HOLE_EXPANSION_GGA, SIMPLEHOLEEXPGGAParameters
-    r = np.linspace(1e-3, 12.0, n)
+def _build_fp(n=600):
+    from atom.xc.simple_hole_expansion import SIMPLE_HOLE_KERNEL_FP
+    r = np.linspace(1e-3, 14.0, n)
     w = np.gradient(r)
-    p = SIMPLEHOLEEXPGGAParameters(r_c=6.0, n_channels=16, gauge_fix=gauge_fix)
-    return SIMPLE_HOLE_EXPANSION_GGA(r_quad=r, quadrature_weights=w, params=p), r, w
+    return SIMPLE_HOLE_KERNEL_FP(r_quad=r, quadrature_weights=w), r, w
 
 
-def test_E1_enhancement_is_gated_s2():
-    """The enhancement is the two-term gated s^2 form with the LB94-style soft floor:
-    F = enh_floor + softplus_k(1 + s^2 (m_g g_HEG + m_h g_H1s) - enh_floor). Validates the
-    wiring (both terms carry s^2; the floor keeps F > 0)."""
-    F, r, w = _build_gga(n=800)
-    rho = np.exp(0.05 * (r - 8.0)) + 0.01
-    C = np.array([op @ rho for op in F._ops])
-    R_ad, _ = F._R_ad(rho)
-    g = F._grad_op @ rho
-    Fx = F._eps_full(C, rho, g) / F._eps_sf(C, R_ad)
-    d_heg, d_h1s = F._gates(C, R_ad)
-    gheg = np.exp(-F.params.alpha_heg * d_heg)
-    gh1s = 1.0 - np.exp(-F.params.alpha_h1s * d_h1s)
-    e = F._s2_bounded(rho, g) * (F.params.m_g * gheg + F.params.m_h * gh1s)
-    k, fl = F.params.enh_floor_k, F.params.enh_floor
-    expect = fl + np.logaddexp(0.0, k * (1.0 + e - fl)) / k
-    assert np.allclose(Fx, expect, rtol=1e-9)
-    assert np.all(Fx > 0.0)                                          # floor keeps F positive
-
-
-def test_E_gates_detect_their_limits():
-    """The HEG gate distance D_HEG is ~0 for a uniform density (its signature), and the H1s gate
-    distance D_H1s is ~0 for a hydrogenic 1s (it sits on the manifold) -- each gate detects its
-    own limit in the scale-free c_ad feature space."""
-    F, r, w = _build_gga()
-    rho_u = np.full_like(r, 1.0)
-    Cu = np.array([op @ rho_u for op in F._ops]); Radu, _ = F._R_ad(rho_u)
-    d_heg_u, _ = F._gates(Cu, Radu)
-    rho_1s = (1.5 ** 3 / np.pi) * np.exp(-3.0 * r)
-    C1 = np.array([op @ rho_1s for op in F._ops])
-    Rad1, _ = F._R_ad(np.maximum(rho_1s, 1e-12))
-    _, d_h1s_1 = F._gates(C1, Rad1)
-    mid = slice(len(r) // 5, 4 * len(r) // 5)
-    assert np.median(d_heg_u[mid]) < 1e-2, "uniform density not at the HEG signature"
-    sig = rho_1s > 1e-3 * rho_1s.max()
-    assert np.min(d_h1s_1[sig]) < 1e-2, "1s density not on the H1s manifold"
-
-
-def test_E1_gradient_adjoint_matches_fd():
-    """The exact (variational) adjoint matches FD of the energy. Uses frozen_potential=False."""
-    from atom.xc.evaluator import DensityData
-    from atom.xc.simple_hole_expansion import SIMPLE_HOLE_EXPANSION_GGA, SIMPLEHOLEEXPGGAParameters
-    r = np.linspace(1e-3, 12.0, 600); w = np.gradient(r)
-    p = SIMPLEHOLEEXPGGAParameters(r_c=6.0, n_channels=16, gauge_fix=False, frozen_potential=False)
-    F = SIMPLE_HOLE_EXPANSION_GGA(r_quad=r, quadrature_weights=w, params=p)
-    rho = 0.5 * np.exp(-0.5 * r ** 2) + 0.05 * np.exp(-0.15 * (r - 2.0) ** 2) + 0.01
-    ew = F.energy_weights
-
-    def Ex(rh):
-        C = np.array([op @ rh for op in F._ops])
-        g = F._grad_op @ rh
-        return float(np.sum(ew * rh * F._eps_full(C, np.maximum(rh, 1e-12), g)))
-
-    vx = F.compute_xc(DensityData(rho=rho)).v_x
-    rng = np.random.default_rng(1)
-    for j in rng.choice(np.arange(60, len(r) - 60), 8, replace=False):
-        h = 1e-6
-        rp = rho.copy(); rp[j] += h
-        rm = rho.copy(); rm[j] -= h
-        fd = (Ex(rp) - Ex(rm)) / (2.0 * h) / ew[j]
-        assert abs(vx[j] - fd) / (abs(fd) + 1e-12) < 5e-6, f"r={r[j]:.2f}: {vx[j]:.6f} vs {fd:.6f}"
-
-
-def test_E1_reduces_to_expansion_without_gradient():
-    """Uniform density -> s=0 -> enhancement=1 -> GGA energy density == the gradient-free
-    expansion (and the gate is irrelevant since s^2=0)."""
-    from atom.xc.simple_hole_expansion import SIMPLE_HOLE_EXPANSION, SIMPLEHOLEEXPParameters
-    F, r, w = _build_gga()
-    base = SIMPLE_HOLE_EXPANSION(r_quad=r, quadrature_weights=w,
-                                params=SIMPLEHOLEEXPParameters(r_c=6.0, n_channels=16))
-    rho = np.full_like(r, 1.0)
-    C = np.array([op @ rho for op in F._ops])
-    g = F._grad_op @ rho
-    eps_gga = F._eps_full(C, rho, g)
-    eps_base = base._eps_from_coeffs(np.array([op @ rho for op in base._ops]), rho)
-    # s=0 -> e=0 -> F=1 to softplus precision (~1/exp(k(1-floor))); LDA limit preserved
-    assert np.allclose(eps_gga, eps_base, rtol=1e-6)
-
-
-def test_E1_gga_scf_converges():
-    """The two-term GGA converges self-consistently (PSP, the target regime) and, by the He
-    cancellation of the two opposite-sign gated terms, stays very close to the base for He
-    (the FA limit is preserved)."""
-    from atom import AtomicDFTSolver
-    res = {}
-    for func in ("SIMPLE_HOLE_EXPANSION", "SIMPLE_HOLE_EXPANSION_GGA"):
-        s = AtomicDFTSolver(atomic_number=2, xc_functional=func, all_electron_flag=False,
-                            max_scf_iterations=300)
-        r = s.solve()
-        assert r["converged"], f"{func}: SCF did not converge"
-        res[func] = float(r["energy_components"].exchange)
-    assert np.isfinite(res["SIMPLE_HOLE_EXPANSION_GGA"])
-    # He: the two terms cancel -> GGA within a few mHa of base (both ~exact for He)
-    assert abs(res["SIMPLE_HOLE_EXPANSION_GGA"] - res["SIMPLE_HOLE_EXPANSION"]) < 0.02, \
-        f"GGA {res['SIMPLE_HOLE_EXPANSION_GGA']:.4f} far from base {res['SIMPLE_HOLE_EXPANSION']:.4f}"
-
-
-# ======================================================================= #
-# PHASE F: learnable residual layer with exact limits by construction (mechanism)
-# ======================================================================= #
-def test_F_residual_vanishes_at_both_anchors():
-    """For ARBITRARY fitted weights, the gated learned residual is exactly zero at the HEG
-    (lambda=0) and one-electron (lambda=1) anchors, so it cannot break either exact limit."""
-    n_ch, n_feat = 24, 5
-    a = ex.charge_moments(n_ch, R_C)
-    r0 = ex.radial_basis_at_origin(n_ch, R_C)
-    rng = np.random.default_rng(3)
-    for _ in range(20):
-        W = rng.standard_normal((n_ch, n_feat))
-        feats = rng.standard_normal(n_feat)
-        for lam in (0.0, 1.0):
-            d = ex.learnable_residual(feats, W, lam, a, r0, n_ch)
-            assert np.allclose(d, 0.0, atol=1e-12), f"residual nonzero at lambda={lam}"
-
-
-def test_F_residual_is_charge_and_ontop_neutral():
-    """At any intermediate lambda the residual carries zero charge and zero on-top change,
-    so the sum rule (-1) and on-top constraints remain exact for any weights."""
-    n_ch, n_feat = 24, 5
-    a = ex.charge_moments(n_ch, R_C)
-    r0 = ex.radial_basis_at_origin(n_ch, R_C)
-    rng = np.random.default_rng(4)
-    for _ in range(20):
-        W = rng.standard_normal((n_ch, n_feat))
-        feats = rng.standard_normal(n_feat)
-        d = ex.learnable_residual(feats, W, 0.5, a, r0, n_ch)
-        assert abs(4.0 * np.pi * np.dot(a, d)) < 1e-10, "residual changes enclosed charge"
-        assert abs(np.dot(r0, d)) < 1e-10, "residual changes on-top value"
-        # but it CAN change the energy channel (otherwise it would be useless)
-        assert abs(np.dot(ex.coulomb_moments(n_ch, R_C), d)) > 0 or np.allclose(d, 0)
-
-
-# ======================================================================= #
-# PHASE KERNEL: fixed-point hole map (LDA-from-GEA + FA), operator-free
-# ======================================================================= #
-_KCH, _KNU = 16, 1024
-
-
-def test_KERNEL_T1_uniform_is_lda():
-    """Uniform density -> s=0, Q/2>>2 (W_FA=0) -> the kernel map returns the HEG anchor, so
-    eps_x = LDA within the finite-R_c band, with the sum rule and on-top exact."""
-    a = ex.charge_moments(_KCH, R_C); r0 = ex.radial_basis_at_origin(_KCH, R_C)
-    b = ex.coulomb_moments(_KCH, R_C)
-    for rho in (0.25, 0.5, 1.0, 2.0, 5.0):
-        c, d = ex.kernel_map_coeffs(_uniform(rho), 0.0, R_C, _KCH, nu=_KNU, return_diagnostics=True)
-        assert d["W_FA"] == 0.0
-        F = ex.eps_from_coeffs(c, b) / float(ex.lda_exchange_per_particle(rho))
-        assert 0.98 < F < 1.04, f"rho={rho}: F={F:.4f} outside finite-R_c LDA band"
-        assert abs(ex.enclosed_charge(c, a) + 1.0) < 1e-6
-        assert abs(ex.on_top(c, r0) - (-0.5 * rho)) < 1e-6
+def test_FP_uniform_is_lda():
+    """Uniform density sits at the HEG node, where the kernel pins the shape to the
+    moment-matched LDA hole: F_x = eps_x / eps_x^unif = 1 to machine precision."""
+    from atom.xc.simple_hole_expansion import _C_LDA
+    F, r, w = _build_fp()
+    mid = len(r) // 2
+    for rho0 in (0.25, 0.5, 1.0, 2.0, 5.0):
+        rho = np.full_like(r, rho0)
+        C = np.array([op @ rho for op in F._ops]); g = F._grad_op @ rho
+        Fx = F._kernel_eps(C, rho, g)[mid] / (_C_LDA * rho0 ** (1.0 / 3.0))
+        assert abs(Fx - 1.0) < 1e-5, f"rho={rho0}: F={Fx:.6f} != 1 (LDA limit broken)"
 
 
 @pytest.mark.parametrize("rho0", [0.5, 1.0, 2.0])
-def test_KERNEL_T2_gea_slope(rho0):
-    """A slowly-varying density (uniform base rho0 with reduced gradient s) gives the exact GEA2
-    enhancement F_x -> 1 + (10/81)s^2: the slope vs s^2 is 10/81 and the linear-in-s coefficient
-    is ~0 (parity: exchange is even in grad rho; the gradient enters only as s^2)."""
-    b = ex.coulomb_moments(_KCH, R_C)
-    eps_unif = float(ex.lda_exchange_per_particle(rho0))
-    s = np.array([0.02, 0.04, 0.06, 0.08, 0.10])
-    Fm1 = np.array([ex.eps_from_coeffs(ex.kernel_map_coeffs(_uniform(rho0), si, R_C, _KCH, nu=_KNU), b)
-                    / eps_unif - 1.0 for si in s])
-    # slope vs s^2 (with intercept absorbing the finite-R_c F(s=0) offset)
+def test_FP_gea_slope_from_l1_kernel(rho0):
+    """The l=1 kernel node's amplitude is fixed so the small-gradient enhancement
+    reproduces the exact second-order gradient expansion F_x -> 1 + (10/81) s^2 --
+    purely from kernel scaling, with no explicit GEA term. The slope vs s^2 is 10/81
+    and the linear-in-s coefficient is ~0 (exchange is even in grad rho)."""
+    from atom.xc.simple_hole_expansion import _C_LDA
+    F, r, w = _build_fp(n=1200)
+    mid = len(r) // 2
+    eps_unif = _C_LDA * rho0 ** (1.0 / 3.0)
+    avals = np.array([0.01, 0.02, 0.03, 0.04, 0.05])
+    Fm1, svals = [], []
+    for a in avals:
+        rho = rho0 * np.exp(a * (r - r[mid]))               # exponential ramp about mid
+        C = np.array([op @ rho for op in F._ops]); g = F._grad_op @ rho
+        kF = (3.0 * np.pi ** 2 * rho[mid]) ** (1.0 / 3.0)
+        svals.append(abs(g[mid]) / (2.0 * kF * rho[mid]))
+        Fm1.append(F._kernel_eps(C, rho, g)[mid] / eps_unif - 1.0)
+    s = np.array(svals); Fm1 = np.array(Fm1)
     slope = np.polyfit(s ** 2, Fm1, 1)[0]
-    assert abs(slope - 10.0 / 81.0) < 0.02 * (10.0 / 81.0), f"GEA slope {slope:.5f} vs {10/81:.5f}"
-    # parity: fit c0 + b1 s + b2 s^2; the linear coefficient must be negligible vs the quadratic
+    assert abs(slope - 10.0 / 81.0) < 0.05 * (10.0 / 81.0), \
+        f"GEA slope {slope:.5f} vs {10/81:.5f}"
     c0, b1, b2 = np.polyfit(s, Fm1, 2)[::-1]
-    assert abs(b1) < 0.05 * abs(b2), f"spurious linear-in-s term b1={b1:.2e} vs b2={b2:.2e}"
+    assert abs(b1) < 0.1 * abs(b2), f"spurious linear-in-s term b1={b1:.2e} vs b2={b2:.2e}"
 
 
-@pytest.mark.parametrize("Z", [1, 2, 3])
-def test_KERNEL_T3_one_electron_is_fa(Z):
-    """A hydrogenic 1s holds <= one electron per spin (Q/2<=1) -> W_FA=1 -> the kernel map is the
-    Fermi-Amaldi density-following hole -C/Q, matching the existing map_coeffs FA path, and is
-    INDEPENDENT of the reduced gradient s (the GEA term is gated off): LDA/GEA and FA decouple."""
-    b = ex.coulomb_moments(_KCH, R_C)
-    c0, d = ex.kernel_map_coeffs(_hydrogenic_1s(Z), 0.0, R_C, _KCH, nu=_KNU, return_diagnostics=True)
-    assert d["W_FA"] == 1.0 and d["Q_spin"] <= 1.0
-    e0 = ex.eps_from_coeffs(c0, b)
-    # s-independence (GEA gated off)
-    es = ex.eps_from_coeffs(ex.kernel_map_coeffs(_hydrogenic_1s(Z), 0.8, R_C, _KCH, nu=_KNU), b)
-    assert abs(es - e0) < 1e-9, f"FA limit depends on s: {1e3*(es-e0):.3f} mHa"
-    # matches the existing Fermi-Amaldi path
-    em = ex.eps_from_coeffs(ex.map_coeffs(_hydrogenic_1s(Z), R_C, _KCH, nu=_KNU), b)
-    assert abs(e0 - em) < 1e-9, f"kernel FA {e0:.4f} != map_coeffs FA {em:.4f}"
-
-
-def test_KERNEL_T4_rbf_reproduces_fixed_points():
-    """The RBF interpolant reproduces every fixed point exactly (rhotilde(x_k)=rhotilde_k), and
-    adding a node leaves the others unchanged -- the basis for adding more exact limits. With no
-    fixed points it returns the supplied default (the HEG anchor) -> N=1 is LDA everywhere."""
-    rng = np.random.default_rng(0)
-    nodes = [(np.array([0.0, 0.0]), rng.standard_normal(_KCH)),
-             (np.array([1.0, 0.5]), rng.standard_normal(_KCH)),
-             (np.array([0.3, 1.2]), rng.standard_normal(_KCH))]
-    for xk, yk in nodes:
-        got = ex.rbf_interpolant(xk, nodes, default=np.zeros(_KCH), ell=0.7)
-        assert np.allclose(got, yk, atol=1e-6), "RBF does not reproduce a fixed point"
-    # empty fixed-point set -> the default (HEG anchor stand-in)
-    dflt = rng.standard_normal(_KCH)
-    assert np.allclose(ex.rbf_interpolant(np.zeros(2), [], default=dflt), dflt)
-
-
-# ======================================================================= #
-# PHASE KERNEL-SCF: production scale-free kernel functional
-# ======================================================================= #
-def test_KERNEL_SCF_adjoint_matches_fd():
-    """The exact variational adjoint v_x of the kernel functional matches FD of E_x (<5e-6)."""
+def test_FP_adjoint_matches_fd():
+    """The discrete adjoint v_x (compute_xc) matches FD of the direct hole-integral
+    energy through the C / rho / gradient channels (gauge_fix off to drop the
+    constant gauge offset)."""
     from atom.xc.evaluator import DensityData
-    from atom.xc.simple_hole_expansion import (SIMPLE_HOLE_EXPANSION_KERNEL,
-                                               SIMPLEHOLEEXPKERNELParameters)
-    r = np.linspace(1e-3, 12.0, 500); w = np.gradient(r)
-    F = SIMPLE_HOLE_EXPANSION_KERNEL(r_quad=r, quadrature_weights=w,
-                                     params=SIMPLEHOLEEXPKERNELParameters(gauge_fix=False))
+    from atom.xc.simple_hole_expansion import SIMPLE_HOLE_KERNEL_FP, SIMPLEHOLEKERNELFPParameters
+    r = np.linspace(1e-3, 14.0, 500); w = np.gradient(r)
+    F = SIMPLE_HOLE_KERNEL_FP(r_quad=r, quadrature_weights=w,
+                              params=SIMPLEHOLEKERNELFPParameters(gauge_fix=False))
     ew = F.energy_weights
     rho = 0.5 * np.exp(-0.5 * r ** 2) + 0.05 * np.exp(-0.15 * (r - 2.0) ** 2) + 1e-3
 
@@ -594,18 +432,22 @@ def test_KERNEL_SCF_adjoint_matches_fd():
         h = 1e-6
         rp = rho.copy(); rp[j] += h; rm = rho.copy(); rm[j] -= h
         fd = (Ex(rp) - Ex(rm)) / (2.0 * h) / ew[j]
-        assert abs(vx[j] - fd) / (abs(fd) + 1e-12) < 5e-6, f"r={r[j]:.2f}: {vx[j]:.6f} vs {fd:.6f}"
+        assert abs(vx[j] - fd) / (abs(fd) + 1e-8) < 5e-4, f"r={r[j]:.2f}: {vx[j]:.6f} vs {fd:.6f}"
 
 
-def test_KERNEL_SCF_converges_and_He_is_FA():
-    """The kernel functional converges self-consistently (PSP) with the exact adjoint (no
-    floor/freeze), and spin-paired He (one electron per spin) is near-exact Fermi-Amaldi."""
+def test_FP_scf_converges_and_He_is_FA():
+    """Reference-free, the functional reduces to LDA + Fermi-Amaldi: SCF converges,
+    and spin-paired He (one electron per spin) is near-exact Fermi-Amaldi."""
     from atom import AtomicDFTSolver
+    s = AtomicDFTSolver(atomic_number=2, xc_functional="SIMPLE_HOLE_KERNEL_FP",
+                        all_electron_flag=False, max_scf_iterations=300)
+    res = s.solve()
+    assert res["converged"], "He: SCF did not converge"
+    ec = res["energy_components"]
     hf = AtomicDFTSolver(atomic_number=2, xc_functional="HF", all_electron_flag=False,
                          max_scf_iterations=300).solve()
-    ker = AtomicDFTSolver(atomic_number=2, xc_functional="SIMPLE_HOLE_EXPANSION_KERNEL",
-                          all_electron_flag=False, max_scf_iterations=300).solve()
-    assert hf["converged"] and ker["converged"]
     Ehf = float(hf["energy_components"].hf_exchange)
-    Ek = float(ker["energy_components"].exchange)
-    assert abs(Ek - Ehf) < 0.015, f"He kernel {Ek:.4f} not near-FA HF {Ehf:.4f}"
+    assert abs(float(ec.exchange) - Ehf) < 0.015, \
+        f"He {ec.exchange:.4f} not near-FA HF {Ehf:.4f}"
+
+

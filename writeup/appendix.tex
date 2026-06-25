@@ -186,19 +186,23 @@ displacement $\uu$, the angular integral $\oint d\Omega_u\,(1/u)\,
 isotropic and the higher harmonics integrate to zero. Hence the projected Coulomb
 operator acts through the monopole descriptors alone,
 \begin{equation}
-\bar\rho(r_0,u)=\frac{1}{4\pi}\oint\rho(r_0+\uu)\,d\Omega_u=\sum_n C_n(r_0)R_n(u) ,
+\begin{aligned}
+\bar\rho(r_0,u)&=\frac{1}{4\pi}\oint\rho(r_0+\uu)\,d\Omega_u\\
+&=A_0\bar\rho_{\sigma,\mathrm{safe}}\sum_n \varrho_{n00}(r_0)R_n(u) ,
+\end{aligned}
 \end{equation}
-with monopole descriptors $C_n=(P_n\rho)(r_0)$, where $\{P_n\}$ are fixed window
-operators. The Coulomb operator acting on this monopole density is then a weighted
-sum over the descriptors [Eq.~\eqref{eq:coulomb}],
+with the dimensionless monopole coefficients
+$\varrho_{n00}=(P_n\rho)/(A_0\bar\rho_{\sigma,\mathrm{safe}})$ [Eq.~\eqref{eq:dnlm}], $\{P_n\}$ fixed
+window operators, and the local amplitude restoring the density units. The Coulomb operator acting on
+this monopole density is then a weighted sum [Eq.~\eqref{eq:coulomb}],
 \begin{equation}
 \begin{aligned}
 \int_{B_{\Rc}}\!\frac{\rho(r_0+\uu)}{u}\,d^3u
 &=4\pi\!\int_0^{\Rc}\!\bar\rho(r_0,u)\,u\,du\\
-&=\sum_n w_n C_n(r_0),
+&=A_0\bar\rho_{\sigma,\mathrm{safe}}\sum_n C_n\,\varrho_{n00}(r_0),
 \end{aligned}
 \end{equation}
-with $w_n=4\pi\int_0^{\Rc}R_n(u)\,u\,du$. The $1/u$ weight reduces the radial
+with the basis Coulomb moments $C_n=4\pi\int_0^{\Rc}R_n(u)\,u\,du$. The $1/u$ weight reduces the radial
 measure from $u^2du$ to $u\,du$: this is how the long-range $1/r$ structure that
 semilocal functionals miss enters, and it is the foundation of the exchange-hole
 functional below.
@@ -282,18 +286,18 @@ function plus a local inverse-length scale $\zeta$ and a normalization $\mathcal
 \paragraph*{DOF \#2 --- monopole projection (decisive).}
 Inserting the ansatz into Eq.~\eqref{eq:exact-hole}, the $1/u$ weight selects the
 spherical average of $\rho(r_0+\uu)$, so only the $\ell=0$ multipole survives
-(App.~\ref{app:operators}): $\bar\rho(r_0,u)=\sum_n C_n(r_0)R_n(u)$. The model is
+(App.~\ref{app:operators}): $\bar\rho(r_0,u)=A_0\bar\rho_{\sigma,\mathrm{safe}}\sum_n \varrho_{n00}(r_0)R_n(u)$. The model is
 intrinsically a spherically symmetric hole; \emph{every $\ell\ge1$ hole multipole
 is dropped here.} This is the largest DOF loss and is the source of the residual
 open-shell error.
 
 \paragraph*{Closed kernel (no DOF lost).}
 With $S$ fixed, the $u$-integrals precompute into the envelope tables
-$\alpha_n(\zeta)=\int_0^\infty S(\zeta u)R_n(u)u^2du$ and
-$\beta_n(\zeta)=\int_0^\infty S(\zeta u)R_n(u)u\,du$. The number enclosed and the
-self-Coulomb of the enclosed density are linear contractions
-$Q_S(\zeta)=\bm\alpha(\zeta)\!\cdot\!\mathbf C$ and
-$\Phi_S(\zeta)=\bm\beta(\zeta)\!\cdot\!\mathbf C$,
+$B_n(\zeta)=\int_0^\infty S(\zeta u)R_n(u)u^2du$ and
+$C_n(\zeta)=\int_0^\infty S(\zeta u)R_n(u)u\,du$, the envelope-weighted charge and Coulomb moments.
+The number enclosed and the self-Coulomb of the enclosed density are linear contractions
+$Q_S(\zeta)=\mathbf B(\zeta)\!\cdot\!\bm\varrho_0$ and
+$\Phi_S(\zeta)=\mathbf C(\zeta)\!\cdot\!\bm\varrho_0$,
 giving the boxed self-energy $\varepsilon_x=-\tfrac12\Phi_S/Q_S$: exchange per electron is $-\tfrac12$ the self-Coulomb of
 the enclosed density divided by the number enclosed.
 
@@ -313,46 +317,18 @@ The ``2'' is a spin assumption (a paired pair); the open-shell case is handled b
 the spin decomposition of App.~\ref{app:spin}.
 
 \paragraph*{Recovering the gradient expansion.}
-Inhomogeneity is returned to the shape by adding a single Bessel mode that
-vanishes at the origin (preserving on-top and HEG),
-$S(x;\chi)=[\,j_0(x)+j_2(x)+\chi\,\varphi(x)]^2$ with $\varphi=j_1$ and a single
-deformation amplitude $\chi$ linear in the SIMPLE reduced gradient, $\chi\propto
-s^2$ [Eq.~\eqref{eq:sq}]. The amplitude vanishes for a uniform density (preserving
-LDA), and its small-$s$ slope is fixed by the second-order gradient expansion
-($\mu=10/81$). The parameter-free functional uses only the monopole and $\ell=1$
-gradient features and so is spherically symmetric.
-
-\paragraph*{Calibrating the deformation (one-time HEG response).}
-The map from the reduced gradient to the envelope amplitude is fixed, not fit. To
-linear order the envelope deformation shifts the enhancement factor by
-$\delta F_x=R\,\chi$, where the \emph{envelope response} $R\equiv\partial
-F_x/\partial\chi$ is evaluated once at the homogeneous gas: perturb the amplitude
-$\chi$ about the bare hole ($\chi=0$), re-solve the on-top scale $Q_S(\zeta)=2$, and
-read off the change in $F_x=\varepsilon_x/\varepsilon_x^{\mathrm{unif}}$. The
-amplitude is then chosen so $R\,\chi$ equals the second-order gradient-expansion term
-$\tfrac{10}{81}s^2$ of Eq.~\eqref{eq:fx}, i.e.\ $\chi=R^{-1}\tfrac{10}{81}s^2$. The key point is that $F_x$ is evaluated on the \emph{adaptive}
-radius $\Rad=\xi^*/\kF$ reached by the scale transform of Sec.~\ref{sec:scale}, so it
-depends only on the dimensionless profile and $R$ is a single density- and
-cutoff-independent constant (computed once); under a fixed window the same response
-drifts with density and cutoff and would require a one-parameter regression over
-reference atoms. The deformed functional therefore reproduces Eq.~\eqref{eq:fx} by
-construction while the bare-hole limits survive. The large-$s$ divergence of the
-expansion is regularized by saturating the amplitude,
-$\chi\to\chi_{\max}\tanh(\chi/\chi_{\max})$, with $\chi_{\max}$ fixed by the
-Lieb--Oxford bound $F_x\le1.804$; acting on the amplitude it leaves the second-order
-slope and the on-top value untouched. Because the $\ell=1$ gradient adjoint grows only
-as $k_n^1$ and is well-conditioned, the resulting potential is self-consistent and
-stable without any auxiliary loop --- the central reason the expansion is stopped at
-second order rather than carrying the stiff $\ell=0$ Laplacian channel
-(App.~\ref{app:gea}).
-
-\paragraph*{Plane-wave (HEG) verification of the second-order limit.}
-Perturbing the uniform gas with a density wave $\rho_0(1+\alpha\cos kz)$ (analytic
-monopole, operator-free) shows the bare hole is \emph{monopole-blind} to the
-gradient: its $s^2$ response vanishes identically at the pure-gradient phase. The
-$\ell=1$ deformation therefore supplies the \emph{entire} second-order term, and the
-exact slope $\mu=10/81$ is recovered as $\rho\to$~HEG --- an independent check that
-the construction carries the gradient expansion at second order.
+Inhomogeneity is returned to the shape through the $\ell=1$ SIMPLE channel, whose squared distance
+from the uniform gas is the reduced gradient $s^2$ [Eq.~\eqref{eq:sq}]. In the production functional
+this enters through the kernel fixed-point map (App.~\ref{app:kernel}): a single $\ell=1$ kernel node
+has its amplitude fixed so the small-$s$ slope reproduces the exact second-order coefficient
+$\mu=10/81$ --- with no explicit gradient term and no fitted parameter, and parity automatic since
+the coordinate is $s^2$. A plane-wave check confirms the mechanism: perturbing the uniform gas with a
+density wave $\rho_0(1+\alpha\cos kz)$ (analytic monopole, operator-free) shows the bare monopole
+hole is \emph{blind} to the gradient (its $s^2$ response vanishes at the pure-gradient phase), so the
+$\ell=1$ channel supplies the \emph{entire} second-order term, recovering $\mu=10/81$ as
+$\rho\to$~HEG. The expansion is stopped at second order: only the $\ell=1$ gradient is carried, whose
+adjoint grows as $k_n^1$ and is well-conditioned, whereas a fourth-order term would need the stiff
+$\ell=0$ Laplacian channel (App.~\ref{app:gea}).
 
 \paragraph*{The DOF ledger and the frontier.}
 \begin{center}
@@ -363,7 +339,7 @@ DOF dropped/constrained & where & restored? \\
 \midrule
 arbitrary radial profile $\to$ one $S(\zeta u)$ & convolution ansatz & partly \\
 all $\ell\ge1$ hole multipoles & monopole projection & \textbf{no} \\
-envelope shape frozen to HEG & $Q_S=2$ closure & by deformation \\
+envelope shape frozen to HEG & $Q_S=2$ closure & by kernel map \\
 local scale $\zeta$ + spin (paired) & on-top rule & no \\
 \bottomrule
 \end{tabular}
@@ -378,29 +354,30 @@ $\ell\ge1$ SIMPLE projections as genuine hole channels.
 \section{Kernel-mapped fixed-point hole: the GEA limit from the kernel}
 \label{app:kernel}
 
-A more general route than the single-amplitude deformation keeps the \emph{direct} hole expansion
-$\tilde n(u)=\sum_n\tilde\varrho_n R^{(1)}_n(u/\Rad)$ and produces its coefficients by a kernel
-interpolation over reference holes, with the gradient limit emerging from the kernel itself rather
-than an added term.
+The production functional keeps the \emph{direct} hole expansion
+$\tilde n(u)=-\tfrac12\rho_0\sum_n\tilde\varrho_n R^{(1)}_n(u/\Rad)$ (with the on-top amplitude
+$-\tfrac12\rho_0$ factored out so $\tilde{\bm\varrho}$ is dimensionless) and produces its coefficients
+by a kernel interpolation over reference holes, with the gradient limit emerging from the kernel
+itself rather than an added term.
 
 \paragraph*{The energy is a single moment.} The $1/u$ weight collapses the energy \emph{exactly}
-onto the Coulomb moments $\beta_{1,n}=\int_0^1 R^{(1)}_n(t)\,t\,dt$:
-$\varepsilon_x=2\pi\Rad^2(\tilde\varrho\!\cdot\!\beta_1)$. Only the $\beta_1$-projection of
-$\tilde\varrho$ reaches the energy; orthogonal components carry hole shape only. With the scale-free
-shape $\sigma=\tilde\varrho/(-\rho_0/2)$ and the scale-free identity
-$\Rad^2\rho_0^{2/3}=\xi^{*2}/(3\pi^2)^{2/3}$, the enhancement is a \emph{linear functional of one moment}
-of the deviation $\delta\sigma=\sigma-\sigma_{\rm LDA}$,
+onto the Coulomb moments $C_{1,n}=\int_0^1 R^{(1)}_n(t)\,t\,dt$:
+$\varepsilon_x=-\pi\rho_0\Rad^2(\tilde{\bm\varrho}\!\cdot\!\mathbf C_1)$. Only the
+$\mathbf C_1$-projection of $\tilde{\bm\varrho}$ reaches the energy; orthogonal components carry hole
+shape only. Using the scale-free identity $\Rad^2\rho_0^{2/3}=\xi^{*2}/(3\pi^2)^{2/3}$, the
+enhancement is a \emph{linear functional of one moment} of the shape deviation
+$\delta\tilde{\bm\varrho}=\tilde{\bm\varrho}-\tilde{\bm\varrho}_{\rm LDA}$,
 \begin{equation}
-F_x-1=\kappa\,(\delta\sigma\!\cdot\!\beta_1),\qquad
+F_x-1=\kappa\,(\delta\tilde{\bm\varrho}\!\cdot\!\mathbf C_1),\qquad
 \kappa=\frac{\pi \xi^{*2}}{(3\pi^2)^{2/3}\,|C_{\rm LDA}|}.
 \label{eq:Fk}
 \end{equation}
 
-\paragraph*{Kernel $\to$ moment.} Let $\delta\sigma(x)=\sum_k\mathcal K(x,x_k)\,c_k$,
+\paragraph*{Kernel $\to$ moment.} Let $\delta\tilde{\bm\varrho}(x)=\sum_k\mathcal K(x,x_k)\,c_k$,
 $c=\mathbf K^{-1}\Delta$, be a general kernel interpolant over fixed points $\{x_k\}$ at per-$\ell$
 \emph{squared} distances $x=(D_0,D_1,D_2)$, $D_1=s^2$, with node deviations $\Delta_k$. Projecting on
-$\beta_1$ collapses the vector interpolation to a \emph{scalar} interpolation of the node moments
-$\mu_k=\Delta_k\!\cdot\!\beta_1$: $\;\delta\sigma(x)\!\cdot\!\beta_1=\sum_k\mathcal K(x,x_k)\,m_k$ with
+$\mathbf C_1$ collapses the vector interpolation to a \emph{scalar} interpolation of the node moments
+$\mu_k=\Delta_k\!\cdot\!\mathbf C_1$: $\;\delta\tilde{\bm\varrho}(x)\!\cdot\!\mathbf C_1=\sum_k\mathcal K(x,x_k)\,m_k$ with
 $m=\mathbf K^{-1}\mu$. A HEG node at $x=0$, $\mu=0$, pins $F_x(0)=1$ (LDA exact); because $\mathcal K$
 is smooth in $D_1=s^2$, $F_x-1$ is analytic in $s^2$, hence even in $\nabla\rho$ --- parity is
 automatic, with no spurious linear-in-gradient term.
@@ -415,7 +392,7 @@ origin, a single linear condition on the node moments,
 For a Gaussian RBF $\mathcal K=e^{-\|x-x_k\|^2/2\ell^2}$ one has
 $\partial_{D_1}\mathcal K(0,x_k)=e^{-\|x_k\|^2/2\ell^2}\,D_1^k/\ell^2$; with the minimal HEG$+$GEA
 node pair ($x_G=(0,D_G,0)$, $\Delta_G=c_G\,\delta_{\rm GEA}$) and the one-time response identity
-$\kappa\,(\delta_{\rm GEA}\!\cdot\!\beta_1)=R/2$, Eq.~\eqref{eq:gea-kernel} reduces to
+$\kappa\,(\delta_{\rm GEA}\!\cdot\!\mathbf C_1)=R/2$, Eq.~\eqref{eq:gea-kernel} reduces to
 \begin{equation}
 \frac{c_G\,D_G\,\phi_G}{\ell^2(1-\phi_G^2)}=\frac{20}{81R},\qquad \phi_G=e^{-D_G^2/2\ell^2},
 \label{eq:cG}
@@ -430,7 +407,7 @@ inhomogeneous, at finite $\|x_k\|$: it shifts the leading coefficient in \eqref{
 constant that is absorbed in the calibration of $c_G$, while its uncontrolled effect is pushed to
 $O(s^4)$ --- exactly the fourth-order GEA that is dropped. Along a slowly-varying ramp the monopole
 distance is higher order, $D_0\ll D_1=s^2$, so $(F_x-1)/s^2\to 10/81$. The HEG node keeps LDA exact;
-references far in feature space leave both limits untouched ($\delta\sigma\to0$) and shape only the
+references far in feature space leave both limits untouched ($\delta\tilde{\bm\varrho}\to0$) and shape only the
 strongly inhomogeneous interior.
 
 \section{Spin conventions}
@@ -450,40 +427,43 @@ correction is applied when comparing.
 \label{app:hole-numerics}
 
 \paragraph*{Convolutional adjoint potential.}
-Each monopole descriptor is a convolution of the density with a fixed kernel,
+Each monopole feature $\varrho_{n00}=c'_{n00}/(A_0\bar\rho_{\sigma,\mathrm{safe}})$
+[Eq.~\eqref{eq:dnlm}] is fixed by a \emph{raw} coefficient $c'_{n00}$ --- the convolution of the
+density with a fixed kernel,
 \begin{equation}
 \label{eq:descriptor-conv}
-C_n(\rr)=\int K_n(\rr'-\rr)\,\rho(\rr')\,d^3r'=(K_n*\rho)(\rr),
+c'_{n00}(\rr)=\int K_n(\rr'-\rr)\,\rho(\rr')\,d^3r'=(K_n*\rho)(\rr),
 \end{equation}
-so that $\delta C_n(\rr')/\delta\rho(\rr)=K_n(\rr-\rr')$. With the exchange energy
-$E_x=\int\rho\,\varepsilon_x[\{C_n\}]\,d^3r$, the potential is the explicit
-variational derivative, following Ref.~\cite{Sahoo2024},
+so that $\delta c'_{n00}(\rr')/\delta\rho(\rr)=K_n(\rr-\rr')$ exactly (this linear convolution is the
+coefficient the implementation forms as \texttt{op@}$\rho$; the dimensionless feature follows by the
+fixed local rescaling). With the exchange energy $E_x=\int\rho\,\varepsilon_x[\{c'_{n00}\}]\,d^3r$,
+the potential is the explicit variational derivative, following Ref.~\cite{Sahoo2024},
 \begin{equation}
 \label{eq:adjoint}
 \begin{aligned}
 v_x(\rr)&=\frac{\delta E_x}{\delta\rho(\rr)}\\
 &=\varepsilon_x(\rr)+\sum_n\int d^3r'\,\rho(\rr')\,
-\frac{\partial\varepsilon_x(\rr')}{\partial C_n}\,K_n(\rr-\rr') .
+\frac{\partial\varepsilon_x(\rr')}{\partial c'_{n00}}\,K_n(\rr-\rr') .
 \end{aligned}
 \end{equation}
-The second term is itself a convolution over the kernel: each descriptor's
-contribution is $K_n$ applied to $\rho\,\partial\varepsilon_x/\partial C_n$. In the
+The second term is itself a convolution over the kernel: each coefficient's
+contribution is $K_n$ applied to $\rho\,\partial\varepsilon_x/\partial c'_{n00}$. In the
 radial finite-element implementation this convolution is the transpose
 $P_n^{\mathsf T}$ of the forward stencil $P_n$, weighted by the quadrature measure
 $w=4\pi r^2 w_{\mathrm{quad}}$ ($w_{\mathrm{quad}}$ the radial quadrature weights),
 \begin{equation}
 \label{eq:adjoint-discrete}
 v_x=\varepsilon_x+\sum_n \frac{P_n^{\mathsf T}\!\bigl[w\,\rho\,
-\partial\varepsilon_x/\partial C_n\bigr]}{w} ,
+\partial\varepsilon_x/\partial c'_{n00}\bigr]}{w} ,
 \end{equation}
 exact against finite differences of the energy.
 
 \paragraph*{On-top scale by enclosed-charge inversion.}
 The on-top scale is \emph{not} found by a nested self-consistent iteration. The
 $S$-weighted enclosed charge
-$Q_S(\zeta)=\bm\alpha(\zeta)\cdot\mathbf C=\int_0^\infty S(\zeta u)\,\bar\rho(r_0,u)\,4\pi u^2\,du$
-uses the precomputed envelope table $\alpha_n(\zeta)$, so for the fixed monopole
-descriptors $\mathbf C$ it is a single matrix--vector product on a $\zeta$-grid. As
+$Q_S(\zeta)=\mathbf B(\zeta)\cdot\bm\varrho_0=\int_0^\infty S(\zeta u)\,\bar\rho(r_0,u)\,4\pi u^2\,du$
+uses the precomputed envelope table $B_n(\zeta)$, so for the fixed monopole
+coefficients $\bm\varrho_0$ it is a single matrix--vector product on a $\zeta$-grid. As
 $\zeta\to0$, $S\to1$ and $Q_S$ approaches the full window charge; as
 $\zeta\to\infty$, $Q_S\to0$. Because $Q_S(\zeta)$ is monotonic, $Q_S(\zeta)=2$ has a
 unique root recovered by one-dimensional inversion of the precomputed curve --- the
@@ -494,8 +474,8 @@ Kohn--Sham cycle. (Confirmed in the implementation: the self-consistent function
 reproduces the direct-integral hole on the converged density.)
 
 \paragraph*{Adjoint conditioning and the second-order cutoff.}
-The exchange-kernel response $\delta v_x/\delta\rho$ is dominated by the gradient
-deformation. The $\ell=1$ adjoint grows only as $k_n^1$ and is well-conditioned, so
+The exchange-kernel response $\delta v_x/\delta\rho$ is dominated by the $\ell=1$
+gradient channel. The $\ell=1$ adjoint grows only as $k_n^1$ and is well-conditioned, so
 the second-order functional converges self-consistently across all atoms tested with
 no auxiliary loop. A fourth-order Laplacian term would instead enter through the
 $\ell=0$ spectral Laplacian, whose adjoint re-forms the singular $k_n^2$ kernel and is
@@ -732,9 +712,10 @@ $h\le0.3$~bohr.
 \paragraph*{An energy scale fixes $\Rc$ and $\nout$.}
 To anchor the two remaining counts to a physical tolerance we evaluate the Hartree
 self-energy of the hydrogen $1s$ density ($\rho=e^{-2r}/\pi$, exact $J=5/16$~Ha) through
-the SIMPLE windowed Coulomb projection [Eq.~\eqref{eq:coulomb}], $V_H(r_0)=\sum_n w_n
-C_n$ with the monopole window coefficients $C_n$ in an $\nout$-channel basis and Coulomb
-weights $w_n=4\pi\int_0^{\Rc}R_n(u)\,u\,du$. Two truncations control the error
+the SIMPLE windowed Coulomb projection [Eq.~\eqref{eq:coulomb}],
+$V_H(r_0)=A_0\bar\rho_{\sigma,\mathrm{safe}}\sum_n C_n\varrho_{n00}$ with the monopole coefficients
+$\varrho_{n00}$ in an $\nout$-channel basis and Coulomb moments
+$C_n=4\pi\int_0^{\Rc}R_n(u)\,u\,du$. Two truncations control the error
 (Fig.~\ref{fig:hartree}): the window $\Rc$ (the Coulomb tail beyond it is dropped) and
 $\nout$ (the radial-basis resolution of the enclosed density). The window floor reaches
 the milli-Hartree scale only at $\Rc\gtrsim6$~bohr --- $-1.7$~mHa at $\Rc=5$,

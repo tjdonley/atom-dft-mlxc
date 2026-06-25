@@ -105,22 +105,6 @@ _FUNCTIONAL_REQUIREMENTS: Dict[str, FunctionalRequirements] = {
         functional_type='GGA'
     ),
 
-    # SIMPLE-HOLE-GEA: exchange hole with the deterministic fourth-order GEA
-    # deformation; gradient/Laplacian are reconstructed internally via the SIMPLE
-    # spectral operators, so no external gradient/tau is required.
-    'SIMPLE_HOLE_GEA': FunctionalRequirements(
-        needs_gradient=False,
-        needs_tau=False,
-        functional_type='GGA'
-    ),
-
-    # SIMPLE-HOLE-GGA: gradient-only GEA-deformed hole (no Laplacian).
-    'SIMPLE_HOLE_GGA': FunctionalRequirements(
-        needs_gradient=False,
-        needs_tau=False,
-        functional_type='GGA'
-    ),
-
     # SIMPLE-HOLE-EXPANSION: direct expansion of the exchange hole in the SIMPLE
     # monopole basis; ingredients are the monopole coefficients C_n built internally.
     'SIMPLE_HOLE_EXPANSION': FunctionalRequirements(
@@ -129,21 +113,7 @@ _FUNCTIONAL_REQUIREMENTS: Dict[str, FunctionalRequirements] = {
         functional_type='GGA'
     ),
 
-    # SIMPLE-HOLE-EXPANSION-GGA: direct-expansion hole + second-order gradient correction.
-    'SIMPLE_HOLE_EXPANSION_GGA': FunctionalRequirements(
-        needs_gradient=False,
-        needs_tau=False,
-        functional_type='GGA'
-    ),
-
-    # SIMPLE-HOLE-EXPANSION-KERNEL: kernel/fixed-point hole map (LDA-from-GEA + FA).
-    'SIMPLE_HOLE_EXPANSION_KERNEL': FunctionalRequirements(
-        needs_gradient=False,
-        needs_tau=False,
-        functional_type='GGA'
-    ),
-
-    # SIMPLE-HOLE-KERNEL-FP: clean kernel-mapped fixed-point hole (LDA + kernel-GEA + FA + refs).
+    # SIMPLE-HOLE-KERNEL-FP: kernel-mapped fixed-point hole (LDA + kernel-GEA + FA + refs).
     'SIMPLE_HOLE_KERNEL_FP': FunctionalRequirements(
         needs_gradient=False,
         needs_tau=False,

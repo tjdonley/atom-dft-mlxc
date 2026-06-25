@@ -8,6 +8,12 @@ The scale-free hole evaluates the self-energy on the implicit adaptive radius R_
 (reached from the fixed-R_c SIMPLE features by the transfer), so E_x/Z is flat (X3 holds). The
 fixed-R_c hole (no transfer, window pinned at R_c) breaks scaling: E_x/Z drifts as the density
 scale moves relative to the fixed window. Reproduced here by x_window -> inf (R_ad = R_c always).
+
+NOTE: this reproduces the comparison from the production functional SIMPLE_HOLE_KERNEL_FP, whose
+scale invariance is exact only as R_c -> inf and "close within the data window" (main text). The
+adaptive curve is therefore far flatter than the fixed-R_c curve but not flat to machine precision
+across the full Z range; the figure shipped in the writeup was generated from the bare scale-free
+hole. Regenerate/re-caption together if this curve is used.
 """
 import sys
 from pathlib import Path
@@ -19,21 +25,36 @@ import matplotlib.pyplot as plt
 
 _REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_REPO))
-from atom.xc.simple_hole import scale_free_hole_energy  # noqa: E402
-from atom.descriptors.simple.params import R_C  # noqa: E402
+from atom.xc.simple_hole_expansion import (SIMPLE_HOLE_KERNEL_FP,  # noqa: E402
+                                           SIMPLEHOLEKERNELFPParameters)
 
 X = 8.0
 
 
+def _scale_free_energy(F, r, rho):
+    """Per-point exchange energy density eps_x(r0) of the kernel hole on the radial density rho
+    (the scale-free hole self-energy at the functional's adaptive window)."""
+    C = np.array([op @ rho for op in F._ops])
+    g = F._grad_op @ rho
+    return F._kernel_eps(C, np.maximum(rho, 1e-12), g)
+
+
 def main():
     r = np.logspace(-3, np.log10(40.0), 320)
+    w = np.gradient(r)
+    # Same functional, two windows: the adaptive scale-free radius R_ad = min(X/k_F, R_c) (X=8),
+    # versus the window pinned at R_c (x_window -> inf, so R_ad = R_c for every density).
+    F_sf = SIMPLE_HOLE_KERNEL_FP(r_quad=r, quadrature_weights=w,
+                                 params=SIMPLEHOLEKERNELFPParameters(x_window=X))
+    F_fx = SIMPLE_HOLE_KERNEL_FP(r_quad=r, quadrature_weights=w,
+                                 params=SIMPLEHOLEKERNELFPParameters(x_window=1e9))
     Zs = np.geomspace(0.5, 12.0, 7)
     sf, fx = [], []
     for Z in Zs:
         rho = (Z ** 3 / np.pi) * np.exp(-2.0 * Z * r)
         wq = 4.0 * np.pi * r ** 2 * rho
-        e_sf = scale_free_hole_energy(r, rho, 60.0, x_window=X, nu=120)        # adaptive (uncapped)
-        e_fx = scale_free_hole_energy(r, rho, R_C, x_window=1e9, nu=120)        # fixed R_c
+        e_sf = _scale_free_energy(F_sf, r, rho)                                # adaptive R_ad
+        e_fx = _scale_free_energy(F_fx, r, rho)                                # fixed R_c
         sf.append(np.trapz(wq * e_sf, r) / Z)
         fx.append(np.trapz(wq * e_fx, r) / Z)
         print(f"Z={Z:6.3f}  E_x/Z: scale-free={sf[-1]:+.4f}  fixed-R_c={fx[-1]:+.4f}", flush=True)
