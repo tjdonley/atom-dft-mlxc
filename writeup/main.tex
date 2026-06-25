@@ -284,281 +284,126 @@ functionals.
 \subsection{Exchange-hole functional}
 \label{sec:hole}
 
-\emph{(This subsection records the current exchange-hole construction; the functional
-itself is under active development, and the self-consistent benchmarks of
-Sec.~\ref{sec:results-hole} are preliminary. The feature and invariant constructions
-above are finalized.)}
-
 Exchange is exactly a hole integral,
 \begin{equation}
 \label{eq:exact-hole}
-E_x[\rho]=\tfrac12\int d^3r_0\,\rho(r_0)\!\int d^3u\,\frac{n_x(r_0,\uu)}{u} ,
+E_x[\rho]=\tfrac12\int d^3r_0\,\rho(r_0)\!\int d^3u\,\frac{n_x(r_0,\uu)}{u},
 \end{equation}
-where $\uu$ is the displacement between the two electrons and $u=|\uu|$: around each
-electron at $r_0$ sits an exchange hole $n_x\le0$ that removes exactly one electron
-from the surroundings ($\int n_x\,d^3u=-1$), and $E_x$ is the electrostatic
-attraction between the electron and that hole. We model the hole as the neighboring
-density itself, damped by one universal screening envelope $S$,
+where $\uu$ is the inter-electron displacement and $u=|\uu|$: around each electron at $r_0$ sits an
+exchange hole $n_x\le0$ that removes one electron from the surroundings ($\int n_x\,d^3u=-1$) and
+equals $-\tfrac12\rho(r_0)$ on top, and $E_x$ is the electron--hole electrostatic attraction.
+Because the $1/u$ weight retains only the spherically averaged ($\ell=0$) hole, we expand that
+monopole \emph{directly} in the scale-free SIMPLE radial basis,
 \begin{equation}
-\label{eq:ansatz}
-n_x(r_0,\uu)=-W(r_0)\,\rho(r_0+\uu)\,S\!\big(\zeta(r_0)\,u\big),
+\label{eq:hole-direct}
+\bar n_x(r_0,u)=\sum_n \tilde\varrho_{n}(r_0)\,R_{n0}(u/\Rad),
 \end{equation}
-where $S$ falls from $S(0)=1$ to zero beyond a screening length $1/\zeta$. The two
-local scalars --- the scale $\zeta$ and weight $W$ --- are fixed by exact sum rules
-(the hole holds one electron and equals half the density on top of $r_0$;
-App.~\ref{app:hole}). The entire functional then reduces to a single choice: the
-shape $S$.
+so the hole is a coefficient vector $\tilde{\bm\varrho}$ on the adaptive unit frame $u=\Rad t$
+[$\Rad\kF=\xi^*$, Eq.~\eqref{eq:adaptive}]. The $1/u$ weight then collapses the energy per electron
+to a single linear contraction onto the basis Coulomb moments,
+\begin{equation}
+\label{eq:eps-direct}
+\varepsilon_x(r_0)=2\pi\Rad^2\,\tilde{\bm\varrho}\!\cdot\!\bm\beta,\qquad
+\beta_{n}=\!\int_0^1\!R_{n0}(t)\,t\,dt ,
+\end{equation}
+and the two exact constraints are likewise linear: the sum rule
+$4\pi\Rad^3\,\tilde{\bm\varrho}\!\cdot\!\bm\alpha=-1$ ($\alpha_{n}=\int_0^1 R_{n0}(t)\,t^2dt$) and
+the on-top value $\tilde{\bm\varrho}\!\cdot\!\mathbf R_0=-\tfrac12\rho(r_0)$ [$R_{0,n}=R_{n0}(0)$].
+Only the $\bm\beta$-projection of the hole reaches the energy.
 
-\paragraph*{The enhancement factor as an integral over $S\rho$.}
-Inserting Eq.~\eqref{eq:ansatz} into Eq.~\eqref{eq:exact-hole}, the exchange energy
-per electron is the self-repulsion of the enclosed density divided by the charge it
-holds,
-\begin{equation}
-\label{eq:eps-x}
-\varepsilon_x(r_0)=-\tfrac12\,\frac{\Phi_S(\zeta^*)}{Q_S(\zeta^*)},
-\end{equation}
-where, with $\bar\rho(u)$ the spherical average of $\rho(r_0+\uu)$ that the $1/u$
-weight selects, $Q_S(\zeta)=4\pi\!\int_0^{\Rad}S(\zeta u)\bar\rho(u)u^2du$ is the
-charge enclosed and $\Phi_S(\zeta)=4\pi\!\int_0^{\Rad}S(\zeta u)\bar\rho(u)u\,du$ its
-self-repulsion (the $1/u$ turning $u^2du$ into $u\,du$), and $\zeta^*$ is fixed by
-$Q_S=2$. The dimensionless enhancement factor
-$F_x=\varepsilon_x/\varepsilon_x^{\mathrm{unif}}$, with
-$\varepsilon_x^{\mathrm{unif}}=-\tfrac34(3/\pi)^{1/3}\rho^{1/3}$, is then explicitly
-an integral of the shape $S$ against the density,
-\begin{equation}
-\label{eq:Fx-S}
-F_x[S]=-\frac{1}{2\,\varepsilon_x^{\mathrm{unif}}}\,
-\frac{\displaystyle\int_0^{\Rad} S(\zeta^* u)\,\bar\rho(u)\,u\,du}
-     {\displaystyle\int_0^{\Rad} S(\zeta^* u)\,\bar\rho(u)\,u^2\,du}.
-\end{equation}
-This says how much the local environment raises or lowers exchange relative to LDA.
-$F_x$ is manifestly a functional of the shape $S$; being a ratio of energies it is
-dimensionless, and because $\zeta^*\propto\rho^{1/3}$ the density scale cancels
-between numerator and denominator, so $F_x$ depends only on the \emph{shapes} of $S$
-and of the local density --- it is automatically scale-invariant. Designing the
-functional means shaping $S$ to meet the exact constraints
-\begin{itemize}\setlength{\itemsep}{0pt}
-\item[(C1)] negativity and the normalization sum rule;
-\item[(C2)] spin-scaling;
-\item[(C3)] uniform-density scaling $E_x[\gamma^3\rho(\gamma r)]=\gamma E_x[\rho]$;
-\item[(C4)] the homogeneous-gas (LDA) limit $F_x\to1$;
-\item[(C5)] the Fermi--Amaldi one-electron limit;
-\item[(C6)] the second-order gradient expansion $F_x\to1+\tfrac{10}{81}s^2$;
-\item[(C7)] the Lieb--Oxford bound $F_x\le1.804$.
-\end{itemize}
+A valid exchange functional must satisfy: (C1)~negativity and the sum rule; (C2)~spin scaling;
+(C3)~uniform-density scaling $E_x[\gamma^3\rho(\gamma r)]=\gamma E_x[\rho]$; (C4)~the
+homogeneous-gas (LDA) limit $F_x\to1$; (C5)~the Fermi--Amaldi one-electron limit; (C6)~the
+second-order gradient expansion $F_x\to1+\tfrac{10}{81}s^2$; and (C7)~the Lieb--Oxford bound
+$F_x\le1.804$, where $F_x=\varepsilon_x/\varepsilon_x^{\mathrm{unif}}$ is the enhancement factor and
+$\varepsilon_x^{\mathrm{unif}}=-\tfrac34(3/\pi)^{1/3}\rho^{1/3}$. We produce $\tilde{\bm\varrho}$ by
+a parameter-free map that meets (C1)--(C7) by construction.
 
-\paragraph*{Projecting $S$ onto the SIMPLE features.}
-The integrals in Eq.~\eqref{eq:eps-x} collapse to dot products in the SIMPLE basis.
-The $1/u$ weight keeps only the spherical ($\ell=0$) part of the surrounding
-density, whose basis coefficients are the monopole features
-$\mathbf C=(C_0,C_1,\dots)$, $C_n=A_0(\Rad)\bar\rho_{\sigma,\mathrm{safe}}(\Rad)\,\varrho_{n00}$;
-and the shape $S$ projects onto the same basis as fixed envelope tables
-$\bm\alpha,\bm\beta$ (entries $\alpha_n(\zeta)=\int_0^\infty S(\zeta u)R_n(u)u^2du$,
-$\beta_n(\zeta)=\int_0^\infty S(\zeta u)R_n(u)u\,du$). The two pieces are then simply
-\begin{equation}
-\label{eq:QPhi}
-Q_S(\zeta)=\bm\alpha(\zeta)\!\cdot\!\mathbf C,\qquad
-\Phi_S(\zeta)=\bm\beta(\zeta)\!\cdot\!\mathbf C,
-\end{equation}
-so $F_x$ is a closed function of the SIMPLE features (the tables are evaluated in
-App.~\ref{app:hole}). Forming $\mathbf C$ on the adaptive radius --- i.e.\ from the
-scale-invariant features $\varrho_{n00}$ [Eqs.~\eqref{eq:dnlm},~\eqref{eq:transfer}]
-rather than the fixed window --- makes uniform scaling (C3) exact as $R_c\to\infty$
-and close for finite $R_c$ within the data window (Fig.~\ref{fig:hole-scale}).
+\paragraph*{LDA and Fermi--Amaldi limits.}
+At uniform density $\tilde{\bm\varrho}$ is the homogeneous-gas hole $S(x)=[3j_1(x)/x]^2$ projected
+onto the basis and \emph{moment-matched} to its exact charge, on-top, and Coulomb moments, which
+makes $F_x=1$ hold exactly at finite basis size (App.~\ref{app:hole}); this LDA hole
+$\bm\sigma_{\mathrm{LDA}}$ anchors the map. Where the window cannot enclose a spin pair --- a
+one-electron core or density tail, per-spin charge $Q_\sigma<1$ --- no screened scale exists and the
+hole becomes the density-following $-\mathbf C/Q$ (the negative neighboring density, with monopole
+coefficients $\mathbf C$ and enclosed charge $Q=4\pi\Rad^3\,\tilde{\bm\varrho}\!\cdot\!\bm\alpha$),
+the exact one-electron self-interaction correction (C5); a smooth $C^2$ charge gate
+$W_{\mathrm{FA}}(Q_\sigma)$ blends the two, reproducing H and spin-paired He to $\sim2$~mHa. Forming
+$\tilde{\bm\varrho}$ on the adaptive radius makes uniform scaling (C3) exact as $\Rc\to\infty$ and
+close within the data window (Fig.~\ref{fig:hole-scale}).
 
-\paragraph*{From the SIMPLE features to the gradient expansion.}
-It remains to choose $S$. Fixing it to the homogeneous-gas hole shape
-$S(x)=[3j_1(x)/x]^2=[j_0(x)+j_2(x)]^2$ makes $F_x=1$ at uniform density (LDA, C4) and,
-where the hole cannot enclose two electrons, reduces $\varepsilon_x$ to the exact
-one-electron self-interaction correction (Fermi--Amaldi, C5). For a varying density
-the small-gradient behaviour of $F_x$ must match the exact gradient expansion. The
-spherical average is blind to $\nabla\rho$, so the undeformed shape misses the
-gradient term; we restore it by deforming the envelope,
-$S(x;\chi)=[g_0(x)+\chi\,\phi(x)]^2$ ($g_0=3j_1/x$, mode $\phi=j_1$), and tying the
-single amplitude $\chi$ to the SIMPLE reduced gradient $s$ (from the $\ell=1$
-features, Eq.~\eqref{eq:sq}). To linear order the deformation simply scales the
-enhancement, $F_x=1+R\,\chi$, with $R$ a fixed homogeneous-gas constant (one number,
-because the hole is scale-free); choosing
+\paragraph*{Gradient expansion from the kernel.}
+Inhomogeneity enters only through the $\ell=1$ SIMPLE features, whose squared distance from the
+uniform gas is the reduced gradient $s^2$ [Eq.~\eqref{eq:sq}]. We produce the bulk coefficients by
+interpolating the scale-free hole \emph{shape} $\bm\sigma=\tilde{\bm\varrho}/(-\tfrac12\rho)$ over
+fixed points with a kernel,
 \begin{equation}
-\label{eq:amp}
-\chi=\frac{1}{R}\,\tfrac{10}{81}\,s^2
+\label{eq:kernel-map}
+\bm\sigma(\mathbf x)=\bm\sigma_{\mathrm{LDA}}+\sum_k \mathcal K(\mathbf x,\mathbf x_k)\,\mathbf c_k ,
 \end{equation}
-therefore reproduces the exact second-order gradient expansion,
+where $\mathbf x$ collects the per-$\ell$ SIMPLE distances ($\ell=0$: the monopole power vector;
+$\ell=1$: $s^2$) and the HEG node $\mathbf x=0$ pins $\bm\sigma=\bm\sigma_{\mathrm{LDA}}$. Because
+the energy is linear in $\tilde{\bm\varrho}$ [Eq.~\eqref{eq:eps-direct}], the enhancement is a
+linear functional of a single moment of the shape deviation
+$\delta\bm\sigma=\bm\sigma-\bm\sigma_{\mathrm{LDA}}$,
+\begin{equation}
+\label{eq:Fx-kernel}
+F_x-1=\kappa\,\delta\bm\sigma\!\cdot\!\bm\beta,\qquad
+\kappa=\frac{\pi\,\xi^{*2}}{(3\pi^2)^{2/3}\,|\varepsilon_x^{\mathrm{unif}}/\rho^{1/3}|},
+\end{equation}
+density-independent by the scale-free identity $\Rad^2\rho^{2/3}=\xi^{*2}/(3\pi^2)^{2/3}$. The
+$\ell=1$ channel of the kernel --- a single node along the gradient axis --- has its amplitude
+fixed so this slope reproduces the second-order gradient expansion exactly,
 \begin{equation}
 \label{eq:fx}
 F_x\;\xrightarrow[\,s\to0\,]{}\;1+\tfrac{10}{81}\,s^2 ,
 \end{equation}
-with no fitted numbers (App.~\ref{app:hole} derives $R$ and the deformation tables).
-Because $\phi(0)=0$ the deformation never changes the on-top value, so LDA and
-Fermi--Amaldi survive for any $\chi$. Finally, the gradient expansion grows without
-bound at large $s$, so $\chi$ is smoothly capped,
-$\chi\to\chi_{\max}\tanh(\chi/\chi_{\max})$, with the ceiling $\chi_{\max}$ set by the
-Lieb--Oxford bound $F_x\le1.804$ (C7)~\cite{Lieb_1981,Perdew_1996} --- a
-parameter-free, PBE-style saturation.
+with no separate gradient term and no fitted number; parity ($F_x$ even in $\nabla\rho$) is
+automatic because the kernel coordinate is $s^2$, and the fourth-order term is left unconstrained
+(App.~\ref{app:kernel}). The expansion is smoothly capped at the Lieb--Oxford ceiling
+$F_x\le1.804$ (C7)~\cite{Lieb_1981,Perdew_1996}, a parameter-free saturation. Strongly inhomogeneous
+(open-shell) atoms are improved by adding exact atomic holes as further kernel fixed points: each
+carries only the deviation beyond LDA and vanishes far from its reference, so the LDA, Fermi--Amaldi,
+and gradient limits are untouched (App.~\ref{app:kernel}).
 
 \begin{figure}[tbp]
 \centering
 \includegraphics[width=\columnwidth]{figures/fx_enhancement.pdf}
-\caption{Exchange enhancement factor of the scale-free SIMPLE hole. The analytic
-second-order gradient expansion [Eq.~\eqref{eq:fx}] sets the small-$s$ slope to the
-exact $\mu=10/81$; the deformation amplitude is then smoothly saturated, with the
-ceiling $\chi_{\max}$ fixed by the local Lieb--Oxford bound $F_x\le1.804$ (dotted).
-The realized GEA2 enhancement (solid, the re-summed hole
-$F_x=\varepsilon_x/\varepsilon_x^{\mathrm{LDA}}$ on the homogeneous gas at the
-adaptive window) tracks the exact slope at small $s$, then saturates below the LO
-bound where the raw pointwise GEA (grey dashed) diverges --- a
-PBE-like~\cite{Perdew_1996} (black) saturation arising here from the Lieb--Oxford
-ceiling rather than a fitted parameter. The on-top value $S(0)=1$ is preserved for
-any amplitude, so the Fermi--Amaldi limit is untouched.}
+\caption{Exchange enhancement factor of the scale-free SIMPLE hole. The $\ell=1$ kernel channel
+sets the small-$s$ slope to the exact second-order value $\mu=10/81$ [Eq.~\eqref{eq:fx}]; the
+enhancement is then smoothly saturated, with the ceiling fixed by the local Lieb--Oxford bound
+$F_x\le1.804$ (dotted). The realized enhancement (solid, the re-summed hole
+$F_x=\varepsilon_x/\varepsilon_x^{\mathrm{unif}}$ on the homogeneous gas at the adaptive window)
+tracks the exact slope at small $s$, then saturates below the LO bound where the raw pointwise GEA
+(grey dashed) diverges --- a PBE-like~\cite{Perdew_1996} (black) saturation arising here from the
+Lieb--Oxford ceiling rather than a fitted parameter. The on-top value is preserved for any
+amplitude, so the Fermi--Amaldi limit is untouched.}
 \label{fig:fx}
 \end{figure}
 
 \begin{figure}[tbp]
 \centering
 \includegraphics[width=\columnwidth]{figures/scale_invariance_hole.pdf}
-\caption{Uniform-scaling (scale invariance) of the hole on atoms. For the hydrogenic
-density $\rho_Z=(Z^3/\pi)e^{-2Zr}$ the map $Z\!\to\!\gamma Z$ is the uniform scaling
-$\rho\!\to\!\gamma^3\rho(\gamma r)$, so the exact constraint
-$E_x[\rho_\gamma]=\gamma E_x[\rho]$ requires $E_x/Z$ to be $Z$-independent. The
-scale-free hole (adaptive radius $\Rad$, reached by the transfer) is flat to machine
-precision; the fixed-$R_c$ hole (no transfer) drifts once the density is diffuse
-enough to overflow the window. $R_c$ remains the explicit data window, and scale
+\caption{Uniform-scaling (scale invariance) of the hole on atoms. For the hydrogenic density
+$\rho_Z=(Z^3/\pi)e^{-2Zr}$ the map $Z\!\to\!\gamma Z$ is the uniform scaling
+$\rho\!\to\!\gamma^3\rho(\gamma r)$, so the exact constraint $E_x[\rho_\gamma]=\gamma E_x[\rho]$
+requires $E_x/Z$ to be $Z$-independent. The scale-free hole (adaptive radius $\Rad$, reached by the
+transfer) is flat to machine precision; the fixed-$\Rc$ hole (no transfer) drifts once the density
+is diffuse enough to overflow the window. $\Rc$ remains the explicit data window, and scale
 invariance holds within it.}
 \label{fig:hole-scale}
-\end{figure} The hole is spherically symmetric and so uses no multipoles beyond
-those in Eqs.~\eqref{eq:eps-x}--\eqref{eq:amp}; carrying explicit $\ell\ge1$ hole
-multipoles is the natural route to a richer functional (App.~\ref{app:hole}).
+\end{figure}
 
 \paragraph*{Spin.}
-Everything above is stated for the general spin-resolved hole. The exchange energy
-decomposes exactly as
-$E_x[\rho_\uparrow,\rho_\downarrow]=\tfrac12(E_x[2\rho_\uparrow]+E_x[2\rho_\downarrow])$,
-so the spin-paired functional follows from the total-density expressions with the
-on-top count of $2$, and the open-shell case is obtained by applying the
-spin-scaling relation to each channel (App.~\ref{app:spin}).
-
-Constraints (C1)--(C7) are thus all satisfied by construction rather than by
-fitting. Those requiring the kinetic-energy density --- the tight single-orbital
-Lieb--Oxford bound $F_x(s,\alpha{=}0)\le1.174$ and one-electron self-correlation
-freedom --- lie outside this orbital-free, exchange-only construction.
-
-\subsection{Direct-expansion hole and gradient-corrected functional}
-\label{sec:hole-expansion}
-
-\emph{(This subsection records a second, more flexible hole construction built on the
-same features and a gradient correction with an iso-orbital gate; it is under active
-development and the self-consistent benchmarks reported here are preliminary.)}
-
-The single-envelope model [Eq.~\eqref{eq:ansatz}] fixes the hole to one universal
-shape $S$ scaled by $\zeta$. A more flexible construction expands the
-spherically-averaged hole monopole \emph{directly} in the scale-free SIMPLE radial
-basis,
-\begin{equation}
-\label{eq:hole-direct}
-\bar n_x(r_0,u)=\sum_n \tilde\varrho_{n}(r_0)\,R_{n0}(u),
-\end{equation}
-so the hole is a vector of coefficients $\{\tilde\varrho_n\}$ rather than a single
-scale. Because the $1/u$ weight keeps only the monopole, the energy per electron
-[Eq.~\eqref{eq:exact-hole}] is a dot product,
-\begin{equation}
-\label{eq:eps-direct}
-\varepsilon_x(r_0)=2\pi\sum_n \tilde\varrho_n(r_0)\,b_n,\qquad
-b_n=\int_0^{\Rc}\!R_{n0}(u)\,u\,du ,
-\end{equation}
-and the exact constraints --- the normalization sum rule
-$4\pi\sum_n\tilde\varrho_n a_n=-1$ ($a_n=\int_0^{\Rc}R_{n0}u^2du$) and the on-top
-value --- are linear in $\{\tilde\varrho_n\}$.
-
-\emph{The map that fixes the bare coefficients.} In the gradient-free base the
-coefficients are not left free; they realize the same enclosed-charge hole as the
-single-envelope model [Eq.~\eqref{eq:ansatz}] --- the surrounding density screened by
-the universal envelope, $\tilde\varrho\leftrightarrow-W\rho(r_0{+}\uu)S(\eta u)$ ---
-with the spherically-averaged density carried by its adaptive-radius monopole
-coefficients $\mathbf c=T(\Rad)\,\mathbf C$
-[$\Rad=\min(\xi^*/\kF,\Rc)$, Eq.~\eqref{eq:transfer}]. The energy is then the
-enclosed-charge ratio [Eq.~\eqref{eq:eps-x}]
-\begin{equation}
-\label{eq:eps-base-ratio}
-\begin{gathered}
-\varepsilon_x=-\tfrac12\,\frac{\Phi_S(\eta^*)}{Q_S(\eta^*)},\\
-Q_S(\eta)=\Rad^{3/2}\!\sum_m c_m\,g_m(\eta),\\
-\Phi_S(\eta)=\Rad^{1/2}\!\sum_m c_m\,h_m(\eta),
-\end{gathered}
-\end{equation}
-with envelope-projection tables $g_m(\eta)=\int_0^1 R_{m0}(t)\,S(\eta t)\,t^2dt$,
-$h_m(\eta)=\int_0^1 R_{m0}(t)\,S(\eta t)\,t\,dt$ and a single on-top scale $\eta^*$.
-\emph{There is no explicit LDA/FA interpolation; the two limits are the two regimes of
-this one sum rule.} Where the window can hold a full pair, $\eta^*$ solves
-$Q_S(\eta^*)=2$ and a slowly-varying density recovers LDA (C4). Where it cannot --- a
-one-electron region (a light-atom core or a density tail), for which
-$Q_S(\eta{\to}0)\le2$ --- no such scale exists; the construction takes the unscreened
-hole ($\eta\to0$, $S\to1$, i.e.\ the negative of the local density), giving the
-Fermi--Amaldi self-interaction $\varepsilon_x=-\tfrac12\Phi_S(0)/Q_S(0)$ (C5). The
-crossover is continuous in $\eta^*$, and on the adaptive radius uniform scaling (C3)
-holds within the window. With this base, hydrogen is reproduced to $\sim2$~mHa (a
-near-exact self-interaction correction), spin-paired He to $\sim2$~mHa, and Be within
-$\sim2\%$. The added direct-expansion freedom in $\{\tilde\varrho_n\}$
-[Eq.~\eqref{eq:hole-direct}] enters through the gradient correction below.
-
-\paragraph*{Gradient correction with an iso-orbital gate.}
-The monopole hole is blind to $\nabla\rho$, so as before a gradient correction must
-be added. Here it is built from \emph{two} gated terms acting on the LDA enhancement,
-\begin{equation}
-\label{eq:F-twoterm}
-\varepsilon_x=\varepsilon_x^{0}\,F,\qquad
-F=1+s^2\big(m_g\,g_{\mathrm{HEG}}+m_h\,g_{\mathrm{H1s}}\big),
-\end{equation}
-where $\varepsilon_x^{0}$ is the gradient-free direct-expansion energy and $s$ is the
-SIMPLE reduced gradient [Eq.~\eqref{eq:sq}]. The gates are pure \emph{point-wise}
-squared distances of the local scale-free features from two fixed reference
-signatures,
-$g_{\mathrm{HEG}}=e^{-\alpha_{\mathrm{HEG}}D_{\mathrm{HEG}}}$ and
-$g_{\mathrm{H1s}}=1-e^{-\alpha_{\mathrm{H1s}}D_{\mathrm{H1s}}}$, with
-$D_{\mathrm{HEG}}$ the distance from the uniform-gas signature and $D_{\mathrm{H1s}}$
-the distance from a hydrogenic-$1s$ signature (each a single feature vector, so the
-gate carries over to three dimensions unchanged). Both terms carry $s^2$, so the
-homogeneous limit ($s\to0$) is untouched (C4); $g_{\mathrm{H1s}}$ vanishes on the
-single-orbital manifold, so the one-electron limit (C5) survives. The two terms have
-opposite sign and are tied so they \emph{cancel} for a spin-paired two-electron atom,
-which preserves the Fermi--Amaldi limit there and fixes the ratio $m_h/m_g$; the
-overall magnitude $m_g$ is then the single calibrated degree of freedom, set on the
-heavier closed-shell atoms.
-
-\paragraph*{Tail instability and damping.}
-The raw factor in Eq.~\eqref{eq:F-twoterm} is not bounded below. In the low-density
-tail the reduced gradient saturates while the HEG gate stays finite, so with the
-calibrated (large, negative) $m_g$ the factor passes through zero and turns negative;
-$F<0$ flips the sign of $\varepsilon_x$ (a spurious \emph{positive} exchange-energy
-density), which makes the self-consistent exchange potential diverge and the SCF fail
-to converge --- a structural failure of the bare form, present even at a quarter of
-the calibrated magnitude. We damp it with a soft floor in the spirit of the LB94
-asymptotic correction~\cite{vanLeeuwen_1994},
-\begin{equation}
-\label{eq:F-floor}
-\begin{gathered}
-F=F_0+\tfrac1k\ln\!\Big(1+e^{\,k\,(1+e-F_0)}\Big),\\
-e=s^2\big(m_g g_{\mathrm{HEG}}+m_h g_{\mathrm{H1s}}\big),
-\end{gathered}
-\end{equation}
-which is the identity in the bulk (where $1+e$ is well above $F_0$) and lifts $F$
-smoothly to a small positive floor $F_0$ only in the tail, keeping
-$\varepsilon_x<0$ and the potential finite. With the floor and a potential that
-freezes the enhancement factor when it is differentiated, the functional converges
-self-consistently for the closed-shell atoms tested. Two caveats are worth recording.
-First, the floor removes a genuinely \emph{unphysical} negative-$F$ contribution that
-had artificially lowered the non-self-consistent tail energy, so the floored,
-physical functional is less accurate than that uncorrected estimate suggested.
-Second, the two-term cancellation that pins the Fermi--Amaldi limit is imposed on a
-fixed density and drifts by a few mHa once the density relaxes self-consistently.
-Across He, Be, Na, and Mg (pseudopotential, valence only) the self-consistent
-exchange energies reach a mean absolute error of $\sim\!30$~mHa against the exact
-(optimized-effective-potential) reference --- roughly three times closer than PBE
-exchange and five times closer than the gradient-free hole --- with a residual
-over-binding of $40$--$60$~mHa on Na and Be that remains the target of further work.
-The all-electron core is excluded deliberately: there the adaptive window collapses
-($\Rad\!\to\!0$ at the nuclear cusp) and the fixed-$\Rc$ transfer no longer resolves
-the hole, a separate breakdown outside the pseudopotential regime in which the
-functional is intended to operate.
+The exchange energy decomposes exactly as
+$E_x[\rho_\uparrow,\rho_\downarrow]=\tfrac12(E_x[2\rho_\uparrow]+E_x[2\rho_\downarrow])$, so the
+spin-paired functional follows from the total-density expressions with the on-top count of $2$, and
+the open-shell case from applying the spin-scaling relation to each channel (App.~\ref{app:spin}).
+Constraints (C1)--(C7) are thus satisfied by construction rather than by fitting; those requiring
+the kinetic-energy density --- the single-orbital Lieb--Oxford bound $F_x(s,\alpha{=}0)\le1.174$ and
+one-electron self-correlation freedom --- lie outside this orbital-free, exchange-only construction.
+The hole is spherically symmetric and uses no multipoles beyond the monopole; carrying explicit
+$\ell\ge1$ hole channels is the natural route to a richer functional (App.~\ref{app:kernel}).
 
 \subsection{Numerical implementation}
 \label{sec:impl}
@@ -584,7 +429,7 @@ same fixed-stencil enclosed-charge solve used for the adaptive radius $\Rad$
 (Sec.~\ref{sec:features}), vectorized over all grid points (App.~\ref{app:hole-numerics}).
 The asymptotic $-1/r$ exchange tail is recovered by an energy-neutral gauge fix plus a
 low-density damping (App.~\ref{app:hole-numerics}). The $\ell=1$ gradient deformation
-[Eq.~\eqref{eq:amp}] enters the potential through its own adjoint, which --- growing
+[Eq.~\eqref{eq:fx}] enters the potential through its own adjoint, which --- growing
 only as $k_n^1$ --- is well-conditioned, so the second-order functional is
 self-consistent and stable without any auxiliary loop (App.~\ref{app:hole-numerics}).
 
@@ -757,7 +602,7 @@ self-consistent step costs $2N_C$ convolutions --- the forward descriptors
 $\{C_n\}$ and the adjoint potential [Eq.~\eqref{eq:adjoint}] --- with $N_C=24$ here.
 The production functional is the second-order GEA hole, a single deformation constant
 ($R=-0.12$, equivalently $A_{s^2}=-1.01$) --- the one-time homogeneous-gas envelope
-response of Eq.~\eqref{eq:amp}, not fit to any atomic data --- on a single cutoff
+response of Eq.~\eqref{eq:fx}, not fit to any atomic data --- on a single cutoff
 $\Rc=3$~\AA, run self-consistently (Sec.~\ref{sec:impl}).
 
 On the closed-shell set it improves the bare hole toward exact exchange for every
