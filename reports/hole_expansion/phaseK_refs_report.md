@@ -54,6 +54,12 @@ quality:
 - **Out-of-sample (open-shell, d-block): the references HURT** (186→301). Closed-shell-trained
   `dF` over-enhances open-shell/d exchange (O −272→−433) — open-shell exchange differs (spin),
   and no open-shell references exist (restricted-hole limitation).
+- **vs PBE (apples-to-apples, PBE exchange at the same HF density, spin-unpolarized like the
+  kernel):** on **closed-shell** the chain is **LDA+GEA 218 → kernel 106 → PBE 43 mHa** — the
+  exact-hole references close about half the gap from LDA+GEA to PBE but **do not reach PBE**.
+  (Open-shell/d-block MAE is large for *both* the kernel and PBE here — ~600 mHa for PBE main-group
+  — because spin-unpolarized exchange on an open-shell total density is simply wrong; it is a
+  shared spin-treatment artifact, not a kernel-specific defect.)
 - **Over the full set the references are net-harmful** (199→222), and a `w0` sweep is
   **monotonic** (larger `w0` → closer to LDA+GEA): *no* hyperparameter makes the closed-shell-only
   references help the general set. This is a **transferability limit, not a tuning failure**. The
