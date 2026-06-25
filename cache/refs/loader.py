@@ -18,6 +18,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 HF_DIR = os.path.join(_HERE, "hf")
 BASE_DIR = os.path.join(_HERE, "baselines")
 HOLES = os.path.join(_HERE, "holes", "hole_refs.npz")
+HOLES_FULL = os.path.join(_HERE, "holes", "hole_refs_full.npz")
 
 
 def available_hf():
@@ -71,3 +72,22 @@ def load_hole_ref(name):
 def hole_atoms():
     """List of atom symbols with a moment-matched hole reference."""
     return _hole_atoms()
+
+
+def load_hole_refs_full():
+    """The FULL flat (atom x r0) exact-hole reference table (holes/hole_refs_full.npz), built by
+    regen/build_refs_full.py over every exact restricted-hole atom (full occupied subshells).
+    Returns a dict of stacked arrays over all reference points (concatenated atom-by-atom):
+        X       (Npts, n_out)  kernel feature [cn[1:] (l=0 power vec), s^2]  -- the input subspace
+        cn, rt  (Npts, n_out)  scale-free monopole features; moment-matched exact hole coeffs
+        Z, r0, rho, Rad, Q, s              (Npts,)  per-point scalars
+        eps_win, eps_full, eps_mm          (Npts,)  windowed / exact / moment-matched energy density
+        leakQ, leakE                       (Npts,)  charge & energy of the hole beyond the R_c window
+        atom_Z, atom_sym, atom_Ehf, atom_Emm, atom_offset, atom_npts  per-atom summary + slicing
+        R_c, n_out, X_window               scalars (build settings)
+    Down-sample on X to a training set that evenly spans the feature subspace; use leakQ/leakE to
+    weight or screen points distorted by the hard R_c cutoff."""
+    if not os.path.exists(HOLES_FULL):
+        raise FileNotFoundError(f"{HOLES_FULL} not built; run cache/refs/regen/build_refs_full.py")
+    d = np.load(HOLES_FULL, allow_pickle=True)
+    return {k: d[k] for k in d.files}
