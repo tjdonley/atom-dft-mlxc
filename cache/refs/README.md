@@ -11,8 +11,8 @@ committed in full (orbital files are small, ~90 KB each).
 | `hf/` | `hf_Z{NN}.npz` (Z=1–57, 72–83) | HF/PSP solve, **with exact orbitals** | `Z, converged, Ehf(=hf_exchange), Etot, domain, attempt, r, rho, w, r_sorted, g_sorted, occ, l_values` |
 | `baselines/` | `base_Z{NN}.npz` (same Z) | self-consistent PBE & rSCAN exchange | `Z, pbe_Ex, rscan_Ex, converged` |
 | `holes/` | `hole_refs.npz` | moment-matched exact-hole refs, 13 closed-shell atoms (He/Be/Ne/Mg/Ar/Ca/Zn/Kr/Sr/Cd/Xe/Ba/Hg) | per atom `<sym>_rt, _cn, _s, _Q, _Rad, _rho, _eps_sel, _rsel, _Ehf` |
-| `holes/` | `hole_refs_full.npz` | **full flat (atom×r0) table** for training-set selection: 14 exact atoms (the 13 + **Pd**), 60 pts each, 840 total | stacked `X, cn, rt` (Npts,n_out); `Z, r0, rho, Rad, Q, s, eps_win, eps_full, eps_mm, leakQ, leakE` (Npts,); `atom_{Z,sym,Ehf,Emm,offset,npts}`; `R_c, n_out, X_window` |
-| `holes/` | `training_sets.npz` | **nested FPS training sets**: valid-filtered (leakage ≤10% AND ρ≥ρ_floor≈0.08 uncapped, 456/840 kept) + farthest-point-sampled in the kernel metric. Prefixes of one ordering = increasing-density sets | `order` (M,) GLOBAL idx into `hole_refs_full`; `sizes` (S,) [16…M]; `keep_mask` (840,); `seed, leakage_cutoff, leakage_mode, rho_floor, fp_l0, fp_l1`; `fill_dist` (S,) |
+| `holes/` | `hole_refs_full.npz` | **full flat (atom×r0) table** for training-set selection: 14 exact atoms (the 13 + **Pd**), 150 pts each, 2100 total | stacked `X, cn, rt` (Npts,n_out); `Z, r0, rho, Rad, Q, s, eps_win, eps_full, eps_mm, leakQ, leakE` (Npts,); `atom_{Z,sym,Ehf,Emm,offset,npts}`; `R_c, n_out, X_window` |
+| `holes/` | `training_sets.npz` | **nested FPS training sets**: valid-filtered (leakage ≤10% AND ρ≥0.1 uncapped, 1098/2100 kept) + farthest-point-sampled in the kernel metric. Prefixes of one ordering = increasing-density sets | `order` (M,) GLOBAL idx into `hole_refs_full`; `sizes` (S,) [16…512,M]; `keep_mask`; `seed, leakage_cutoff, leakage_mode, rho_floor, fp_l0, fp_l1`; `fill_dist` (S,) |
 | `regen/` | python scripts | regenerators (see below) | — |
 
 ### Conventions
@@ -50,10 +50,12 @@ committed in full (orbital files are small, ~90 KB each).
 - `build_kernel_refs.py` — convert a training set → kernel reference nodes
   `atom/xc/data/kernel_fp_refs_n{16,64,256}.npz` (`X`=[cn[1:], bounded s²], `DELTA`=σ_ref−σ_LDA).
   Writes NAMED files; does NOT touch the canonical `kernel_fp_refs.npz` (baseline stays reference-free).
-- `benchmark_refs.py` — non-SCF E_x vs HF for in-/out-of-domain atoms across reference-free + n16/64/256
-  → `reports/hole_expansion/benchmark_refs.txt`. Finding: refs cut in-domain MAE ~6× but improvement is
-  NOT monotone in N (n16 best in-domain; n256 best out-of-domain) — interpolation-stability ceiling;
-  open-shell transfer needs many refs.
+- `benchmark_refs.py` — non-SCF E_x vs HF for in-/out-of-domain atoms across reference-free + n16/…/512
+  (`--l0`/`--l1`) → `reports/hole_expansion/benchmark_refs.txt`. Result at the balanced optimum
+  (isotropic l0=0.7, l1=0.5, N=512): MAE in 64 / out 50 mHa (~5× better than reference-free 302/204),
+  monotone improving from n64. **Ceiling ≈ 60 mHa balanced** with this dataset — N>512 and ARD-SE
+  (per-dim length scales, supported in `_Kmat` via `_fp_ell`) give no further gain; in-domain is
+  pinned ~64 mHa (the ρ≥0.1 floor excludes the inhomogeneous region → adaptive R_c is the real lever).
 
 These write to a scratchpad `refs/` by default; re-point the output paths to this `cache/refs/`
 to refresh in place.

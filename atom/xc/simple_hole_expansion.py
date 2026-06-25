@@ -283,6 +283,7 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         p = self.params
         self._fp_l0, self._fp_l1 = float(p.fp_l0), float(p.fp_l1)
         self._fp_DG, self._fp_ridge = float(p.fp_DG), float(p.fp_ridge)
+        self._fp_ell = None                              # optional ARD-SE per-dim length scales (n_out,)
         A = self._X ** 2 / (3.0 * np.pi ** 2) ** (2.0 / 3.0)
         self._fp_kappa = np.pi * A / abs(_C_LDA)              # F_x-1 = kappa (delta_rhotilde . C)
         self._fp_dgb = float(self._dgea @ self._Cmom)
@@ -341,7 +342,11 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         return np.column_stack([cn[:, 1:], s2])                  # [l=0 power vector cn[1:], l=1 s^2]
 
     def _Kmat(self, Xa, Xb):
-        nl0 = self._n_out - 1
+        ell = getattr(self, "_fp_ell", None)
+        if ell is not None:                              # ARD-SE: per-dimension length scales (n_out,)
+            diff = (Xa[:, None, :] - Xb[None, :, :]) / np.asarray(ell)[None, None, :]
+            return np.exp(-0.5 * np.sum(diff ** 2, axis=2))
+        nl0 = self._n_out - 1                            # isotropic: shared l0 (l=0 block) + l1 (s^2)
         d0 = np.sum((Xa[:, None, :nl0] - Xb[None, :, :nl0]) ** 2, axis=2) / self._fp_l0 ** 2
         d1 = (Xa[:, None, nl0] - Xb[None, :, nl0]) ** 2 / self._fp_l1 ** 2
         return np.exp(-0.5 * (d0 + d1))

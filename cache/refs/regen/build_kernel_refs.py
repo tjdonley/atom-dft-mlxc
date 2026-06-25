@@ -45,7 +45,7 @@ def build(size, sig_lda, full, ts):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--sizes", type=int, nargs="+", default=[16, 64, 256])
+    ap.add_argument("--sizes", type=int, nargs="+", default=[16, 64, 256, 512])
     args = ap.parse_args()
     os.makedirs(DATA, exist_ok=True)
 

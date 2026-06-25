@@ -35,7 +35,7 @@ from atom.utils.periodic import atomic_number_to_name as nm
 from cache.refs.loader import load_hf, available_hf
 
 OUT = os.path.join(_HERE, "..", "holes", "hole_refs_full.npz")
-NOUT, NPTS, RHO_FLOOR_FRAC = 10, 60, 1e-5
+NOUT, NPTS, RHO_FLOOR_FRAC = 10, 150, 1e-5   # 150 r0/atom -> ample valid (rho>=0.1) pool for N=512
 tu, wu = leggauss(120); t = 0.5 * (tu + 1.0); wt = 0.5 * wu
 Rb1 = RadialBesselBasis(NOUT - 1, 0, 1.0).evaluate(0, t)
 R0u = (np.arange(NOUT) + 1) * np.pi * np.sqrt(2.0)

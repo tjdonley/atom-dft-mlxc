@@ -38,7 +38,9 @@ def ex_nonscf(F, rho, cprime, g):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--sizes", type=int, nargs="+", default=[16, 64, 256])
+    ap.add_argument("--sizes", type=int, nargs="+", default=[16, 64, 256, 512])
+    ap.add_argument("--l0", type=float, default=0.7, help="l=0 width (balanced optimum ~0.7)")
+    ap.add_argument("--l1", type=float, default=0.5, help="l=1/s^2 width (balanced optimum ~0.5)")
     args = ap.parse_args()
     variants = [("reffree", NONE)] + [(f"n{s}", os.path.join(DATA, f"kernel_fp_refs_n{s}.npz"))
                                       for s in args.sizes]
@@ -55,7 +57,8 @@ def main():
             errs = {}
             for name, path in variants:
                 She._KERNEL_FP_REFS = path
-                F._build_fp_nodes(include_refs=True)                    # cheap; l1 fixed
+                F._fp_l0, F._fp_l1 = args.l0, args.l1
+                F._build_fp_nodes(include_refs=True)                    # cheap
                 errs[name] = 1e3 * (ex_nonscf(F, rho, cprime, g) - Ehf)
             rows.append((dom, nm(Z), Ehf, errs))
 
