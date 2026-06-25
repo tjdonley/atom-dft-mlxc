@@ -34,6 +34,7 @@ rho-derivative term to the discrete-adjoint potential:
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Optional
 
@@ -390,6 +391,19 @@ class SIMPLE_HOLE_EXPANSION_GGA(SIMPLE_HOLE_EXPANSION):
 _LO_FX = 1.804      # Lieb-Oxford enhancement ceiling
 _C_LDA = -(3.0 / 4.0) * (3.0 / np.pi) ** (1.0 / 3.0)   # LDA exchange: eps_x = _C_LDA rho^{1/3}
 
+# data file of exact-hole fixed points (enhancement beyond LDA+GEA), loaded by the kernel
+_FIXED_POINTS_FILE = os.path.join(os.path.dirname(__file__), "data", "kernel_fixed_points.npz")
+
+
+def _kernel_features(cn, s, Q):
+    """Scale-free, rotation-invariant feature vector for the fixed-point RBF: the higher
+    scale-free monopole coefficients cn[1:] (cn[0]=1 is trivial), the bounded reduced gradient
+    s, and the window charge Q. cn (N,n_out), s (N,), Q (N,) -> (N, n_out+1). Used identically
+    by the production functional and the reference-bundling builder so query and node features
+    live in the same space."""
+    cn = np.atleast_2d(np.asarray(cn, float))
+    return np.column_stack([cn[:, 1:], np.asarray(s, float).ravel(), np.asarray(Q, float).ravel()])
+
 
 @dataclass
 class SIMPLEHOLEEXPKERNELParameters(SIMPLEHOLEEXPParameters):
@@ -437,6 +451,48 @@ class SIMPLE_HOLE_EXPANSION_KERNEL(SIMPLE_HOLE_EXPANSION):
         kF1 = (3.0 * np.pi ** 2) ** (1.0 / 3.0); Rad1 = min(self._X / kF1, self.params.r_c)
         c_lda = -(3.0 / 4.0) * (3.0 / np.pi) ** (1.0 / 3.0)
         self._gea_R = 2.0 * np.pi * Rad1 ** 2 * (-(self._dgea @ self._beta1)) / c_lda
+        # optional exact-hole fixed points: the data-driven enhancement beyond LDA+GEA. Each is
+        # a (scale-free feature, charge/on-top-neutral residual-hole) pair from an exact atomic
+        # hole. Absent file -> no fixed points -> pure LDA-from-GEA+FA (unchanged behavior).
+        self._fp_X = self._fp_dcoef = self._fp_mu = self._fp_sd = None
+        self._fp_ell = 1.0; self._fp_w0 = 1.0
+        if os.path.exists(_FIXED_POINTS_FILE):
+            z = np.load(_FIXED_POINTS_FILE)
+            self._fp_X = z["X"]; self._fp_dcoef = z["DELTA"]
+            self._fp_mu = z["mu"]; self._fp_sd = z["sd"]; self._fp_ell = float(z["ell"])
+            self._fp_w0 = float(z["w0"]) if "w0" in z.files else 1.0
+
+    def _heg_mm(self, rho0, R_ad):
+        """Moment-matched exact-LDA HEG hole on the n_out basis (N, n_out): pin the three
+        low-order moments {charge int u^2 = -1, on-top = -rho0/2, Coulomb int u = C_LDA rho0^{1/3}}.
+        The projected HEG hole alone gives 0.984*LDA (the basis truncates the [3j1/x]^2 tail);
+        matching the Coulomb (=energy) moment deforms it (~6%) to hit LDA exactly at n_out=10."""
+        rho0 = np.maximum(np.asarray(rho0, float), 1e-12)
+        al, r0v, be = self._alpha1, self._r1_0, self._beta1
+        heg = -0.5 * rho0[:, None] * self._gX[None, :]               # (N, n_out) projected HEG
+        a_row = 4.0 * np.pi * (R_ad ** 3)[:, None] * al[None, :]     # charge-moment row
+        e_row = 2.0 * np.pi * (R_ad ** 2)[:, None] * be[None, :]     # Coulomb (energy) row
+        A3 = np.stack([a_row, np.broadcast_to(r0v, a_row.shape), e_row], axis=1)   # (N,3,n_out)
+        rhs3 = np.stack([-1.0 - np.sum(a_row * heg, axis=1),
+                         -0.5 * rho0 - heg @ r0v,
+                         _C_LDA * rho0 ** (1.0 / 3.0) - np.sum(e_row * heg, axis=1)], axis=1)
+        lam3 = np.linalg.solve(A3 @ np.transpose(A3, (0, 2, 1)), rhs3[..., None])[..., 0]   # (N,3)
+        return heg + np.einsum('nk,nkm->nm', lam3, A3)               # exact-LDA HEG hole on basis
+
+    def _fp_dF(self, cn, s, Q):
+        """Data-driven residual enhancement dF(features) beyond LDA+GEA, from the exact-hole
+        fixed points: dF = (sum_k w_k dF_k) / (w0 + sum_k w_k), a Nadaraya-Watson average with a
+        HEG BACKGROUND pseudo-weight w0 (= zero residual). dF is the DIMENSIONLESS enhancement
+        F-1-GEA2*s^2 (scale-free -- the validated interpolation target; the rho-scaled hole
+        vector does NOT transfer across densities). Bounded (convex average of node residuals)
+        and -> 0 far from every node (sum_k w_k -> 0), so the LDA (T1), GEA-slope (T2) and FA
+        (T3) limits are untouched. Returns (N,), or 0.0 if no fixed points."""
+        if self._fp_X is None:
+            return 0.0
+        x = (_kernel_features(cn, s, Q) - self._fp_mu) / self._fp_sd            # (N, d)
+        d2 = np.sum((x[:, None, :] - self._fp_X[None, :, :]) ** 2, axis=2)      # (N, K)
+        w = np.exp(-d2 / (2.0 * self._fp_ell ** 2))                            # (N, K)
+        return (w @ self._fp_dcoef) / (self._fp_w0 + np.sum(w, axis=1))         # (N,)
 
     def _kernel_eps(self, C, rho0, g):
         """eps_x from the kernel map; C (n_in,N), rho0 (N,), g (N,) the three rho-channels."""
@@ -448,23 +504,16 @@ class SIMPLE_HOLE_EXPANSION_KERNEL(SIMPLE_HOLE_EXPANSION):
         W = enclosed_charge_switch(0.5 * Q)                          # per-spin FA gate
         kF = (3.0 * np.pi ** 2 * rho0) ** (1.0 / 3.0)
         s2, _ = _bound((g / (2.0 * kF * rho0)) ** 2)
-        chi = (_GEA2 / self._gea_R) * s2; chi_max = (_LO_FX - 1.0) / self._gea_R
-        chi = chi_max * np.tanh(chi / chi_max)
-        al, r0v, be = self._alpha1, self._r1_0, self._beta1
-        # HEG anchor MOMENT-MATCHED to the exact LDA hole on the n_out basis: pin the three
-        # low-order moments {charge int u^2 = -1, on-top, Coulomb int u = exact LDA energy}.
-        # The projected HEG hole alone gives 0.984*LDA (the basis truncates the [3j1/x]^2 tail);
-        # matching the Coulomb (=energy) moment to C_LDA rho^{1/3} deforms it (~6%) to hit LDA
-        # exactly at n_out=10. Principled: the energy IS the hole's Coulomb moment.
-        heg = -0.5 * rho0[:, None] * self._gX[None, :]               # (N, n_out) projected HEG
-        a_row = 4.0 * np.pi * (R_ad ** 3)[:, None] * al[None, :]     # charge-moment row
-        e_row = 2.0 * np.pi * (R_ad ** 2)[:, None] * be[None, :]     # Coulomb (energy) row
-        A3 = np.stack([a_row, np.broadcast_to(r0v, a_row.shape), e_row], axis=1)   # (N,3,n_out)
-        rhs3 = np.stack([-1.0 - np.sum(a_row * heg, axis=1),
-                         -0.5 * rho0 - heg @ r0v,
-                         _C_LDA * rho0 ** (1.0 / 3.0) - np.sum(e_row * heg, axis=1)], axis=1)
-        lam3 = np.linalg.solve(A3 @ np.transpose(A3, (0, 2, 1)), rhs3[..., None])[..., 0]   # (N,3)
-        heg = heg + np.einsum('nk,nkm->nm', lam3, A3)               # exact-LDA HEG hole on basis
+        # enhancement F-1 = GEA2 s^2 (gradient) + dF (data-driven residual beyond LDA+GEA from the
+        # exact-hole fixed points). dF is the DIMENSIONLESS enhancement (the scale-free interpolation
+        # target -- NOT the rho-scaled hole vector, which does not transfer across densities). Both
+        # are realized through the single GEA deformation mode (chi units = (F-1)/gea_R), and the
+        # Lieb-Oxford cap is applied to the TOTAL -> F_x <= 1.804, which also keeps SCF from collapsing.
+        cn = c_ad / np.where(np.abs(c_ad[:, :1]) > 1e-30, c_ad[:, :1], 1e-30)
+        dF = self._fp_dF(cn, np.sqrt(s2), Q)                         # residual enhancement, 0 far from nodes
+        chi = (_GEA2 * s2 + dF) / self._gea_R; chi_max = (_LO_FX - 1.0) / self._gea_R
+        chi = chi_max * np.tanh(chi / chi_max)                       # LO cap on total enhancement
+        heg = self._heg_mm(rho0, R_ad)
         bulk = heg + (chi * -rho0)[:, None] * self._dgea[None, :]
         fa = -d / Qs[:, None]
         coeffs = (1.0 - W)[:, None] * bulk + W[:, None] * fa
