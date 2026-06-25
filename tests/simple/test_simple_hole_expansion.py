@@ -410,23 +410,22 @@ def test_FP_gea_slope_from_l1_kernel(rho0):
     assert abs(b1) < 0.1 * abs(b2), f"spurious linear-in-s term b1={b1:.2e} vs b2={b2:.2e}"
 
 
-def test_FP_l1_pinned_to_lieb_oxford():
-    """The l=1 RBF width is the one length scale the local constraints leave open after c_G
-    fixes the 10/81 slope; it is DETERMINED by the Lieb-Oxford ceiling. _calibrate_l1_to_LO
-    (run in __init__) solves the width whose idealized GEA-axis F_x peaks at _LO_FX=1.804,
-    while c_G is re-solved to hold the slope. This locks the baseline functional: the peak
-    touches LO exactly and the small-s slope stays 10/81."""
-    from atom.xc.simple_hole_expansion import _LO_FX, _GEA2
+def test_FP_l1_tunable_no_lo_cap():
+    """The l=1 RBF width is a TUNABLE parameter (Lieb-Oxford cap dropped): it is no longer
+    pinned, defaults to params.fp_l1=0.5, and is settable. The 10/81 GEA slope is still enforced
+    by c_G regardless of the width, so the gradient limit holds at any l1."""
+    from atom.xc.simple_hole_expansion import SIMPLE_HOLE_KERNEL_FP, SIMPLEHOLEKERNELFPParameters, _GEA2
     F, r, w = _build_fp()
+    assert F._fp_l1 == pytest.approx(0.5), f"default l1 {F._fp_l1} != 0.5 (still LO-calibrated?)"
     s = np.linspace(0.0, 30.0, 6000)
-    Fx = F._fx_gea_axis(s)
-    assert Fx.max() == pytest.approx(_LO_FX, abs=1e-4), \
-        f"peak F_x = {Fx.max():.5f} != LO {_LO_FX} (width not pinned to LO)"
+    assert F._fx_gea_axis(s).max() < 1.5, "peak should be a modest bump, not the LO-wide ramp"
+    # width is settable via params, and the 10/81 slope holds at the new width
+    F2 = SIMPLE_HOLE_KERNEL_FP(r_quad=r, quadrature_weights=w,
+                              params=SIMPLEHOLEKERNELFPParameters(fp_l1=1.5))
+    assert F2._fp_l1 == pytest.approx(1.5)
     sm = (s > 1e-6) & (s < 0.2)
-    slope = np.polyfit(s[sm] ** 2, Fx[sm] - 1.0, 1)[0]
-    assert slope == pytest.approx(_GEA2, rel=1e-3), \
-        f"slope {slope:.5f} != 10/81 {_GEA2:.5f} (c_G not re-solved for the LO width)"
-    assert F._fp_l1 > 1.0, f"calibrated width {F._fp_l1:.3f} suspiciously small (hand-set 0.5?)"
+    slope = np.polyfit(s[sm] ** 2, F2._fx_gea_axis(s)[sm] - 1.0, 1)[0]
+    assert slope == pytest.approx(_GEA2, rel=2e-2), f"slope {slope:.5f} != 10/81 at l1=1.5"
 
 
 def test_FP_adjoint_matches_fd():

@@ -76,11 +76,11 @@ def valid_filter(refs, cutoff=0.10, mode="max", rho_floor=None):
     """Return (keep_mask[Npts], kept_global_idx[M]). A reference is VALID for the kernel iff
        (i) leakage <= cutoff (hole captured in the window, not moment-match artifact), AND
        (ii) rho >= rho_floor so R_ad is uncapped and sigma = hole/(-rho/2) is scale-free.
-    rho_floor=None uses the uncapping density (~0.08 at X=8, R_c=6)."""
+    rho_floor=None uses 0.1 -- safely above the uncapping density (~0.08 at X=8, R_c=6)."""
     lq = np.abs(refs["leakQ"]); le = np.abs(refs["leakE"])
     leak = {"max": np.maximum(lq, le), "leakQ": lq, "leakE": le}[mode]
     if rho_floor is None:
-        rho_floor = uncapping_density(refs)
+        rho_floor = max(0.1, uncapping_density(refs))
     keep = (leak <= cutoff) & (refs["rho"] >= rho_floor)
     return keep, np.where(keep)[0], rho_floor
 

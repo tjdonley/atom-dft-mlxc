@@ -225,6 +225,13 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
     # Clean kernel-mapped fixed-point hole: interpolate the scale-free hole SHAPE deviation; LDA
     # exact (HEG node), GEA2 from the kernel's l=1 slope via a calibrated GEA node (no additive
     # GEA term, no enhancement factor), Fermi-Amaldi via the charge gate; optional bulk reference holes.
+    # Kernel hyperparameters (TUNABLE). The GEA2 slope (10/81) is always enforced via the l=1 node
+    # amplitude c_G; the l=1 RBF WIDTH fp_l1 is left free (NOT pinned to the Lieb-Oxford ceiling) so it
+    # can be tuned. fp_l0 = l=0 power-vector width; fp_DG = GEA-node placement; fp_ridge = kernel ridge.
+    fp_l0: float = 0.5
+    fp_l1: float = 0.5
+    fp_DG: float = 0.3
+    fp_ridge: float = 1e-8
 
 
 class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
@@ -271,11 +278,11 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         kF1 = (3.0 * np.pi ** 2) ** (1.0 / 3.0); Rad1 = min(self._X / kF1, self.params.r_c)
         self._gea_R = 2.0 * np.pi * Rad1 ** 2 * (-(self._dgea @ self._Cmom)) / _C_LDA
         # --- fixed-point kernel: HEG node + calibrated GEA node + optional bulk references ---
-        # _fp_l1 (the l=1/s^2 RBF width) is NOT free: it is the one length scale the local
-        # constraints leave open after c_G fixes the 10/81 slope. We pin it by the Lieb-Oxford
-        # ceiling -- _calibrate_l1_to_LO() solves for the width whose realized F_x peaks at _LO_FX
-        # (analogous to PBE setting kappa=0.804 so F_x saturates at 1.804).
-        self._fp_l0, self._fp_l1, self._fp_DG, self._fp_ridge = 0.5, 0.5, 0.3, 1e-8
+        # Kernel hyperparameters from params (TUNABLE). The 10/81 GEA slope is enforced by c_G in
+        # _build_fp_nodes; the l=1 width _fp_l1 is a free tunable parameter (Lieb-Oxford cap dropped).
+        p = self.params
+        self._fp_l0, self._fp_l1 = float(p.fp_l0), float(p.fp_l1)
+        self._fp_DG, self._fp_ridge = float(p.fp_DG), float(p.fp_ridge)
         A = self._X ** 2 / (3.0 * np.pi ** 2) ** (2.0 / 3.0)
         self._fp_kappa = np.pi * A / abs(_C_LDA)              # F_x-1 = kappa (delta_rhotilde . C)
         self._fp_dgb = float(self._dgea @ self._Cmom)
@@ -286,7 +293,6 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         cau = self._c_ad(Cu, Ru); cnu = cau / np.where(np.abs(cau[:, :1]) > 1e-30, cau[:, :1], 1e-30)
         self._cnH = cnu[len(cnu) // 2]
         self._build_fp_nodes()
-        self._calibrate_l1_to_LO()
 
     def _fx_gea_axis(self, svals):
         """Realized enhancement F_x(s) on the pure-GEA feature axis (l=0 = HEG signature, l=1 = s^2);
