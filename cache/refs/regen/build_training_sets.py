@@ -139,7 +139,9 @@ def main():
     keep, kept, rho_floor = valid_filter(refs, args.leakage_cutoff, args.mode, args.rho_floor)
     M = len(kept)
     Xk = to_kernel_feat(X[kept])
-    D = kernel_dist(Xk, Xk, l0, l1)
+    D = np.empty((M, M))                                # blocked build (avoid the (M,M,n_out) tmp)
+    for s in range(0, M, 512):
+        D[s:s + 512] = kernel_dist(Xk[s:s + 512], Xk, l0, l1)
     seed_local = seed_index(Xk, l0, l1, heg_feat)
     perm = fps_order(D, seed_local)                    # local (into kept pool)
     order = kept[perm]                                 # GLOBAL indices into hole_refs_full

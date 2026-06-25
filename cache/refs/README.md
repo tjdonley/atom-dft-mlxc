@@ -11,8 +11,8 @@ committed in full (orbital files are small, ~90 KB each).
 | `hf/` | `hf_Z{NN}.npz` (Z=1–57, 72–83) | HF/PSP solve, **with exact orbitals** | `Z, converged, Ehf(=hf_exchange), Etot, domain, attempt, r, rho, w, r_sorted, g_sorted, occ, l_values` |
 | `baselines/` | `base_Z{NN}.npz` (same Z) | self-consistent PBE & rSCAN exchange | `Z, pbe_Ex, rscan_Ex, converged` |
 | `holes/` | `hole_refs.npz` | moment-matched exact-hole refs, 13 closed-shell atoms (He/Be/Ne/Mg/Ar/Ca/Zn/Kr/Sr/Cd/Xe/Ba/Hg) | per atom `<sym>_rt, _cn, _s, _Q, _Rad, _rho, _eps_sel, _rsel, _Ehf` |
-| `holes/` | `hole_refs_full.npz` | **full flat (atom×r0) table** for training-set selection: 14 exact atoms (the 13 + **Pd**), 150 pts each, 2100 total | stacked `X, cn, rt` (Npts,n_out); `Z, r0, rho, Rad, Q, s, eps_win, eps_full, eps_mm, leakQ, leakE` (Npts,); `atom_{Z,sym,Ehf,Emm,offset,npts}`; `R_c, n_out, X_window` |
-| `holes/` | `training_sets.npz` | **nested FPS training sets**: valid-filtered (leakage ≤10% AND ρ≥0.1 uncapped, 1098/2100 kept) + farthest-point-sampled in the kernel metric. Prefixes of one ordering = increasing-density sets | `order` (M,) GLOBAL idx into `hole_refs_full`; `sizes` (S,) [16…512,M]; `keep_mask`; `seed, leakage_cutoff, leakage_mode, rho_floor, fp_l0, fp_l1`; `fill_dist` (S,) |
+| `holes/` | `hole_refs_full.npz` | **full flat (atom×r0) table**, SPIN-RESOLVED holes (Hund per-spin) for **all 69 atoms** (Z=1–57,72–83), 150 pts each, 10350 total (2100 closed-shell + 8250 open-shell) | stacked `X, cn, rt` (Npts,n_out); `Z, r0, rho, Rad, Q, s, eps_win, eps_full, eps_mm, leakQ, leakE, closed` (Npts,); `atom_{Z,sym,Ehf,Emm,offset,npts}`; `R_c, n_out, X_window` |
+| `holes/` | `training_sets.npz` | **nested FPS training sets**: valid-filtered (leakage ≤10% AND ρ≥0.1 uncapped, 4523/10350 kept; mix of closed+open-shell refs) + farthest-point-sampled in the kernel metric. Prefixes of one ordering = increasing-density sets | `order` (M,) GLOBAL idx into `hole_refs_full`; `sizes` (S,) [16…512,M]; `keep_mask`; `seed, leakage_cutoff, leakage_mode, rho_floor, fp_l0, fp_l1`; `fill_dist` (S,) |
 | `regen/` | python scripts | regenerators (see below) | — |
 
 ### Conventions
@@ -40,8 +40,12 @@ committed in full (orbital files are small, ~90 KB each).
 - `hf_fleet.py` — HF/PSP fleet over Z=1–57,72–83 (retry ladder), → `hf_Z*.npz`.
 - `baselines.py` — PBE + rSCAN exchange over the same set → `base_Z*.npz`.
 - `build_refs_from_cache.py` — moment-matched hole refs from the cached HF orbitals → `hole_refs.npz`.
-- `build_refs_full.py` — full flat (atom×r0) exact-hole table with leakage → `hole_refs_full.npz`
-  (REPO-relative paths; writes straight into `holes/`). Load via `loader.load_hole_refs_full()`.
+- `build_refs_full.py` — full flat (atom×r0) **spin-resolved** exact-hole table with leakage →
+  `hole_refs_full.npz` (all 69 atoms; `orbital_hole.exchange_hole_spin` + Hund per-spin occupations;
+  reduces to the restricted hole for closed subshells). Load via `loader.load_hole_refs_full()`.
+- `benchmark_vs_baselines.py` — categorized SIMPLE-vs-PBE/rSCAN. **Currently INVALID**: the cached
+  PBE/rSCAN exchange is inconsistent with `Ehf` (0.7–13 Ha gap, a PSP/setup mismatch, not spin/density)
+  — needs PBE/rSCAN recomputed non-SCF on the HF densities. See `simple-hole-baseline-cache` memory.
 - `build_training_sets.py` — VALID-filter (leakage ≤ `--leakage-cutoff`/`--mode` AND ρ ≥ `--rho-floor`,
   default the uncapping density ≈0.08 where `R_ad=X/k_F` uncaps and σ=hole/(−ρ/2) is scale-free) then
   farthest-point-sample → `training_sets.npz`. Distance = the functional's own kernel metric (`_Kmat`,

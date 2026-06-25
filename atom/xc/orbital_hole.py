@@ -108,6 +108,47 @@ def exchange_hole_s(r0, u, r_sorted, g_sorted, occ, n_mu=80):
     return -2.0 * rho1_sq_ang / max(rho0, 1e-30)
 
 
+def hund_occupations(occ, l_values):
+    """High-spin (Hund) per-spin split of per-subshell occupations: fill majority spin first.
+    occ_up = min(occ, 2l+1), occ_dn = occ - occ_up. Returns (occ_up, occ_dn)."""
+    occ = np.asarray(occ, float); l = np.asarray(l_values, int)
+    occ_up = np.minimum(occ, 2.0 * l + 1.0)
+    return occ_up, occ - occ_up
+
+
+def exchange_hole_spin(r0, u, r_sorted, g_sorted, occ_up, occ_dn, l_values, n_mu=80):
+    """Spin-resolved exact exchange hole (general l), summing the two per-spin 1-RDM channels:
+        n_x(r0,u) = -(1/rho0) sum_sigma < |rho1_sigma(r0,r0+u)|^2 >_Omega ,
+        rho1_sigma = (1/4pi) sum_i occ_{i,sigma} g_i(r0) g_i(r') P_{l_i}(cos gamma).
+    Exact for high-spin open shells given per-spin occupations (cf. hund_occupations); reduces
+    EXACTLY to ``exchange_hole`` when occ_up = occ_dn = occ/2 (closed shells). Uses the common
+    (restricted/ROHF) spatial orbitals g_sorted -- exact exchange for that determinant."""
+    u = np.atleast_1d(np.asarray(u, float))
+    mu, wm = leggauss(n_mu)
+    rp = np.sqrt(np.maximum(r0 ** 2 + u[:, None] ** 2 + 2.0 * r0 * u[:, None] * mu[None, :], 0.0))
+    cg = np.clip((r0 + u[:, None] * mu[None, :]) / np.maximum(rp, 1e-30), -1.0, 1.0)
+    g_rp = _g_interp(r_sorted, g_sorted, rp)
+    g_r0 = _g_interp(r_sorted, g_sorted, np.array([r0]))[0]
+    Pl = [eval_legendre(int(l_values[i]), cg) if l_values[i] > 0 else 1.0 for i in range(len(l_values))]
+    ang = np.zeros(u.shape[0])
+    for occ_s in (np.asarray(occ_up, float), np.asarray(occ_dn, float)):
+        rho1 = np.zeros(rp.shape)
+        for i in range(len(occ_s)):
+            rho1 = rho1 + occ_s[i] * g_r0[i] * g_rp[:, :, i] * Pl[i]
+        rho1 = rho1 / (4.0 * np.pi)
+        ang = ang + 0.5 * np.sum(wm[None, :] * rho1 ** 2, axis=1)
+    rho0 = float(np.sum((np.asarray(occ_up, float) + np.asarray(occ_dn, float)) * g_r0 ** 2) / (4.0 * np.pi))
+    return -ang / max(rho0, 1e-30)
+
+
+def exact_eps_x_l_spin(r0, r_sorted, g_sorted, occ_up, occ_dn, l_values, n_u=128, n_mu=80, u_max=None):
+    """Exact eps_x(r0) = 1/2 * 4pi int_0^umax n_x(r0,u) u du via the spin-resolved hole."""
+    u_max = (r_sorted[-1] - 1e-6) if u_max is None else u_max
+    xu, wu = leggauss(n_u); u = 0.5 * u_max * (xu + 1.0); wq = 0.5 * u_max * wu
+    nx = exchange_hole_spin(r0, u, r_sorted, g_sorted, occ_up, occ_dn, l_values, n_mu=n_mu)
+    return 0.5 * 4.0 * np.pi * float(np.sum(wq * nx * u))
+
+
 def exchange_hole(r0, u, r_sorted, g_sorted, occ, l_values, n_mu=80):
     """Spherically-averaged exact exchange hole n_x(r0, u) for *general* l, via the
     spherical-harmonic addition theorem.
