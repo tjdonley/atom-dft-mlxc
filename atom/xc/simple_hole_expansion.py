@@ -299,16 +299,19 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
     def _calibrate_l1_to_LO(self):
         """Solve the l=1 RBF width so the realized F_x peaks at the Lieb-Oxford ceiling _LO_FX.
         c_G is re-solved for each trial width (in _build_fp_nodes), so the 10/81 small-s slope is
-        held exact; only the width -- the otherwise-undetermined length scale -- is set here."""
+        held exact; only the width -- the otherwise-undetermined length scale -- is set here.
+        The width is a property of the LDA+GEA BACKBONE's LO-compliance, so it is calibrated with
+        reference nodes EXCLUDED (they are localized corrections that must not move the LO width);
+        the final node build then re-includes the references at the fixed width."""
         s = np.linspace(0.0, 30.0, 6000)
 
         def peak_minus_LO(l1):
             self._fp_l1 = float(l1)
-            self._build_fp_nodes()
+            self._build_fp_nodes(include_refs=False)
             return float(self._fx_gea_axis(s).max()) - _LO_FX
 
         self._fp_l1 = brentq(peak_minus_LO, 1.0, 60.0, xtol=1e-6)
-        self._build_fp_nodes()
+        self._build_fp_nodes(include_refs=True)
 
     def _heg_mm(self, rho0, R_ad):
         """Moment-matched exact-LDA HEG hole on the n_out basis (N, n_out): pin the three low-order
@@ -337,10 +340,10 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         d1 = (Xa[:, None, nl0] - Xb[None, :, nl0]) ** 2 / self._fp_l1 ** 2
         return np.exp(-0.5 * (d0 + d1))
 
-    def _build_fp_nodes(self):
+    def _build_fp_nodes(self, include_refs=True):
         x_heg = self._xfeat(self._cnH[None, :], np.array([0.0]))          # HEG node (LDA, Delta=0)
         x_gea = self._xfeat(self._cnH[None, :], np.array([self._fp_DG]))  # GEA node (l=1 axis)
-        if os.path.exists(_KERNEL_FP_REFS):
+        if include_refs and os.path.exists(_KERNEL_FP_REFS):
             z = np.load(_KERNEL_FP_REFS); Xb = z["X"]; Db = z["DELTA"]
         else:
             Xb = np.zeros((0, self._n_out)); Db = np.zeros((0, self._n_out))

@@ -64,12 +64,25 @@ def kernel_dist(Xa, Xb, l0, l1):
     return np.sqrt(np.maximum(1.0 - kmat(Xa, Xb, l0, l1), 0.0))
 
 
-def leakage_filter(refs, cutoff=0.10, mode="max"):
-    """Return (keep_mask[Npts], kept_global_idx[M]). A point is kept iff its leakage <= cutoff."""
+def uncapping_density(refs):
+    """Density below which R_ad = X/k_F hits the R_c cap: rho_uncap = (X/R_c)^3 / (3 pi^2).
+    Below it the scale-free identity R_ad^3 rho = const breaks, so sigma = hole/(-rho/2) is no
+    longer density-consistent and a reference's DELTA is not transferable across the kernel."""
+    X = float(refs["X_window"]); Rc = float(refs["R_c"])
+    return (X / Rc) ** 3 / (3.0 * np.pi ** 2)
+
+
+def valid_filter(refs, cutoff=0.10, mode="max", rho_floor=None):
+    """Return (keep_mask[Npts], kept_global_idx[M]). A reference is VALID for the kernel iff
+       (i) leakage <= cutoff (hole captured in the window, not moment-match artifact), AND
+       (ii) rho >= rho_floor so R_ad is uncapped and sigma = hole/(-rho/2) is scale-free.
+    rho_floor=None uses the uncapping density (~0.08 at X=8, R_c=6)."""
     lq = np.abs(refs["leakQ"]); le = np.abs(refs["leakE"])
     leak = {"max": np.maximum(lq, le), "leakQ": lq, "leakE": le}[mode]
-    keep = leak <= cutoff
-    return keep, np.where(keep)[0]
+    if rho_floor is None:
+        rho_floor = uncapping_density(refs)
+    keep = (leak <= cutoff) & (refs["rho"] >= rho_floor)
+    return keep, np.where(keep)[0], rho_floor
 
 
 def seed_index(Xk, l0, l1, heg_feat):
@@ -106,6 +119,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--leakage-cutoff", type=float, default=0.10)
     ap.add_argument("--mode", choices=["max", "leakQ", "leakE"], default="max")
+    ap.add_argument("--rho-floor", type=float, default=None,
+                    help="min density (default: uncapping density ~0.08 where R_ad uncaps)")
     ap.add_argument("--l0", type=float, default=None, help="l=0 RBF width (default: kernel _fp_l0)")
     ap.add_argument("--l1", type=float, default=None, help="l=1/s^2 RBF width (default: LO-calibrated _fp_l1)")
     ap.add_argument("--plot", action="store_true")
@@ -121,7 +136,7 @@ def main():
     l1 = args.l1 if args.l1 is not None else float(K._fp_l1)
     heg_feat = np.concatenate([K._cnH[1:], [0.0]])     # HEG node [cnH[1:], s^2=0]
 
-    keep, kept = leakage_filter(refs, args.leakage_cutoff, args.mode)
+    keep, kept, rho_floor = valid_filter(refs, args.leakage_cutoff, args.mode, args.rho_floor)
     M = len(kept)
     Xk = to_kernel_feat(X[kept])
     D = kernel_dist(Xk, Xk, l0, l1)
@@ -133,8 +148,9 @@ def main():
     sizes = [k for k in SIZES if k < M] + [M]
     fill, sep = coverage(D, perm, sizes)
 
-    print(f"refs: {Npts} pts; leakage {args.mode}<= {args.leakage_cutoff:.0%} -> {M} kept "
-          f"(dropped {Npts - M}).  metric l0={l0:.4f} l1={l1:.4f} (s^2 bounded to [0,{_INV_BOUND:.0f}))")
+    print(f"refs: {Npts} pts; leakage {args.mode}<= {args.leakage_cutoff:.0%} AND rho >= "
+          f"{rho_floor:.4f} (uncapped) -> {M} kept (dropped {Npts - M}).  "
+          f"metric l0={l0:.4f} l1={l1:.4f} (s^2 bounded to [0,{_INV_BOUND:.0f}))")
     print(f"seed = global idx {seed_global} (Z={int(Z[seed_global])} {nm(int(Z[seed_global]))}, "
           f"nearest HEG node)\n")
     print(f"{'size':>6} {'fill_dist':>10} {'min_sep':>9}  per-atom counts")
@@ -146,7 +162,7 @@ def main():
     np.savez(os.path.abspath(OUT),
              order=order, sizes=np.array(sizes, dtype=int), keep_mask=keep,
              seed=seed_global, leakage_cutoff=float(args.leakage_cutoff),
-             leakage_mode=args.mode, fp_l0=l0, fp_l1=l1, fill_dist=fill)
+             leakage_mode=args.mode, rho_floor=float(rho_floor), fp_l0=l0, fp_l1=l1, fill_dist=fill)
     print(f"\nwrote {os.path.abspath(OUT)}: FPS ordering over {M} kept refs, "
           f"nested sizes {sizes}")
 
