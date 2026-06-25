@@ -113,6 +113,7 @@ VALID_XC_FUNCTIONAL_LIST = [
     'SIMPLE_HOLE_EXPANSION', # direct expansion of the hole in the SIMPLE monopole basis
     'SIMPLE_HOLE_EXPANSION_GGA', # direct-expansion hole + second-order gradient correction
     'SIMPLE_HOLE_EXPANSION_KERNEL', # kernel/fixed-point hole map (LDA-from-GEA + FA)
+    'SIMPLE_HOLE_KERNEL_FP', # clean kernel-mapped fixed-point hole (LDA + kernel-GEA + FA + refs)
     'SCAN'   , # SCAN functional, meta-GGA
     'RSCAN'  , # RSCAN functional, meta-GGA
     'R2SCAN' , # R2SCAN functional, meta-GGA

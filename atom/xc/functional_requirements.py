@@ -143,6 +143,13 @@ _FUNCTIONAL_REQUIREMENTS: Dict[str, FunctionalRequirements] = {
         functional_type='GGA'
     ),
 
+    # SIMPLE-HOLE-KERNEL-FP: clean kernel-mapped fixed-point hole (LDA + kernel-GEA + FA + refs).
+    'SIMPLE_HOLE_KERNEL_FP': FunctionalRequirements(
+        needs_gradient=False,
+        needs_tau=False,
+        functional_type='GGA'
+    ),
+
     # Hybrid GGA functionals
     'PBE0': FunctionalRequirements(
         needs_gradient=True,

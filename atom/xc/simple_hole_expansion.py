@@ -557,3 +557,100 @@ class SIMPLE_HOLE_EXPANSION_KERNEL(SIMPLE_HOLE_EXPANSION):
 
     def _default_params(self) -> SIMPLEHOLEEXPKERNELParameters:
         return SIMPLEHOLEEXPKERNELParameters()
+
+
+# optional bulk reference holes for the clean kernel-FP functional (absent -> reference-free)
+_KERNEL_FP_REFS = os.path.join(os.path.dirname(__file__), "data", "kernel_fp_refs.npz")
+
+
+@dataclass
+class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
+    functional_name: str = "SIMPLE_HOLE_KERNEL_FP"
+    # Clean kernel-mapped fixed-point hole: interpolate the scale-free hole SHAPE deviation; LDA
+    # exact (HEG node), GEA2 from the kernel's l=1 slope via a calibrated GEA node (no additive
+    # GEA term, no enhancement factor), FA via the charge gate; optional bulk reference holes.
+
+
+class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION_KERNEL):
+    """Clean kernel-mapped fixed-point exchange hole (writeup App.~\\ref{app:kernel}).
+
+    The scale-free hole SHAPE deviation sigma - sigma_LDA is interpolated over fixed points by an
+    RBF on per-l SIMPLE distances [l=0: the monopole power-spectrum vector cn[1:]; l=1: s^2], with
+    sigma_LDA the background. The HEG node pins LDA exact at s^2=0; a single GEA node (the j1
+    deformation delta_GEA along the l=1 axis) has its amplitude calibrated so the kernel's l=1 slope
+    reproduces the GEA2 limit F_x-1=(10/81)s^2 exactly -- NO additive GEA term, NO enhancement
+    factor; parity is automatic (coordinate s^2) and the 4th-order GEA is dropped. Optional bulk
+    reference holes (W_FA-gated to genuine bulk content) shape the strongly-inhomogeneous interior.
+    Energy is the direct hole integral 2 pi R_ad^2 (rhotilde . beta1); FA blends in at low charge.
+    compute_xc (the exact FD discrete adjoint) is inherited and differentiates through the kernel."""
+
+    def __init__(self, derivative_matrix=None, r_quad=None, quadrature_weights=None,
+                 params: Optional[XCParameters] = None):
+        super().__init__(derivative_matrix=derivative_matrix, r_quad=r_quad,
+                         quadrature_weights=quadrature_weights, params=params)
+        self._fp_l0, self._fp_l1, self._fp_DG, self._fp_ridge = 0.5, 0.5, 0.3, 1e-8
+        A = self._X ** 2 / (3.0 * np.pi ** 2) ** (2.0 / 3.0)
+        self._fp_kappa = np.pi * A / abs(_C_LDA)                  # F_x-1 = kappa (delta_sigma . beta1)
+        self._fp_dgb = float(self._dgea @ self._beta1)
+        rho1 = np.array([1.0]); Rad1, _ = self._R_ad(rho1)
+        self._sigma_lda = (self._heg_mm(rho1, Rad1) / (-0.5 * rho1[:, None]))[0]   # const scale-free LDA shape
+        rhou = np.full(self._r_grid.shape, 1.0)                  # HEG monopole signature cn_HEG
+        Cu = np.array([op @ rhou for op in self._ops]); Ru, _ = self._R_ad(rhou)
+        cau = self._c_ad(Cu, Ru); cnu = cau / np.where(np.abs(cau[:, :1]) > 1e-30, cau[:, :1], 1e-30)
+        self._cnH = cnu[len(cnu) // 2]
+        self._build_fp_nodes()
+
+    def _xfeat(self, cn, s2):
+        cn = np.atleast_2d(np.asarray(cn, float)); s2 = np.atleast_1d(np.asarray(s2, float))
+        return np.column_stack([cn[:, 1:], s2])                  # [l=0 power vector cn[1:], l=1 s^2]
+
+    def _Kmat(self, Xa, Xb):
+        nl0 = self._n_out - 1
+        d0 = np.sum((Xa[:, None, :nl0] - Xb[None, :, :nl0]) ** 2, axis=2) / self._fp_l0 ** 2
+        d1 = (Xa[:, None, nl0] - Xb[None, :, nl0]) ** 2 / self._fp_l1 ** 2
+        return np.exp(-0.5 * (d0 + d1))
+
+    def _build_fp_nodes(self):
+        x_heg = self._xfeat(self._cnH[None, :], np.array([0.0]))         # HEG node (LDA, Delta=0)
+        x_gea = self._xfeat(self._cnH[None, :], np.array([self._fp_DG]))  # GEA node (l=1 axis)
+        if os.path.exists(_KERNEL_FP_REFS):
+            z = np.load(_KERNEL_FP_REFS); Xb = z["X"]; Db = z["DELTA"]
+        else:
+            Xb = np.zeros((0, self._n_out)); Db = np.zeros((0, self._n_out))
+        Xnodes = np.vstack([x_heg, x_gea, Xb])
+        mu = np.concatenate([[0.0, 0.0], Db @ self._beta1])             # node energy-moments (GEA via c_G)
+        K = self._Kmat(Xnodes, Xnodes) + self._fp_ridge * np.eye(len(Xnodes))
+        Kinv = np.linalg.solve(K, np.eye(len(K)))
+        nl0 = self._n_out - 1
+        dK1 = self._Kmat(x_heg, Xnodes)[0] * Xnodes[:, nl0] / self._fp_l1 ** 2   # dK/d(s^2) at HEG
+        row = self._fp_kappa * (dK1 @ Kinv)                             # a1 = row . mu (linear in c_G)
+        c_G = (_GEA2 - float(row @ mu)) / float(row[1] * self._fp_dgb)   # solve l=1 slope = 10/81
+        Delta = np.vstack([np.zeros(self._n_out), c_G * self._dgea, Db])
+        self._fp_Xnodes = Xnodes; self._fp_coef = np.linalg.solve(K, Delta); self._fp_cG = c_G
+
+    def _kernel_eps(self, C, rho0, g):
+        rho0 = np.maximum(np.asarray(rho0, float), 1e-12)
+        R_ad, _ = self._R_ad(rho0)
+        c_ad = self._c_ad(C, R_ad)
+        d = c_ad / (4.0 * np.pi * R_ad ** 1.5)[:, None]
+        Q = 4.0 * np.pi * R_ad ** 3 * (d @ self._alpha1); Qs = np.maximum(Q, 1e-12)
+        W = enclosed_charge_switch(0.5 * Q)
+        kF = (3.0 * np.pi ** 2 * rho0) ** (1.0 / 3.0)
+        s2, _ = _bound((g / (2.0 * kF * rho0)) ** 2)
+        cn = c_ad / np.where(np.abs(c_ad[:, :1]) > 1e-30, c_ad[:, :1], 1e-30)
+        sig = self._sigma_lda[None, :] + self._Kmat(self._xfeat(cn, s2), self._fp_Xnodes) @ self._fp_coef
+        bulk = (-0.5 * rho0)[:, None] * sig
+        fa = -d / Qs[:, None]
+        coeffs = (1.0 - W)[:, None] * bulk + W[:, None] * fa
+        ontop = (1.0 - W) * (-0.5 * rho0) + W * (-rho0 / Qs)
+        al, r0v, be = self._alpha1, self._r1_0, self._beta1
+        a_row = 4.0 * np.pi * (R_ad ** 3)[:, None] * al[None, :]
+        row0 = np.sum(a_row * coeffs, axis=1); row1 = coeffs @ r0v
+        g00 = np.sum(a_row * a_row, axis=1); g01 = a_row @ r0v; g11 = float(r0v @ r0v)
+        res0 = -1.0 - row0; res1 = ontop - row1; det = g00 * g11 - g01 ** 2
+        lam0 = (g11 * res0 - g01 * res1) / det; lam1 = (-g01 * res0 + g00 * res1) / det
+        coeffs = coeffs + lam0[:, None] * a_row + lam1[:, None] * r0v[None, :]
+        return 2.0 * np.pi * R_ad ** 2 * (coeffs @ be)
+
+    def _default_params(self) -> SIMPLEHOLEKERNELFPParameters:
+        return SIMPLEHOLEKERNELFPParameters()
