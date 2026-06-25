@@ -12,6 +12,7 @@ committed in full (orbital files are small, ~90 KB each).
 | `baselines/` | `base_Z{NN}.npz` (same Z) | self-consistent PBE & rSCAN exchange | `Z, pbe_Ex, rscan_Ex, converged` |
 | `holes/` | `hole_refs.npz` | moment-matched exact-hole refs, 13 closed-shell atoms (He/Be/Ne/Mg/Ar/Ca/Zn/Kr/Sr/Cd/Xe/Ba/Hg) | per atom `<sym>_rt, _cn, _s, _Q, _Rad, _rho, _eps_sel, _rsel, _Ehf` |
 | `holes/` | `hole_refs_full.npz` | **full flat (atom×r0) table** for training-set selection: 14 exact atoms (the 13 + **Pd**), 60 pts each, 840 total | stacked `X, cn, rt` (Npts,n_out); `Z, r0, rho, Rad, Q, s, eps_win, eps_full, eps_mm, leakQ, leakE` (Npts,); `atom_{Z,sym,Ehf,Emm,offset,npts}`; `R_c, n_out, X_window` |
+| `holes/` | `training_sets.npz` | **nested FPS training sets**: leakage-filtered (≤10%, 682/840 kept) + farthest-point-sampled in the kernel metric. Prefixes of one ordering = increasing-density sets | `order` (M,) GLOBAL idx into `hole_refs_full`; `sizes` (S,) schedule [16…M]; `keep_mask` (840,); `seed, leakage_cutoff, leakage_mode, fp_l0, fp_l1`; `fill_dist` (S,) |
 | `regen/` | python scripts | regenerators (see below) | — |
 
 ### Conventions
@@ -41,6 +42,12 @@ committed in full (orbital files are small, ~90 KB each).
 - `build_refs_from_cache.py` — moment-matched hole refs from the cached HF orbitals → `hole_refs.npz`.
 - `build_refs_full.py` — full flat (atom×r0) exact-hole table with leakage → `hole_refs_full.npz`
   (REPO-relative paths; writes straight into `holes/`). Load via `loader.load_hole_refs_full()`.
+- `build_training_sets.py` — leakage-filter then farthest-point-sample the pool → `training_sets.npz`.
+  Distance is the functional's own kernel metric (`_Kmat`, s² bounded as in `_kernel_eps`) with
+  **tunable** length scales (`--l0`, `--l1`; default to the kernel's `_fp_l0=0.5` and LO-calibrated
+  `_fp_l1≈10.6` — reduce `--l1` to weight s² more, though FPS already spreads over bounded-s² well at
+  the default). `--leakage-cutoff`/`--mode`, optional `--plot`. Load via `loader.load_training_set(size)`;
+  any prefix of `order` is a valid nested set.
 
 These write to a scratchpad `refs/` by default; re-point the output paths to this `cache/refs/`
 to refresh in place.

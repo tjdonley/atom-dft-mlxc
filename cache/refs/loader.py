@@ -19,6 +19,7 @@ HF_DIR = os.path.join(_HERE, "hf")
 BASE_DIR = os.path.join(_HERE, "baselines")
 HOLES = os.path.join(_HERE, "holes", "hole_refs.npz")
 HOLES_FULL = os.path.join(_HERE, "holes", "hole_refs_full.npz")
+TRAINING_SETS = os.path.join(_HERE, "holes", "training_sets.npz")
 
 
 def available_hf():
@@ -91,3 +92,35 @@ def load_hole_refs_full():
         raise FileNotFoundError(f"{HOLES_FULL} not built; run cache/refs/regen/build_refs_full.py")
     d = np.load(HOLES_FULL, allow_pickle=True)
     return {k: d[k] for k in d.files}
+
+
+def load_training_set(size=None):
+    """Nested farthest-point training set (holes/training_sets.npz, built by
+    regen/build_training_sets.py): leakage-filtered + uniformly downsampled in the kernel metric.
+
+    Returns a dict:
+        idx   (size,) int  GLOBAL indices into load_hole_refs_full() for the requested set
+        order (M,)    int  full FPS ordering (idx == order[:size]); any prefix is a valid set
+        sizes (S,)    int  the nested schedule that was tabulated (e.g. 16,32,...,M)
+        seed              int   global index of the FPS seed (HEG-nearest point)
+        keep_mask (Npts,) bool  the leakage filter applied to the full pool
+        fill_dist (S,)    float coverage (max nearest-set kernel-distance) per schedule size
+        leakage_cutoff, leakage_mode, fp_l0, fp_l1   provenance of the build
+    `size=None` returns the full ordering. Use as:
+        full = load_hole_refs_full(); ts = load_training_set(64); Xtr = full['X'][ts['idx']]
+    """
+    if not os.path.exists(TRAINING_SETS):
+        raise FileNotFoundError(
+            f"{TRAINING_SETS} not built; run cache/refs/regen/build_training_sets.py")
+    d = np.load(TRAINING_SETS, allow_pickle=True)
+    out = {k: d[k] for k in d.files}
+    order = out["order"]; M = len(order)
+    if size is None:
+        out["idx"] = order
+    else:
+        if size > M:
+            import warnings
+            warnings.warn(f"requested size {size} > pool {M}; clamping to {M}")
+            size = M
+        out["idx"] = order[:int(size)]
+    return out
