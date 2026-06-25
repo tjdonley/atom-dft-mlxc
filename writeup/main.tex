@@ -378,11 +378,14 @@ F_x\;\xrightarrow[\,s\to0\,]{}\;1+\tfrac{10}{81}\,s^2 ,
 \end{equation}
 with no separate gradient term and no fitted number; parity ($F_x$ even in $\nabla\rho$) is
 automatic because the kernel coordinate is $s^2$, and the fourth-order term is left unconstrained
-(App.~\ref{app:kernel}). Because the kernel interpolates a deviation that decays away from its
-nodes, the enhancement is a \emph{bounded deformation about} LDA (Fig.~\ref{fig:fx}): it follows the
-gradient expansion where the density is slowly varying and relaxes back toward LDA elsewhere, never
-approaching the Lieb--Oxford ceiling $F_x\le1.804$ (C7)~\cite{Lieb_1981,Perdew_1996}. Reference-free
-this leaves the functional close to LDA on atoms; strongly inhomogeneous (open-shell) atoms are
+(App.~\ref{app:kernel}). Fixing the slope leaves a single open length scale --- the width of the
+$\ell=1$ kernel node --- which we pin by the Lieb--Oxford bound (C7)~\cite{Lieb_1981,Perdew_1996}:
+the width is chosen so the realized slowly-varying enhancement peaks exactly at the ceiling
+$F_x=1.804$ (Fig.~\ref{fig:fx}), with the node amplitude re-solved to hold the $10/81$ slope. Along
+the $\ell=0$ (power-spectrum) axis the kernel still interpolates a deviation that decays away from
+the HEG signature, so on real atoms --- whose local power spectra depart from the homogeneous gas ---
+the enhancement remains a \emph{bounded deformation about} LDA. Reference-free this leaves the
+functional close to LDA on atoms; strongly inhomogeneous (open-shell) atoms are
 improved by adding exact atomic holes as further kernel fixed points, each carrying only the
 deviation beyond LDA and vanishing far from its reference, so the LDA, Fermi--Amaldi, and gradient
 limits are untouched (App.~\ref{app:kernel}).
@@ -393,12 +396,12 @@ limits are untouched (App.~\ref{app:kernel}).
 \caption{Exchange enhancement factor of the scale-free SIMPLE kernel hole (solid, the realized
 re-summed enhancement $F_x=\varepsilon_x/\varepsilon_x^{\mathrm{unif}}$ on the homogeneous gas at the
 adaptive window). The single $\ell=1$ kernel node sets the small-$s$ slope to the exact second-order
-value $\mu=10/81$ [Eq.~\eqref{eq:fx}]. Because the kernel interpolates a deviation that decays away
-from its nodes, the enhancement is a bounded deformation about LDA: it tracks the gradient expansion
-at small $s$ and relaxes back toward LDA at large $s$ --- in contrast to the raw pointwise GEA (grey
-dashed), which diverges, and PBE~\cite{Perdew_1996} (black), which keeps rising --- and stays far
-below the Lieb--Oxford ceiling $F_x\le1.804$ (dotted). The on-top value is preserved for any
-amplitude, so the Fermi--Amaldi limit is untouched.}
+value $\mu=10/81$ [Eq.~\eqref{eq:fx}]. The $\ell=1$ node width is pinned by the Lieb--Oxford bound:
+the enhancement rises to touch the ceiling $F_x=1.804$ (dotted) exactly once, at its peak
+($s\approx3.3$, marker), then relaxes back toward LDA --- in contrast to the raw pointwise GEA (grey
+dashed), which diverges, and PBE~\cite{Perdew_1996} (black), which saturates monotonically. The
+on-top value is preserved for any amplitude, so the Fermi--Amaldi limit is untouched. On real atoms
+the $\ell=0$ power-spectrum gate keeps the realized enhancement near LDA (App.~\ref{app:kernel}).}
 \label{fig:fx}
 \end{figure}
 
@@ -421,7 +424,8 @@ $E_x[\rho_\uparrow,\rho_\downarrow]=\tfrac12(E_x[2\rho_\uparrow]+E_x[2\rho_\down
 spin-paired functional follows from the total-density expressions with the on-top count of $2$, and
 the open-shell case from applying the spin-scaling relation to each channel (App.~\ref{app:spin}).
 Constraints (C1)--(C6) are thus satisfied by construction rather than by fitting, and the
-Lieb--Oxford bound (C7) is respected (Fig.~\ref{fig:fx}); those requiring
+Lieb--Oxford bound (C7) supplies the last free number --- the $\ell=1$ kernel width is fixed so
+$F_x$ touches the ceiling $1.804$ at its peak (Fig.~\ref{fig:fx}); those requiring
 the kinetic-energy density --- the single-orbital Lieb--Oxford bound $F_x(s,\alpha{=}0)\le1.174$ and
 one-electron self-correlation freedom --- lie outside this orbital-free, exchange-only construction.
 The hole is spherically symmetric and uses no multipoles beyond the monopole; carrying explicit
@@ -622,8 +626,9 @@ Being spherically symmetric, the functional uses only the $N_C=20$ monopole chan
 (plus the fixed $\ell=1$ gradient operator), so a self-consistent step costs $2N_C$
 convolutions --- the forward monopole coefficients $\{\varrho_{n00}\}$ and the adjoint potential
 [Eq.~\eqref{eq:adjoint}] --- on a single cutoff $\Rc=6$~bohr. The map carries no fitted
-parameters: the kernel is anchored at the homogeneous-gas node (LDA) and its single
-$\ell=1$ node amplitude is fixed by the gradient expansion [Eq.~\eqref{eq:fx}]. We
+parameters: the kernel is anchored at the homogeneous-gas node (LDA), its single
+$\ell=1$ node amplitude is fixed by the gradient expansion [Eq.~\eqref{eq:fx}], and that
+node's width by the Lieb--Oxford bound (C7). We
 report the construction in three stages: its exact limits and stability, the
 reference-free baseline, and the route to atomic binding.
 

@@ -53,11 +53,13 @@ def main():
         dsig = F._Kmat(x, F._fp_Xnodes) @ F._fp_coef          # (len, n_out)
         return 1.0 + F._fp_kappa * (dsig @ F._Cmom)
 
-    s = np.linspace(0.0, 3.0, 200)
+    s = np.linspace(0.0, 5.0, 400)
     Fvals = Fx_curve(s)
     sm = (s > 1e-6) & (s < 0.2)
     slope = np.polyfit(s[sm] ** 2, Fvals[sm] - 1.0, 1)[0]
+    ipk = int(np.argmax(Fvals))
     print(f"realized small-s slope dF/d(s^2) = {slope:+.5f}  (exact 10/81 = {A:.5f})")
+    print(f"realized peak F_x = {Fvals[ipk]:.4f} at s = {s[ipk]:.3f}  (LO ceiling {LO_FX})")
 
     fig, ax = plt.subplots(figsize=(3.4, 2.7))
     # raw pointwise GEA (diverges) and PBE
@@ -66,11 +68,12 @@ def main():
     # SIMPLE scale-free kernel hole: realized enhancement (GEA2 slope from the l=1 node)
     ax.plot(s, Fvals, color="crimson", lw=1.8, label=r"SIMPLE hole (kernel)")
     ax.axhline(LO_FX, color="0.4", lw=0.9, ls=":", zorder=0)
-    ax.text(0.05, LO_FX + 0.02, "Lieb-Oxford", fontsize=6, color="0.4")
+    ax.text(0.05, LO_FX + 0.03, "Lieb-Oxford", fontsize=6, color="0.4")
+    ax.plot([s[ipk]], [Fvals[ipk]], "o", color="crimson", ms=3.5, zorder=5)  # LO-tangent peak
     ax.axhline(1.0, color="0.8", lw=0.8, zorder=0)        # LDA
     ax.set_xlabel(r"reduced gradient $s$")
     ax.set_ylabel(r"exchange enhancement $F_x$")
-    ax.set_xlim(0, 3); ax.set_ylim(0.9, 2.3)
+    ax.set_xlim(0, 5); ax.set_ylim(0.9, 2.3)
     ax.legend(fontsize=6.0, loc="upper left", frameon=False, ncol=1, handlelength=1.8)
     fig.tight_layout(pad=0.3)
     out = _REPO / "writeup" / "figures" / "fx_enhancement.pdf"

@@ -53,11 +53,13 @@ coordinates (`ℓ=1` ≡ `s²`). There is **no explicit gradient term and no enh
 | LDA limit (C4) | `simple_hole_expansion_explicit.py:heg_anchor` (moment-matched HEG hole) | `_heg_mm` — anchors the kernel at the HEG node so `F_x=1` exactly at finite basis |
 | Fermi–Amaldi (C5) | `map_coeffs` (`-C/Q`), `enclosed_charge_switch` | `W_FA` charge gate blends the density-following hole |
 | GEA2 (C6) `F_x→1+(10/81)s²` | — | `_build_fp_nodes` fixes the `ℓ=1` node amplitude `c_G` so the slope is exact (no GEA term) |
+| Lieb–Oxford (C7) `F_x≤1.804` | — | `_calibrate_l1_to_LO` (in `__init__`) solves the `ℓ=1` RBF width `_fp_l1≈10.585` so the idealized `F_x` peaks at `1.804`; `c_G` re-solved to hold the `10/81` slope. The last free length scale, pinned by LO |
 | exact-hole references | `xc/orbital_hole.py` (exact atomic holes → kernel fixed points) | `_build_fp_nodes` adds them as further nodes; each carries only the deviation beyond LDA |
 | (adjoint) | — | `compute_xc` (discrete adjoint through C/ρ/gradient channels; `gauge_fix=False` = pure adjoint) |
 
 `tests/simple/test_simple_hole_expansion.py` (PHASE FP) asserts the uniform→LDA limit
-(`F_x=1`), the GEA2 slope `10/81` from the `ℓ=1` kernel node, the discrete adjoint == FD of
+(`F_x=1`), the GEA2 slope `10/81` from the `ℓ=1` kernel node, the LO-pinned `ℓ=1` width
+(`test_FP_l1_pinned_to_lieb_oxford`: peak `F_x=1.804`, slope held), the discrete adjoint == FD of
 the direct-integral energy, and SCF convergence (reference-free reduces to LDA+FA). The base
 machinery (`SIMPLE_HOLE_EXPANSION`, `SIMPLE_HOLE`) is covered by PHASE A–D.
 

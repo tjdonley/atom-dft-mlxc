@@ -40,6 +40,7 @@ from typing import Optional
 
 import numpy as np
 
+from scipy.optimize import brentq
 from scipy.special import spherical_jn
 
 from ..descriptors.simple.bessel import RadialBesselBasis
@@ -52,6 +53,7 @@ from .simple_hole_expansion_explicit import enclosed_charge_switch
 
 _SIX2_3 = (3.0 * np.pi ** 2) ** (2.0 / 3.0)
 _GEA2 = 10.0 / 81.0   # second-order gradient-expansion coefficient F_x -> 1 + (10/81) s^2
+_LO_FX = 1.804        # Lieb-Oxford ceiling on the spin-unpolarized exchange enhancement F_x
 _X_WINDOW = 8.0       # dimensionless hole window X = k_F R_ad (the implicit scale lock)
 _INV_BOUND = 4.0      # smooth saturation scale for the reduced gradient (tail safety)
 
@@ -269,6 +271,10 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         kF1 = (3.0 * np.pi ** 2) ** (1.0 / 3.0); Rad1 = min(self._X / kF1, self.params.r_c)
         self._gea_R = 2.0 * np.pi * Rad1 ** 2 * (-(self._dgea @ self._Cmom)) / _C_LDA
         # --- fixed-point kernel: HEG node + calibrated GEA node + optional bulk references ---
+        # _fp_l1 (the l=1/s^2 RBF width) is NOT free: it is the one length scale the local
+        # constraints leave open after c_G fixes the 10/81 slope. We pin it by the Lieb-Oxford
+        # ceiling -- _calibrate_l1_to_LO() solves for the width whose realized F_x peaks at _LO_FX
+        # (analogous to PBE setting kappa=0.804 so F_x saturates at 1.804).
         self._fp_l0, self._fp_l1, self._fp_DG, self._fp_ridge = 0.5, 0.5, 0.3, 1e-8
         A = self._X ** 2 / (3.0 * np.pi ** 2) ** (2.0 / 3.0)
         self._fp_kappa = np.pi * A / abs(_C_LDA)              # F_x-1 = kappa (delta_rhotilde . C)
@@ -279,6 +285,29 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         Cu = np.array([op @ rhou for op in self._ops]); Ru, _ = self._R_ad(rhou)
         cau = self._c_ad(Cu, Ru); cnu = cau / np.where(np.abs(cau[:, :1]) > 1e-30, cau[:, :1], 1e-30)
         self._cnH = cnu[len(cnu) // 2]
+        self._build_fp_nodes()
+        self._calibrate_l1_to_LO()
+
+    def _fx_gea_axis(self, svals):
+        """Realized enhancement F_x(s) on the pure-GEA feature axis (l=0 = HEG signature, l=1 = s^2);
+        F_x - 1 = kappa (delta_sigma . C). Used to pin _fp_l1 and for the writeup figure."""
+        svals = np.atleast_1d(np.asarray(svals, float))
+        cn = np.tile(self._cnH, (len(svals), 1))
+        x = self._xfeat(cn, svals ** 2)
+        return 1.0 + self._fp_kappa * ((self._Kmat(x, self._fp_Xnodes) @ self._fp_coef) @ self._Cmom)
+
+    def _calibrate_l1_to_LO(self):
+        """Solve the l=1 RBF width so the realized F_x peaks at the Lieb-Oxford ceiling _LO_FX.
+        c_G is re-solved for each trial width (in _build_fp_nodes), so the 10/81 small-s slope is
+        held exact; only the width -- the otherwise-undetermined length scale -- is set here."""
+        s = np.linspace(0.0, 30.0, 6000)
+
+        def peak_minus_LO(l1):
+            self._fp_l1 = float(l1)
+            self._build_fp_nodes()
+            return float(self._fx_gea_axis(s).max()) - _LO_FX
+
+        self._fp_l1 = brentq(peak_minus_LO, 1.0, 60.0, xtol=1e-6)
         self._build_fp_nodes()
 
     def _heg_mm(self, rho0, R_ad):
