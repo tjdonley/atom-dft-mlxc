@@ -377,6 +377,64 @@ can supply them. The natural extension is an explicit multipole hole
 $n_x(r_0,\uu)=\sum_\ell n_x^{(\ell)}(r_0,u)P_\ell(\rhat\!\cdot\!\hat r_0)$ using the
 $\ell\ge1$ SIMPLE projections as genuine hole channels.
 
+\section{Kernel-mapped fixed-point hole: the GEA limit from the kernel}
+\label{app:kernel}
+
+A more general route than the single-amplitude deformation keeps the \emph{direct} hole expansion
+$\tilde n(u)=\sum_n\tilde\varrho_n R^{(1)}_n(u/\Rad)$ and produces its coefficients by a kernel
+interpolation over reference holes, with the gradient limit emerging from the kernel itself rather
+than an added term.
+
+\paragraph*{The energy is a single moment.} The $1/u$ weight collapses the energy \emph{exactly}
+onto the Coulomb moments $\beta_{1,n}=\int_0^1 R^{(1)}_n(t)\,t\,dt$:
+$\varepsilon_x=2\pi\Rad^2(\tilde\varrho\!\cdot\!\beta_1)$. Only the $\beta_1$-projection of
+$\tilde\varrho$ reaches the energy; orthogonal components carry hole shape only. With the scale-free
+shape $\sigma=\tilde\varrho/(-\rho_0/2)$ and the scale-free identity
+$\Rad^2\rho_0^{2/3}=X^2/(3\pi^2)^{2/3}$, the enhancement is a \emph{linear functional of one moment}
+of the deviation $\delta\sigma=\sigma-\sigma_{\rm LDA}$,
+\begin{equation}
+F_x-1=\kappa\,(\delta\sigma\!\cdot\!\beta_1),\qquad
+\kappa=\frac{\pi X^2}{(3\pi^2)^{2/3}\,|C_{\rm LDA}|}.
+\label{eq:Fk}
+\end{equation}
+
+\paragraph*{Kernel $\to$ moment.} Let $\delta\sigma(x)=\sum_k\mathcal K(x,x_k)\,c_k$,
+$c=\mathbf K^{-1}\Delta$, be a general kernel interpolant over fixed points $\{x_k\}$ at per-$\ell$
+\emph{squared} distances $x=(D_0,D_1,D_2)$, $D_1=s^2$, with node deviations $\Delta_k$. Projecting on
+$\beta_1$ collapses the vector interpolation to a \emph{scalar} interpolation of the node moments
+$\mu_k=\Delta_k\!\cdot\!\beta_1$: $\;\delta\sigma(x)\!\cdot\!\beta_1=\sum_k\mathcal K(x,x_k)\,m_k$ with
+$m=\mathbf K^{-1}\mu$. A HEG node at $x=0$, $\mu=0$, pins $F_x(0)=1$ (LDA exact); because $\mathcal K$
+is smooth in $D_1=s^2$, $F_x-1$ is analytic in $s^2$, hence even in $\nabla\rho$ --- parity is
+automatic, with no spurious linear-in-gradient term.
+
+\paragraph*{GEA2 from the kernel slope.} The second-order limit is the $\ell=1$ slope at the
+origin, a single linear condition on the node moments,
+\begin{equation}
+\left.\frac{\partial(F_x-1)}{\partial D_1}\right|_{x=0}
+=\kappa\sum_k\partial_{D_1}\mathcal K(0,x_k)\,m_k\stackrel{!}{=}\frac{10}{81}.
+\label{eq:gea-kernel}
+\end{equation}
+For a Gaussian RBF $\mathcal K=e^{-\|x-x_k\|^2/2\ell^2}$ one has
+$\partial_{D_1}\mathcal K(0,x_k)=e^{-\|x_k\|^2/2\ell^2}\,D_1^k/\ell^2$; with the minimal HEG$+$GEA
+node pair ($x_G=(0,D_G,0)$, $\Delta_G=c_G\,\delta_{\rm GEA}$) and the one-time response identity
+$\kappa\,(\delta_{\rm GEA}\!\cdot\!\beta_1)=R/2$, Eq.~\eqref{eq:gea-kernel} reduces to
+\begin{equation}
+\frac{c_G\,D_G\,\phi_G}{\ell^2(1-\phi_G^2)}=\frac{20}{81R},\qquad \phi_G=e^{-D_G^2/2\ell^2},
+\label{eq:cG}
+\end{equation}
+fixing the GEA-node amplitude $c_G$. With bulk reference nodes present, the same scalar condition
+\eqref{eq:gea-kernel} --- linear in $c_G$ --- is solved over the full node set, so the slope is hit
+exactly regardless of the references.
+
+\paragraph*{Why bulk references do not spoil the limit.} GEA2 is a statement only of the
+slowly-varying limit, where every SIMPLE distance is small. A reference atom is \emph{strongly}
+inhomogeneous, at finite $\|x_k\|$: it shifts the leading coefficient in \eqref{eq:gea-kernel} by a
+constant that is absorbed in the calibration of $c_G$, while its uncontrolled effect is pushed to
+$O(s^4)$ --- exactly the fourth-order GEA that is dropped. Along a slowly-varying ramp the monopole
+distance is higher order, $D_0\ll D_1=s^2$, so $(F_x-1)/s^2\to 10/81$. The HEG node keeps LDA exact;
+references far in feature space leave both limits untouched ($\delta\sigma\to0$) and shape only the
+strongly inhomogeneous interior.
+
 \section{Spin conventions}
 \label{app:spin}
 
