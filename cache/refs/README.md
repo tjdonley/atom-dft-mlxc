@@ -13,6 +13,7 @@ committed in full (orbital files are small, ~90 KB each).
 | `holes/` | `hole_refs.npz` | moment-matched exact-hole refs, 13 closed-shell atoms (He/Be/Ne/Mg/Ar/Ca/Zn/Kr/Sr/Cd/Xe/Ba/Hg) | per atom `<sym>_rt, _cn, _s, _Q, _Rad, _rho, _eps_sel, _rsel, _Ehf` |
 | `holes/` | `hole_refs_full.npz` | **full flat (atom×r0) table**, SPIN-RESOLVED holes (Hund per-spin) for **all 69 atoms** (Z=1–57,72–83), 150 pts each, 10350 total (2100 closed-shell + 8250 open-shell) | stacked `X, cn, rt` (Npts,n_out); `Z, r0, rho, Rad, Q, s, eps_win, eps_full, eps_mm, leakQ, leakE, closed` (Npts,); `atom_{Z,sym,Ehf,Emm,offset,npts}`; `R_c, n_out, X_window` |
 | `holes/` | `training_sets.npz` | **nested FPS training sets**: valid-filtered (leakage ≤10% AND ρ≥0.1 uncapped, 4523/10350 kept; mix of closed+open-shell refs) + farthest-point-sampled in the kernel metric. Prefixes of one ordering = increasing-density sets | `order` (M,) GLOBAL idx into `hole_refs_full`; `sizes` (S,) [16…512,M]; `keep_mask`; `seed, leakage_cutoff, leakage_mode, rho_floor, fp_l0, fp_l1`; `fill_dist` (S,) |
+| `oep/` | `oep_Z{NN}.npz` (He, Be, Mg; Ne non-conv) | cached EXX-OEP **exact-exchange potentials** (v_x targets for potential fitting) | `Z, r, rho, vx_oep, Ex, converged` |
 | `regen/` | python scripts | regenerators (see below) | — |
 
 ### Conventions
@@ -43,6 +44,14 @@ committed in full (orbital files are small, ~90 KB each).
 - `build_refs_full.py` — full flat (atom×r0) **spin-resolved** exact-hole table with leakage →
   `hole_refs_full.npz` (all 69 atoms; `orbital_hole.exchange_hole_spin` + Hund per-spin occupations;
   reduces to the restricted hole for closed subshells). Load via `loader.load_hole_refs_full()`.
+- `oep_fleet.py` — cache EXX-OEP exact-exchange potentials → `oep/oep_Z*.npz` (load via
+  `loader.load_oep(Z)`). OEP converges only for He/Be/Mg in this PSP set (Ne/Ar/Ca/Zn fail).
+- `build_kernel_refs_oep.py` — **Stage 2 (exploratory, not yet a net SCF win)**: fit per-node hole
+  amplitudes so v_x also matches OEP (affine linear LSQ; `--gamma` weights the potential). Non-SCF it
+  removes the core v_x spike and improves both potential and energy, but with only 2-3 OEP atoms at a
+  FIXED density it OVERFITS — self-consistently it overbinds (Be) and degrades held-out atoms (Ne).
+  Needs more OEP data and/or self-consistent-density fitting. **Stage 1 (fp_ref_ridge) is the robust
+  SCF fix.**
 - `build_closed_shell_functional.py` — pins the best CLOSED-SHELL-ONLY functional →
   `atom/xc/data/kernel_fp_refs_closed_n512.npz` (512 FPS refs, closed-valid pool only). Load cleanly:
   `SIMPLEHOLEKERNELFPParameters(fp_l0=0.7, fp_l1=0.5, refs_path=<file>)` (also via

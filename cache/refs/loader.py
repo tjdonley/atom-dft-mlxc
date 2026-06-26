@@ -20,6 +20,7 @@ BASE_DIR = os.path.join(_HERE, "baselines")
 HOLES = os.path.join(_HERE, "holes", "hole_refs.npz")
 HOLES_FULL = os.path.join(_HERE, "holes", "hole_refs_full.npz")
 TRAINING_SETS = os.path.join(_HERE, "holes", "training_sets.npz")
+OEP_DIR = os.path.join(_HERE, "oep")
 
 
 def available_hf():
@@ -91,6 +92,20 @@ def load_hole_refs_full():
     if not os.path.exists(HOLES_FULL):
         raise FileNotFoundError(f"{HOLES_FULL} not built; run cache/refs/regen/build_refs_full.py")
     d = np.load(HOLES_FULL, allow_pickle=True)
+    return {k: d[k] for k in d.files}
+
+
+def load_oep(Z, require_converged=True):
+    """Cached EXX-OEP exact-exchange potential for atom Z (oep/oep_Z{NN}.npz, built by
+    regen/oep_fleet.py). Returns dict {Z, r, rho, vx_oep, Ex, converged}. These are the v_x
+    targets for potential-based fitting; OEP converges only for some PSP atoms (He, Be, Mg; not
+    Ne/Ar/...). Raises if missing or (when require_converged) not converged."""
+    p = os.path.join(OEP_DIR, f"oep_Z{int(Z):02d}.npz")
+    if not os.path.exists(p):
+        raise FileNotFoundError(f"no cached OEP for Z={Z} ({p}); run cache/refs/regen/oep_fleet.py")
+    d = np.load(p)
+    if require_converged and not bool(d["converged"]):
+        raise ValueError(f"cached OEP for Z={Z} did not converge")
     return {k: d[k] for k in d.files}
 
 
