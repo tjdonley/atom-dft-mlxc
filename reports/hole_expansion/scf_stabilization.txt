@@ -87,3 +87,37 @@ SPATIAL operators (op_n^T, grad_op^T) at the eval points -- a G that penalizes t
 the 10/81 limit (-5.5 vs 0.123) -- a slope CONSTRAINT (linear in coef) must be added to the
 constrained solve. NEXT: add the GEA-slope constraint + a v_x-targeted (or OEP-targeted) roughness penalty,
 and re-test SCF. The method is right; it needs the correct roughness target and the slope constraint.
+
+=== DIAGNOSIS RESOLVED: the SCF/potential floor is CROSS-ATOM CONTAMINATION (feature incompleteness),
+    NOT the reference shape and NOT the fit. Fix = richer invariants (same lever as the cross-atom energy). ===
+
+(1) v_x-TARGETED min-roughness (shape_fit_vx_targeted.py): penalize the SPATIAL roughness of
+    d sigma/ds2 . Cmom (the grad_op^T-amplified v_x channel), using the reduction that energy AND
+    potential both depend only on cc = coef.Cmom (eps ~ sigma.Cmom). Result: Be 14->10.7, Mg 7.7->5.1
+    -- does NOT beat the node-derivative min-roughness (Be 6.7); both stall ~5-10. So fit smoothness is
+    NOT the wall.
+
+(2) IN-DOMAIN POTENTIAL TEST (indomain_potential_vx.py) -- THE DECISIVE EXPERIMENT. Fit an atom's OWN
+    exact holes only (no cross-atom mix), check v_x vs OEP:
+      Be own-refs (111 pts): OEP mismatch 0.27  (backbone 0.091)   energy(self) 127 mHa
+      Mg own-refs (106 pts): OEP mismatch 0.93  (backbone 0.075)   energy(self)  15 mHa
+    => the moment-matched/windowed references ARE shape-faithful: in-domain they give a NEAR-OEP
+       potential (0.27). The reference shape is fine; the fit is fine.
+    => the rf001 floor (OEP 6.7-14) is CROSS-ATOM CONTAMINATION -- other atoms' points near Be's
+       features carrying a DIFFERENT hole (same cn+s^2, different atom -> different hole = feature
+       incompleteness). The TENSION: own-atom = clean potential (0.27) but sparse energy (127);
+       cross-atom mix = good energy (37) but contaminated potential (6.7). Both want richer invariants:
+       coverage (energy) WITH consistency (potential).
+
+(3) RICHER-INVARIANT FIX confirmed (l2_invariant_oep.py): add the single l=2 t^2 channel to rf001:
+      cn+s^2:     OEP Be 14.1  Mg 7.7   energyMAE 45
+      cn+s^2+t^2: OEP Be  4.5  Mg 7.6   energyMAE 45   (energy preserved, Be contamination ~3x lower)
+    The single t^2 fixes Be a lot, Mg little -> need the FULL l=2 power spectrum (use_l2_power) and
+    likely l=3 / CG bispectrum for the rest (mirrors the cross-atom ENERGY story: power spectrum l<=2
+    fixes closed-shell, bispectrum for open-shell). This is the SAME completeness lever, now shown to
+    govern the POTENTIAL/SCF too.
+
+PATH TO SCF-STABLE + ACCURATE: build references with the FULL richer invariants (l=2 power, then
+l=3/bispectrum) so cross-atom refs are CONSISTENT -> potential -> in-domain 0.27 -> SCF-stable, energy
+kept by coverage. Then add the min-roughness fit (deriv_smooth) + GEA-slope constraint for residual
+roughness. The fit was a red herring; feature completeness is the lever.
