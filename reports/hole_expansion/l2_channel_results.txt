@@ -1,0 +1,27 @@
+ADDING THE l=2 POWER CHANNEL TO THE FUNCTIONAL (closed-shell power-spectrum approach).
+build_refs_add_l2.py appends the t^2 column (l=2 power) to the closed references; use_l2=True activates
+the [cn[1:], s^2, t^2] feature vector. Per the floor/ladder analysis, +l2pow is the cross-atom
+completeness fix for closed shells.
+
+GEA LIMIT RETAINED (target slope 10/81=0.1235):
+  backbone no-refs no-l2   0.1257  |  backbone no-refs +l2   0.1257  (l=2 does NOT perturb the backbone)
+  +refs no-l2              0.1298  |  +refs +l2              0.1301  (ref bleed ~5%, same w/ or w/o l=2)
+=> s^2 unchanged + t^2=0 at the HEG/GEA backbone -> GEA limit preserved, as intended.
+
+IN-DOMAIN closed-shell MAE (mHa; refs include the test atoms). PBE 49, rSCAN 16:
+  ridge 1e-2:  no-l2 116  ->  +l2 120     (l=2 does NOT help; slightly hurts)
+  exact 1e-8:  no-l2  92  ->  +l2 115
+=> EXPECTED, and consistent with the floor analysis: the in-domain floor is ~1 mHa for ALL feature
+   sets (incl. cn+s2), so in-domain is NOT feature-limited -- the 88-116 is kernel INTERPOLATION
+   (sparse ~36 pts/atom) + FA/projection machinery. Adding a dimension slightly WORSENS sparse-node
+   interpolation (curse of dim). The l=2 benefit is for cross-atom TRANSFER (out-of-domain), which the
+   in-domain benchmark does not probe.
+
+CONCLUSION / WHERE THE LEVERS ARE:
+- l=2 (power spectrum) is correctly implemented and retains the GEA limit. Its value is GENERALIZATION
+  (the floor analysis: cn+s2 cross-atom floor 0.033 -> +l2 0.0005). To DEMONSTRATE it in the functional,
+  run a LEAVE-ATOM-OUT energy benchmark (refs exclude the test atom), with vs without l=2.
+- To improve the IN-DOMAIN number (88-116), the levers are NOT features but: (1) more references
+  (denser per atom -- kernel_map_control showed dense own-atom refs -> ~1 mHa); (2) the FA-blend that
+  poisons Be (+127); (3) better-conditioned interpolation. These are interpolation/machinery, not
+  representation.
