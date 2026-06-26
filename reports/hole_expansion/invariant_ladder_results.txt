@@ -1,0 +1,41 @@
+WHICH INVARIANT SUBSET GIVES THE LOWEST CROSS-ATOM FLOOR? (representation_floor_ladder.py over the
+all-atom cache repr_cache_all.npz: 69 atoms x 150 pts; build_all.py). Metric: close-cross |Delta e_sf|
+(scale-free) = energy spread among the closest 25% cross-atom feature matches (lower = lower floor;
+reference: in-domain floor ~0.0008 scale-free ~ 1 mHa). Bispectrum = per-n-diagonal axial CG triples.
+
+CLOSED-SHELL (14 atoms):
+  subset            dim   close-cross|de|   cross/in
+  cn+s2 (current)    10      0.03331          0.89
+  cn+s2 + l2pow      11      0.00045          0.02   <- adding the l=2 power SCALAR alone is the fix (~70x)
+  powspec l<=2/4/6   11-15   0.00045          0.02      (higher l adds nothing)
+  pow+bispectrum     60-152  0.00048          0.02      (bispectrum adds NOTHING for closed-shell)
+  Vfull signed       49-69   0.0006-0.0007    0.05      (slightly worse: high-dim sparsity)
+  => closed-shell: the POWER SPECTRUM through l=2 (11-dim) is complete AND minimal. l=2 power is THE
+     missing ingredient in the current cn+s2; bispectrum/higher-l unnecessary.
+
+ALL ATOMS (69, incl. open-shell):
+  subset            dim   close-cross|de|   cross/in
+  cn+s2 (current)    10      0.30150          0.21
+  powspec l<=2..6    11-15   0.158-0.176      0.11   <- POWER SPECTRUM INCOMPLETE for open-shell
+  pow+bispectrum l<=2 60     0.00992          0.01
+  pow+bispectrum l<=4 152    0.00169          0.00   <- BISPECTRUM restores completeness (~90x)
+  Vfull signed l<=4  49      0.00198          0.00
+  Vfull signed l<=6  69      0.00098          0.00   <- LOWEST floor across all atoms
+  => the power spectrum (3-body) is INCOMPLETE for open-shell (floor 0.16 vs 0.0005 closed) -- exactly
+     Pozdnyakov-Ceriotti. The CG BISPECTRUM (4-body) restores it (0.16 -> 0.0017); the full signed
+     axial coefficients do best (0.001, and more compact than the diagonal bispectrum at 152-dim).
+
+KEY CONCLUSIONS:
+1. Lowest floor across ALL atoms: Vfull signed l<=6 (0.001 ~ 1 mHa) or pow+bisp l<=4 (0.0017). For
+   atoms the SIGNED axial coefficients are valid invariants (the radial axis is canonical) and most
+   efficient; the rotation-invariant bispectrum is the route if no canonical frame (molecules).
+2. The current cn+s2 is cross-atom INCOMPLETE: closed-shell needs +l2pow; open-shell needs the full
+   4-body (bispectrum) / signed-vector information.
+3. NO 1-RDM energy wall: the full density descriptor reaches ~1 mHa even on open-shell, so the gap is
+   descriptor INCOMPLETENESS, not missing spin/orbital (1-RDM) information.
+4. The cross-atom floor is REACHED (close matches transfer) -- so a functional using the complete
+   invariant set + enough references can in principle transfer across the periodic table at ~1 mHa.
+
+NEXT: pick a compact complete set (e.g. powspec l<=2 for closed-shell work; signed l<=3/4 or a selected
+bispectrum subset for the general case), promote it into the functional's _xfeat, rebuild references,
+and re-benchmark the SCF/energy in the actual functional.
