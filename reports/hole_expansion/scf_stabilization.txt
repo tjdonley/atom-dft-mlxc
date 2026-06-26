@@ -36,3 +36,29 @@ ill-conditioned coef (exact interp, MAE 34), the potential needs smoothing/accur
  (b) OEP-anchored / potential-smoothness-penalized fit -- regularize toward the smooth physical v_x
      (OEP where cached: He, Be, Ne, Mg) rather than toward smaller coef norm.
 RECOMMEND (a): it directly exploits "energy robust, potential not" and reuses the MAE-34 energy.
+
+=== OEP FIT (oep_potential_fit.py): reveals a fundamental ENERGY-POTENTIAL TRADEOFF ===
+v_x vs cached OEP exact-x potential, density-weighted RMS shape mismatch (gauge-aligned), on He/Be/Mg:
+  config                          He      Be      Mg
+  plain LDA+FA backbone          0.035   0.091   0.075   <- BEST potential match
+  + exact-hole references        0.035   2.75    2.47    (ridge 1e-2; ALL ridges down to r=100 still
+                                 0.035   0.50    0.72     WORSE than backbone)
+  saturating-gradient backbone   0.035   0.45    0.53    (mu=0.22; WORSE than plain too, and grows with mu)
+
+KEY RESULT: the plain LDA+FA backbone already has the best OEP-matching potential; EVERYTHING that
+improves the exchange ENERGY -- the gradient enhancement (saturating backbone) AND the exact-hole
+references -- DEGRADES the potential away from OEP. The references nail the energy MOMENT (sigma.Cmom,
+one linear functional) but get the full hole SHAPE wrong, and the potential v_x=dE/drho depends on the
+whole shape. So there is a fundamental ENERGY-POTENTIAL tradeoff in this hole construction.
+
+CONSEQUENCE: "fitting OEP" does not rescue the self-consistent functional -- the backbone IS the
+OEP-fit, and the references cannot be used for the potential. The best SCF-stable / decoupled result is
+the backbone potential + referenced energy = MAE ~78 (does NOT beat PBE 45). The MAE-34 win is
+intrinsically NON-self-consistent: it requires a hole whose potential is far from OEP.
+
+BOTTOM LINE on SCF: the dense-reference functional cannot be made self-consistently accurate by
+potential regularization (ridge / gate / OEP-fit) -- they all face the same tradeoff. To get a
+self-consistent functional that beats PBE, the construction must get the hole SHAPE right (not just the
+energy moment) so the references improve BOTH energy and potential -- a deeper construction change (fit
+references against the potential/shape, not only the energy; or a hole representation whose derivative
+is well-behaved). The MAE-34 result stands as a non-self-consistent (post-HF-density) benchmark.
