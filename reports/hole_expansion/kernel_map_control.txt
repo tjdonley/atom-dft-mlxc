@@ -1,0 +1,33 @@
+KERNEL feature->hole MAP control: isolate the map error, then add machinery back layer by layer.
+Scripts: cache/refs/regen/kernel_map_control.py (layers) + kernel_map_transfer.py (sparsity/transfer).
+Energy error vs Ehf (mHa); sat backbone at PBE params; exact interp. PBE: He23 Be44 Ne78 Mg105 Ar62.
+
+(A) LAYERS, ALL own-atom refs (150 nodes -> ~1200 grid pts):
+  atom  L0 kernel  L1 +LDA  L2 +GEA  L3 +FA/proj
+  He         0        0        0        -6
+  Be         1        1        1       127   <- FA blend poisons Be (low enclosed charge)
+  Ne         1        1        1         0
+  Mg        -0       -0       -0        -2
+  Ar         3        3        3         0
+  MAE        1        1        1        27
+  => with dense same-atom refs the kernel map reconstructs the hole to ~1 mHa. The features are NOT
+     under-resolved per atom. The LDA/GEA baselines are neutral here (cancel at nodes). Only the
+     FA blend + 2-constraint projection adds error -- catastrophic for Be (+127), ~0 elsewhere.
+
+(B) SPARSITY + CROSS-ATOM (kernel-only L0):
+  atom   own-150  own-40  own-15  Leave-Atom-Out
+  He         0       0       0       -792
+  Be         1      17      35      +1885
+  Ne         1      -1     -21       +160
+  Mg         1     -11    -100       +318
+  Ar         3       4     -45       -146
+  => per-atom: ~40 refs suffice (0-17 mHa); 15 degrades. CROSS-ATOM (leave-one-atom-out): CATASTROPHIC
+     (160-1885 mHa). The kernel CANNOT predict an atom's hole from OTHER atoms' references -- the
+     current invariants are NOT universal: similar (cn, l=0 vec; s^2 = l=1 NORM) -> different holes.
+
+CONCLUSION: the production ~88 mHa in-domain error is NOT per-atom feature under-resolution (that's
+~1 mHa). It is (1) bad CROSS-ATOM TRANSFER -- other atoms' refs in the set pull in-domain predictions
+the wrong way; (2) the FA blend on Be. The lever the PI proposed -- richer rotational invariants
+(full per-l radial vectors, higher l, the CG bispectrum) -- directly targets (1): make the feature->hole
+map UNIVERSAL so leave-atom-out transfer shrinks. NEXT: implement the richer invariants and re-run (B)'s
+leave-one-atom-out column; success = LOAO drops from 160-1885 toward the per-atom floor.
