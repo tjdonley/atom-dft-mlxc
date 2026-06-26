@@ -441,6 +441,23 @@ def test_FP_mu_tunable_gradient_enhancement():
         assert slope == pytest.approx(mu, rel=3e-2), f"fp_mu={mu}: realized slope {slope:.4f}"
 
 
+def test_FP_ref_gate_preserves_backbone():
+    """ref_gate_rho (LB94-style low-density damping) gates the kernel REFERENCE deviation by a smooth
+    density switch but leaves the backbone (HEG+GEA nodes) untouched -- so the GEA limit is preserved
+    and, reference-free, the gate is a no-op. Runs finite; default (0.0) is unaffected."""
+    from atom.xc.simple_hole_expansion import SIMPLE_HOLE_KERNEL_FP, SIMPLEHOLEKERNELFPParameters, _GEA2
+    from atom.xc.evaluator import DensityData
+    r = np.linspace(1e-3, 14.0, 500); w = np.gradient(r)
+    F = SIMPLE_HOLE_KERNEL_FP(r_quad=r, quadrature_weights=w,
+                              params=SIMPLEHOLEKERNELFPParameters(ref_gate_rho=0.01))
+    s = np.linspace(0.0, 30.0, 6000); sm = (s > 1e-6) & (s < 0.2)
+    slope = np.polyfit(s[sm] ** 2, F._fx_gea_axis(s)[sm] - 1.0, 1)[0]
+    assert slope == pytest.approx(_GEA2, rel=3e-2), f"ref_gate broke the GEA slope: {slope:.5f}"
+    rho = 0.5 * np.exp(-0.5 * r ** 2) + 1e-3
+    eps = F._kernel_eps(np.array([op @ rho for op in F._ops]), np.maximum(rho, 1e-12), F._grad_op @ rho)
+    assert np.all(np.isfinite(eps)), "ref_gate eps must be finite"
+
+
 def test_FP_l2_power_feature_optional():
     """use_l2_power adds the l=2 POWER SPECTRUM coordinate (adaptive-radius |d_l2|^2, monopole-normalized)
     as an 11th kernel feature, runs, and PRESERVES the GEA limit: the backbone HEG/GEA nodes have

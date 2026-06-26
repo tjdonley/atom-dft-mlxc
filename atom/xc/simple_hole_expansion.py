@@ -243,6 +243,12 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
                                # monopole-normalized) -- the cross-atom-completeness feature (vs the
                                # single reduced-l2 scalar t^2 of use_l2, which is too weak)
     fp_l2pow: float = 0.5      # RBF length scale for the l=2 power-spectrum coordinate
+    ref_gate_rho: float = 0.0  # SCF stabilization (LB94-style low-density damping): gate the kernel
+                               # REFERENCE deviation by a smooth density switch -- full in the bulk,
+                               # off below ~ref_gate_rho where the references extrapolate and the
+                               # potential blows up (backbone+FA owns the tail). 0 = off. Gates BOTH
+                               # energy and potential, so v_x = dE/drho stays consistent.
+    ref_gate_dec: float = 0.4  # switch width in decades of density (log10)
     fp_ref_ridge: Optional[float] = 1e-2  # ridge on the REFERENCE block only (kernel ridge regression);
                                           # default 1e-2 makes loaded references SCF-stable out of the box
                                           # (exact interp ill-conditions v_x -> SCF spikes). Set to fp_ridge
@@ -292,6 +298,8 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
             self._l2p_BAS = window_basis(2, self._n_in).evaluate(2, self._l2p_qn)   # (n_in, n_win)
             self._l2p_T = np.stack([transfer_matrix(2, float(ra), self._n_out, self._n_in)
                                     for ra in self._rad_grid])   # (n_rad, n_out, n_in)
+        self._ref_gate_rho = float(getattr(self.params, "ref_gate_rho", 0.0))  # SCF low-density damping
+        self._ref_gate_dec = float(getattr(self.params, "ref_gate_dec", 0.4))
         n = self._n_out
         # Notation tracks the writeup: B = charge moments, C = Coulomb moments, R0 = on-top (basis at
         # origin), rhotilde = dimensionless hole shape, cprime = raw monopole coefficient op@rho
@@ -477,7 +485,16 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         if getattr(self, "_use_l2pow", False):                   # l=2 power spectrum (cross-atom completeness)
             p2 = self._l2_power_feat(rho0, R_ad, c_ad[:, 0])
         # dimensionless hole shape rhotilde = rhotilde_LDA + kernel deviation; hole = -rho/2 * rhotilde
-        rhotilde = self._rhotilde_lda[None, :] + self._Kmat(self._xfeat(cn, s2, t2, p2), self._fp_Xnodes) @ self._fp_coef
+        Kq = self._Kmat(self._xfeat(cn, s2, t2, p2), self._fp_Xnodes)
+        dev = Kq @ self._fp_coef
+        if getattr(self, "_ref_gate_rho", 0.0) > 0.0 and self._fp_Xnodes.shape[0] > 2:
+            # LB94-style low-density damping: keep the backbone (HEG+GEA nodes 0,1), gate the REFERENCE
+            # deviation (nodes 2+) by a smooth density switch so it vanishes in the no-reference tail
+            # where the kernel extrapolates and the potential blows up.
+            dev_bb = Kq[:, :2] @ self._fp_coef[:2]
+            D = 0.5 * (1.0 + np.tanh((np.log10(rho0) - np.log10(self._ref_gate_rho)) / self._ref_gate_dec))
+            dev = dev_bb + D[:, None] * (dev - dev_bb)
+        rhotilde = self._rhotilde_lda[None, :] + dev
         if self._sat_gradient:
             # PBE-like saturating gradient kernel: F_x -> 1 + kappa_LO h(s^2), h = a s^2/(1+a s^2),
             # a = mu/kappa_LO so slope(0)=mu and h(inf)=1 (saturates at the Lieb-Oxford ceiling, vs the

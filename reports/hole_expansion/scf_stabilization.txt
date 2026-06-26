@@ -1,0 +1,38 @@
+SCF STABILIZATION of the dense-reference functional (rf001, the MAE-34 energy win). Status: DIAGNOSED;
+energy-preserving LB94-gate implemented (partial); a clean self-consistent fix still open.
+
+DIAGNOSIS (scf_vx_diagnose.py, v_x vs cached OEP exact-exchange potential, rho>1e-3):
+  config                 max|v_x|    roughness(mean|d2v/dr2|)
+  OEP (exact-x target)    1.7-4.9        2.5-6.1   (smooth, physical)
+  backbone (ref-free)     ~1.7           ~1e6      (SCF-STABLE despite roughness)
+  rf001 ridge 1e-2       30-47           ~8e7
+  rf001 exact 1e-8       88-187          ~1.6e8   (huge + oscillatory)
+=> the dense low-rho references ILL-CONDITION the Gram matrix; the coefficients blow up. The ENERGY is
+   robust (one linear Coulomb moment, reproduced at nodes regardless of coef magnitude -> MAE 34) but the
+   POTENTIAL v_x = dE/drho (full coef sensitivity) blows up to 10-100x OEP and oscillates -> SCF fails.
+
+SCF CONVERGENCE MAP (rf001):  Be: ridge 1e-2 FAILS, 1e-1 & 1.0 converge.  Ne: 1e-2 & 1e-1 FAIL (needs
+>=1.0). So a converging ridge is atom-dependent AND ruins the energy (ridge 1e-2 energy MAE 197). The
+SCF does NOT diverge -- it OSCILLATES (bounded v_x, 200 iters insufficient); brute-force damping
+(alpha 0.05, 600 iters) is impractically slow.
+
+LB94-STYLE LOW-DENSITY GATE (implemented: param ref_gate_rho; gates the kernel REFERENCE deviation by a
+smooth density switch, full in the bulk -> off in the no-reference tail; gates BOTH energy and potential
+so v_x=dE/drho stays consistent; backbone/GEA untouched). Energy MAE vs gate (exact interp): 0(34),
+0.003(32), 0.01(84), 0.03(407). => gate=0.003 PRESERVES the energy (tames the no-ref tail extrapolation
+without eating the rho>=0.01 references). BUT it does NOT stabilize SCF alone (Be still fails): the v_x
+is rough throughout the bulk (rho>=0.003), not just the tail.
+
+DECOUPLING attempt (stable backbone SCF density -> exact referenced energy): MAE 78 (vs ~37 on HF) --
+the backbone's LDA+FA density is too diffuse; density-driven error degrades it.
+
+CONCLUSION: the energy and potential need DIFFERENT regularization -- the energy is robust to the
+ill-conditioned coef (exact interp, MAE 34), the potential needs smoothing/accuracy. No single knob
+(uniform ridge, density gate, backbone decoupling) does both. The clean fix is to DECOUPLE them:
+ (a) TWO-COEFFICIENT scheme -- energy from the exact-interp coef, v_x (adjoint) from a ridge- or
+     OEP-regularized coef; the SCF then converges on the referenced (not backbone) density (closer to
+     HF -> smaller density-driven error than the backbone decoupling), and the accurate energy is read
+     on it. Requires compute_xc to use the potential-coef for the adjoint.
+ (b) OEP-anchored / potential-smoothness-penalized fit -- regularize toward the smooth physical v_x
+     (OEP where cached: He, Be, Ne, Mg) rather than toward smaller coef norm.
+RECOMMEND (a): it directly exploits "energy robust, potential not" and reuses the MAE-34 energy.
