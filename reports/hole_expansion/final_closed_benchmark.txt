@@ -1,0 +1,27 @@
+FINAL closed-shell exchange benchmark (LOCKED). benchmark_final_closed.py.
+SIMPLE = SIMPLE_HOLE_KERNEL_FP with closed-shell exact-hole references at rho>=0.01 coverage
+(kernel_fp_refs_closed_rf001.npz, 1529 nodes, l0=0.7 l1=0.5), exact interpolation.
+Valence-only int rho*eps_x on the HF density vs Ehf (non-SCF, spin-unpolarized, NLCC-free), mHa.
+
+  atom     Ehf     SIMPLE   PBE   rSCAN
+   He   -1.0019      -6      23      1
+   Be   -1.9215      99      44     17
+   Ne   -5.4012      11      78      2
+   Mg   -6.8576     -58     105      6
+   Ar   -3.3774      10      62     -5
+   Ca   -4.5679     -70      73     10
+   Zn  -16.5890     -14      19     30
+   Kr   -2.9048       6      35    -26
+   Sr   -3.8060     -73      57      6
+   Pd  -11.7024       4      -3     19
+   Cd  -13.5857     -21      22     28
+   Xe   -2.4284      -8      24    -30
+   Ba   -3.1592     -86      35     -8
+   Hg  -12.4262     -13     -45     10
+   MAE            34      45     14
+
+HEADLINE: SIMPLE in-domain closed-shell exchange MAE 34 mHa BEATS PBE (45), approaches rSCAN (14).
+Noble-gas / d10 atoms excellent (Ne 11, Ar 10, Kr 6, Pd 4); residual = alkaline earths (Be 99, Ba -86,
+Sr -73, Ca -70) -- low-enclosed-charge ns^2 atoms where the FA blend dominates. max|err| Be 99.
+This is the non-SCF exchange-energy accuracy at exact interpolation; SCF stability at this reference
+coverage is the next task (low-rho DELTA conditioning).
