@@ -1,0 +1,18 @@
+SCF stress test -- locked ridge-stabilized functional (closed_n64, fp_ref_ridge=1e-2, l0=0.7, l1=0.5)
+Convergence is the signal; energies vs Ehf are dominated by exchange-only SCF density drift (present in reference-free too), NOT functional quality.
+
+Stress test: LOCKED functional (closed_n64, ridge 1e-2, l0=0.7 l1=0.5) SCF. err vs Ehf(restricted)
+atom block    dom reffree(c,err)  locked(c,err)
+  Si     p    out  Y  -367(  12s)  Y  -378(  13s)
+  Cl     p    out  Y -1352(   9s)  Y -1561(  13s)
+  Ar     p     in  Y -1328(   8s)  Y -1604(  10s)
+  Fe     d    out  Y -3746(  61s)  Y -4450(  42s)
+  Cu     d    out  Y -3645(  21s)  Y -4548(  46s)
+  Zn     d     in  Y -1857(  35s)  Y -2628(  38s)
+  Kr     p     in  Y -2300(   9s)  Y -2564(  16s)
+  Cd     d     in  Y -5975(  16s)  Y -6852(  16s)
+  Xe     p     in  Y -3044(   9s)  Y -3271(  13s)
+  Hg     d     in  Y-11108(  15s)  N-11879(  93s)
+
+Heaviest-atom edge case (Hg, Z=80): default ridge 1e-2 does NOT converge; ridge=1.0 DOES (25s). The extreme core density of the heaviest atoms needs a larger (or density-adaptive) ridge.
+  ridge=0.1 -> not converged; ridge=1.0 -> converged.
