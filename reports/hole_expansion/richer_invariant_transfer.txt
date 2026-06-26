@@ -1,0 +1,27 @@
+RICHER ROTATIONAL INVARIANTS vs CROSS-ATOM TRANSFER. Script: cache/refs/regen/richer_invariant_transfer.py.
+Tests whether adding higher-l / full-vector invariants makes the feature->hole map UNIVERSAL (the wall
+the kernel-map control identified). Consistent higher-l axial coefficients d_{nl}: window-projected,
+transferred to the stored adaptive Rad, monopole-normalized. VERIFIED consistent: l=0 reproduces the
+stored cn[1:] to max|diff| 2.4e-3, corr 1.0000.
+
+Regularized KRR (standardize, median-heuristic length scale, ridge in {1e-2,1e-1,1}), leave-one-closed-
+atom-out over {He,Be,Ne,Mg,Ar,Ca,Zn,Kr,Cd,Xe}, 50 pts/atom. Energy MAE vs Ehf (mHa):
+  cn[1:] + s^2 (current functional features)   39750
+  + full l=1 VECTOR (replaces scalar s^2)       6761   <- ~6x better transfer, SAME dim count
+  + l<=2 vectors                               23815
+  + l<=3 vectors                               26854
+  power spectrum l<=3                          11168
+
+KEY FINDING: the full l=1 radial vector (the SHAPE of the gradient channel) transfers ~6x better than
+the scalar reduced-gradient s^2 the functional currently uses -- same dimensionality, so it is the
+information, not the dim count. The current l=1 NORM throws away exactly the shape info needed for
+cross-atom universality. This supports the PI's richer-invariants hypothesis.
+
+CAVEATS: (1) absolute levels are huge (1000s of mHa) -- leave-one-WHOLE-atom-out from 10 atoms is
+extreme extrapolation; 9 atoms cannot span the 10th. NOT the functional's real regime (which is always
+in-domain). (2) l<=2/l<=3 vectors HURT (overfitting in a 10-atom KRR) -- higher l / bispectrum is
+INCONCLUSIVE here, not disproven; it needs more atoms or the in-domain mixed-sparse-reference regime.
+
+NEXT: (a) promote the l=1 channel from scalar s^2 to the full radial vector in the functional's _xfeat /
+descriptor and re-benchmark in-domain (the decision-relevant test where the 88 mHa lives); (b) revisit
+l>=2 + CG bispectrum with the full closed+open atom set (more data) so the higher-l dims are supported.
