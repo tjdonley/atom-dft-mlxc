@@ -1,0 +1,47 @@
+FIT-FREE representation-error analysis (first execution). Scripts: representation_floor_build.py
+(descriptor cache: 10 closed atoms x 80 pts; signed axial coeffs d_{nl} l=0..6, monopole-normalized;
+sigma_ref, e_sf=sigma.Cmom, dimensionalization weights), representation_floor.py (k-NN floors).
+
+SETUP VERIFIED. Linear shape->energy map confirmed: e_sf = sigma_ref . Cmom == eps_full/c to 7e-13.
+Analysis runs on the dimensionless SHAPE (energy as the Cmom read-out), per the plan -- not on
+dimensional energy (avoids the shape->energy null space and the density-scale c confounds).
+
+k-NN CONDITIONAL FLOOR (K=5), energy in mHa/atom, same-atom (in-domain control) vs cross-atom (transfer):
+  invariants       E same-atom   E CROSS-atom   shape-null(cross)
+  l0_only               19            80            0.0157
+  +l1norm (current)     19            81            0.0148
+  +l1vec                21            84            0.0173
+  +l<=2                 21            83            0.0159
+  +l<=3                 21            83            0.0159
+  powspec               18            81            0.0148
+  V_full                20            85            0.0153
+
+READINGS:
+1. In-domain floor (~20 mHa here, sparsity-limited; ~1 mHa with dense refs) << cross-atom floor (~80).
+   Transfer is the hard part -- confirmed fit-free.
+2. THE DECONVOLUTION (robust): the KRR transfer errors (39750 -> 6761 mHa as we added the l=1 vector)
+   sit ~6700 mHa ABOVE even this upper-bound floor (~80). So those KRR numbers are dominated by FITTING
+   error; the l=1-vector "6x win" reduced FITTING error, NOT representation information. This is exactly
+   the conflation the analysis was meant to expose: richer features helped the MODEL, not (visibly) the
+   representation floor.
+3. The k-NN cross-atom floor is ~FLAT across representations, including the full density vector V_full.
+
+LIMITS (so we don't over-read 2-3):
+- The k-NN floor is an UPPER BOUND (cross-atom neighbors are not infinitely close at 10 atoms x 80 pts,
+  so it includes real variation). A flat upper bound does NOT prove the true floor is flat -- richer
+  features could lower the true floor beneath it.
+- The bias-correcting cross-atom Gamma extrapolation FAILED here (non-physical intercept > M=1 value):
+  the gamma-delta relation is too noisy/nonlinear on sparse cross-atom data. Not usable at this size.
+- Cross-representation comparison via NN is dimensionality-sensitive (V_full's 70 near-degenerate dims).
+
+WHAT IS / ISN'T ESTABLISHED:
+- Established: the KRR transfer story was largely a fitting artifact (deconvolution point 2).
+- NOT established: whether richer density invariants lower the TRUE cross-atom floor, and whether V_full
+  hits a density->hole (1-RDM) wall. The data is too sparse and the estimators too biased to settle it.
+
+NEXT (to settle it): (a) scale the cache to ALL closed+open atoms and many more points so cross-atom
+neighbors are genuinely close (the k-NN floor then tightens toward the true floor); (b) use a
+reparametrization-invariant estimator -- KSG mutual information I(R; e_sf) and conditional
+I(e_sf; V_full | R) -- which sidesteps the metric/dimensionality confound and directly answers
+"does the reduction discard energy-relevant information"; (c) only then revisit the bispectrum / 1-RDM
+question with a trustworthy floor.
