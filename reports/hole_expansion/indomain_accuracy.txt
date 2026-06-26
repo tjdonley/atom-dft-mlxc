@@ -28,3 +28,30 @@ CANDIDATE CONSTRUCTION LEVERS (bigger changes, to be tried):
    the functional predicts the full hole then projects -- a construction that targets the energy moment
    more directly (while still yielding a usable potential) could close the 90->~1 gap.
  - FA-blend gating audit (atom-specific contributions).
+
+=== UPDATE: local-kernel test (indomain_local_kernel.py) -- REFUTES the global-solve hypothesis ===
+Per eval point, solve the kernel locally on the backbone + K=40 nearest refs (vs the global 1098-node
+solve). Heavy atoms (Ne,Ar,Kr,Xe), n1098, exact interp, err vs Ehf (mHa):
+  atom   global   local-k40
+   Ne      99       105
+   Ar     128       151
+   Kr     154       162
+   Xe     139       172
+  MAE     130       148
+=> the local kernel is NOT better (slightly worse). So the in-domain error is NOT the global solve /
+   cross-atom contamination. Together with density (no help) and l=2 (no help), the in-domain ~90 is
+   pinned to the CORE CONSTRUCTION: sigma = sigma_LDA(fixed vector) + DELTA. sigma_LDA satisfies the
+   sum rule only where R_ad is uncapped (R_ad^3*rho = const = X^3/3pi^2); where R_ad is capped (low
+   rho) it violates it, so the 2-constraint projection must re-pin sum/on-top, and the re-pin
+   lambda*a_row leaks into the energy via a_row.Cmom -> the residual ~90 (heavy-atom-dominated).
+
+WHY the easy fix (full-sigma target, no fixed baseline -> kernel_map's ~1 mHa) is NOT viable: away from
+references the full-sigma kernel decays to 0 (not LDA), losing the LDA extrapolation limit. The DELTA
+construction exists precisely to preserve LDA/GEA/FA in extrapolation. So in-domain accuracy trades
+against the analytic limits.
+
+REMAINING (construction-level, significant): (a) an R_ad-consistent sigma_LDA baseline (so DELTA stays
+sum-neutral at all R_ad and the projection becomes a near-no-op); (b) a projection that corrects
+sum/on-top WITHOUT leaking into the Cmom/energy moment (e.g. project in the Cmom-orthogonal subspace);
+(c) hybrid full-sigma in-domain / DELTA->LDA in extrapolation. Each preserves the limits differently and
+is a deliberate redesign, not a tuning knob.
