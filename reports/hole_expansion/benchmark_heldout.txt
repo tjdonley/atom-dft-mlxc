@@ -1,0 +1,23 @@
+Held-out transfer benchmark: closed-shell-only vs spin-resolved references (test atoms EXCLUDED from both).
+Eval = valence-only int(rho*eps_x) (NLCC-consistent) vs spin-resolved exact exchange (atom_Emm). N=256 refs each.
+
+held-out refs: closed-pool ->256, spin-pool ->256 (N=256 each, test atoms excluded)
+atom  shell  Ex_exact  reffree   closed     spin   (err vs spin-resolved exact, mHa)
+  Ne closed   -5.4012     +418      +64     +240
+  Ar closed   -3.3772     +296     +133     +267
+   N   open   -2.1145     +311     +210     +283
+   O   open   -2.8332     +108      -70      +36
+  Fe   open  -10.6963     +399      -76     +454
+  Cu   open  -16.1442     +669     +117     +666
+MAE closed: reffree 357  closed 99  spin 253
+MAE  open: reffree 372  closed 118  spin 359
+
+Sparsity control (spin-ref vs N on open held-out atoms) -- more refs do NOT help => not sparsity, it's spin-inconsistency:
+  N= 256  MAE_open=359 mHa  per-atom ['+283', '+36', '+454', '+666']
+  N= 512  MAE_open=471 mHa  per-atom ['+297', '+42', '+561', '+983']
+
+CONCLUSION: closed-shell (spin-consistent) references transfer BEST on both closed and open held-out atoms.
+Spin-resolved references DEGRADE transfer and adding more doesn't help -- the spin-unpolarized functional
+(input = total rho only, no spin) gets contradictory targets from spin-resolved holes. To use open-shell
+spin-resolved refs, the functional would need spin-resolved INPUTS (spin densities / polarization feature).
+=> Production stays on closed-shell references.
