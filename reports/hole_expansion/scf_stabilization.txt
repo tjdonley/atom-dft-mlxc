@@ -62,3 +62,28 @@ self-consistent functional that beats PBE, the construction must get the hole SH
 energy moment) so the references improve BOTH energy and potential -- a deeper construction change (fit
 references against the potential/shape, not only the energy; or a hole representation whose derivative
 is well-behaved). The MAE-34 result stands as a non-self-consistent (post-HF-density) benchmark.
+
+=== REVIEW OF FORMALISM + SHAPE FIT WITH BOTH ENERGY AND POTENTIAL (corrects the "tradeoff" framing) ===
+Formalism: v_x = eps + rho*d eps/d rho0 + op_n^T(ew rho * d eps/d c'_n)/ew + grad_op^T(ew rho * d eps/d g)/ew.
+The reference contribution enters v_x through d eps/d(features), i.e. the FEATURE-DERIVATIVES of the
+reconstructed shape sigma(x) -- and grad_op^T (a spatial derivative) AMPLIFIES roughness. So the ENERGY
+depends on sigma (the shape value, a moment) while the POTENTIAL depends on d sigma/d x. The exact-interp
+fit makes sigma accurate at nodes (energy) but its feature-derivatives rough (potential) -- NOT a
+fundamental tradeoff, a FITTING artifact.
+
+FIX (the right idea, per the formalism): the CONSTRAINED MIN-ROUGHNESS shape fit -- among coef matching
+the reference holes exactly (Kp coef = Delta -> energy), minimize the feature-derivative roughness
+coef^T G coef (G = sum_d (dK/dx_d)^T(dK/dx_d)); coef = M Kp (Kp M Kp)^-1 Delta, M=(G+eps I)^-1. Implemented
+as param deriv_smooth (shape_fit_min_roughness.py prototype). RESULT (eps=100, rf001):
+  energy MAE 45 -> 41 (preserved/slightly better);  OEP-potential mismatch Be 14.1 -> 6.7, Mg 7.7 -> 5.0.
+=> the shape fit DOES improve BOTH energy and potential simultaneously, confirming there is no
+   fundamental tradeoff (the earlier OEP "tradeoff" was an artifact of exact-interp vs ridge).
+
+STILL OPEN (two issues): (1) the improvement is not ENOUGH for SCF -- the smoothed potential (OEP 6.7) is
+still far rougher than the backbone (0.091), and SCF (deriv_smooth=100, +/- gate) does not converge.
+The node-feature-derivative roughness (my G) is a proxy; the actual v_x roughness is amplified by the
+SPATIAL operators (op_n^T, grad_op^T) at the eval points -- a G that penalizes the true v_x roughness
+(or the OEP mismatch directly) should smooth more. (2) min-roughness smooths the GEA slope too, BREAKING
+the 10/81 limit (-5.5 vs 0.123) -- a slope CONSTRAINT (linear in coef) must be added to the
+constrained solve. NEXT: add the GEA-slope constraint + a v_x-targeted (or OEP-targeted) roughness penalty,
+and re-test SCF. The method is right; it needs the correct roughness target and the slope constraint.

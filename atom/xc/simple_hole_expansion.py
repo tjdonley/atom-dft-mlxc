@@ -249,6 +249,14 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
                                # potential blows up (backbone+FA owns the tail). 0 = off. Gates BOTH
                                # energy and potential, so v_x = dE/drho stays consistent.
     ref_gate_dec: float = 0.4  # switch width in decades of density (log10)
+    deriv_smooth: float = 0.0  # EXPERIMENTAL/INCOMPLETE. Fit the hole SHAPE with a smoother POTENTIAL:
+                               # among interpolants matching the reference holes exactly (-> energy), pick
+                               # the one minimizing the node feature-derivative roughness d sigma/d x
+                               # (-> v_x). 0 = plain interpolation. Improves both energy AND potential
+                               # (energy ~preserved, OEP-potential mismatch ~halved) -- but (1) it is NOT
+                               # yet enough to stabilize SCF (the smoothed potential is still rougher than
+                               # the backbone), and (2) it smooths the GEA slope too, BREAKING the 10/81
+                               # limit -- a slope CONSTRAINT must be added before this is a valid functional.
     fp_ref_ridge: Optional[float] = 1e-2  # ridge on the REFERENCE block only (kernel ridge regression);
                                           # default 1e-2 makes loaded references SCF-stable out of the box
                                           # (exact interp ill-conditions v_x -> SCF spikes). Set to fp_ridge
@@ -300,6 +308,7 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
                                     for ra in self._rad_grid])   # (n_rad, n_out, n_in)
         self._ref_gate_rho = float(getattr(self.params, "ref_gate_rho", 0.0))  # SCF low-density damping
         self._ref_gate_dec = float(getattr(self.params, "ref_gate_dec", 0.4))
+        self._deriv_smooth = float(getattr(self.params, "deriv_smooth", 0.0))   # min-roughness shape fit
         n = self._n_out
         # Notation tracks the writeup: B = charge moments, C = Coulomb moments, R0 = on-top (basis at
         # origin), rhotilde = dimensionless hole shape, cprime = raw monopole coefficient op@rho
@@ -464,7 +473,20 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         if self._sat_gradient:
             c_G = 0.0                  # saturating analytic GEA term replaces the decaying kernel bump
         Delta = np.vstack([np.zeros(self._n_out), c_G * self._dgea, Db])
-        self._fp_Xnodes = Xnodes; self._fp_coef = np.linalg.solve(K, Delta); self._fp_cG = c_G
+        if getattr(self, "_deriv_smooth", 0.0) > 0.0 and len(Xnodes) > 2:
+            # min-roughness shape fit: among coef matching Delta at the nodes (Kp coef = Delta -> energy),
+            # minimize the feature-derivative roughness sum_d ||d sigma/d x_d||^2 = coef^T G coef (-> v_x).
+            # constrained solution coef = M Kp (Kp M Kp)^-1 Delta, M = (G + eps I)^-1.
+            Kp = self._Kmat(Xnodes, Xnodes); ww = self._inv_ell(); Nn = len(Xnodes); G = np.zeros((Nn, Nn))
+            for dd in range(Xnodes.shape[1]):
+                Dd = -(ww[dd] ** 2) * (Xnodes[:, dd][:, None] - Xnodes[:, dd][None, :]) * Kp
+                G += Dd.T @ Dd
+            M = np.linalg.solve(G + self._deriv_smooth * np.eye(Nn), np.eye(Nn))
+            MK = M @ Kp
+            self._fp_coef = MK @ np.linalg.solve(Kp @ MK + 1e-10 * np.eye(Nn), Delta)
+        else:
+            self._fp_coef = np.linalg.solve(K, Delta)
+        self._fp_Xnodes = Xnodes; self._fp_cG = c_G
 
     def _kernel_eps(self, cprime, rho0, g):
         """eps_x from the kernel map; cprime (n_in,N) raw monopole coefficients (op@rho), rho0 (N,) density,
