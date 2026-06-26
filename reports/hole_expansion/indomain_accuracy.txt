@@ -1,0 +1,30 @@
+PUSHING IN-DOMAIN ACCURACY (closed-shell). Scripts: indomain_density_bench.py, indomain_decompose.py.
+IN atoms [2,4,10,12,18,20,30,36,48,54]; MAE vs Ehf (mHa). PBE 49, rSCAN 16. Kernel-only floor ~1 mHa.
+
+LEVER 1 -- REFERENCE DENSITY (full valid closed pool = 1098 pts ~78/atom, vs n512 ~36/atom):
+  ref set            ridge1e-2  ridge1e-4  exact1e-8
+  n512 (~36/atom)       116        121        92
+  n1024(~73/atom)       114        115        90
+  n1098(full,~78)       113        115        90
+  => DENSITY DOES NOT HELP (92->90). The in-domain error is NOT reference-sparsity-limited within the
+     valid pool. (The valid pool is filtered to leak<=10% & rho>=0.1; the FA blend owns the rest.)
+
+LEVER 2 decomposition (n1098, exact interp), MAE: kernel-bulk 297 -> +projection 97 -> +FA 90.
+  The kernel-reconstructed bulk hole grossly violates the sum rule (297); the 2-constraint
+  (sum-rule + on-top) PROJECTION rescues it to 97 (essential); FA trims to 90. The residual ~90 is the
+  kernel's error in the ENERGY moment (Cmom) that the projection (pins sum+on-top, NOT energy) cannot
+  fix. Dominated by HEAVY atoms (Ar 128, Kr 154, Cd 118, Xe 139); light atoms small (He -6, Mg 32).
+
+CONCLUSION: the in-domain ~90 is a CONSTRUCTION limit (DELTA-kernel interpolation + 2-constraint
+projection), NOT reference density, NOT representation (the kernel-only / direct-energy-moment floor is
+~1 mHa). Heavy-atom hole reconstruction dominates. Easy data/feature levers are exhausted for in-domain.
+
+CANDIDATE CONSTRUCTION LEVERS (bigger changes, to be tried):
+ - sum-rule-aware kernel: predict DELTA in the sum-rule(+on-top)-orthogonal subspace so the projection
+   is a near-no-op and stops amplifying the kernel's shape error into the energy moment.
+ - local / per-atom kernel (only nearby refs per eval point): the kernel_map control reached ~1 mHa
+   with own-atom dense nodes; a local kernel may recover that vs the global solve.
+ - richer hole-energy target: the floor analysis shows e_sf is determined to ~1 mHa from features, but
+   the functional predicts the full hole then projects -- a construction that targets the energy moment
+   more directly (while still yielding a usable potential) could close the 90->~1 gap.
+ - FA-blend gating audit (atom-specific contributions).
