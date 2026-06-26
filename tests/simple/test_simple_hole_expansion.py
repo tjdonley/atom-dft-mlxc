@@ -469,3 +469,35 @@ def test_FP_scf_converges_and_He_is_FA():
         f"He {ec.exchange:.4f} not near-FA HF {Ehf:.4f}"
 
 
+def test_FP_closed_shell_functional_saved():
+    """Pins the saved best closed-shell-only functional: kernel_fp_refs_closed_n512.npz at
+    l0=0.7, l1=0.5, loaded cleanly via the refs_path param (no globals; baseline stays
+    reference-free). It carries 512 reference nodes + 2 backbone, and cuts the non-SCF in-domain
+    exchange error vs reference-free (Ne). NOTE: SCF convergence is atom-dependent for the
+    referenced functional (He converges; Ne does not at 512 nodes) -- benchmarking is non-SCF."""
+    import os, sys
+    import atom.xc.simple_hole_expansion as She
+    from atom.xc.simple_hole_expansion import SIMPLE_HOLE_KERNEL_FP, SIMPLEHOLEKERNELFPParameters
+    _REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    if _REPO not in sys.path:
+        sys.path.insert(0, _REPO)
+    from cache.refs.loader import load_hf
+    closed = os.path.join(os.path.dirname(She.__file__), "data", "kernel_fp_refs_closed_n512.npz")
+    assert os.path.exists(closed), "run cache/refs/regen/build_closed_shell_functional.py"
+    hf = load_hf(10); o = np.argsort(np.asarray(hf["r"]))
+    r = np.asarray(hf["r"])[o]; rho = np.maximum(np.asarray(hf["rho"])[o], 1e-12); w = np.asarray(hf["w"])[o]
+    Ehf = float(hf["Ehf"])
+
+    def ex(refs):
+        p = SIMPLEHOLEKERNELFPParameters(fp_l0=0.7, fp_l1=0.5, refs_path=refs)
+        F = SIMPLE_HOLE_KERNEL_FP(r_quad=r, quadrature_weights=w, params=p)
+        cp = np.array([op @ rho for op in F._ops]); g = F._grad_op @ rho
+        return F, float(np.sum(F.energy_weights * rho * F._kernel_eps(cp, rho, g)))
+
+    _, e_free = ex(None)
+    Fref, e_ref = ex(closed)
+    assert len(Fref._fp_Xnodes) == 514, f"expected 512 refs + 2 backbone, got {len(Fref._fp_Xnodes)}"
+    assert abs(e_ref - Ehf) < abs(e_free - Ehf), "closed-shell refs should reduce Ne non-SCF error"
+    assert abs(e_ref - Ehf) < 0.15, f"Ne non-SCF err {1e3 * (e_ref - Ehf):.0f} mHa too large"
+
+

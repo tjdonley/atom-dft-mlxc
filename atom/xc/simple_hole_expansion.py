@@ -232,6 +232,7 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
     fp_l1: float = 0.5
     fp_DG: float = 0.3
     fp_ridge: float = 1e-8
+    refs_path: Optional[str] = None   # kernel reference-node .npz (X, DELTA); None -> module _KERNEL_FP_REFS
 
 
 class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
@@ -354,8 +355,9 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
     def _build_fp_nodes(self, include_refs=True):
         x_heg = self._xfeat(self._cnH[None, :], np.array([0.0]))          # HEG node (LDA, Delta=0)
         x_gea = self._xfeat(self._cnH[None, :], np.array([self._fp_DG]))  # GEA node (l=1 axis)
-        if include_refs and os.path.exists(_KERNEL_FP_REFS):
-            z = np.load(_KERNEL_FP_REFS); Xb = z["X"]; Db = z["DELTA"]
+        refs_path = getattr(self.params, "refs_path", None) or _KERNEL_FP_REFS
+        if include_refs and os.path.exists(refs_path):
+            z = np.load(refs_path); Xb = z["X"]; Db = z["DELTA"]
         else:
             Xb = np.zeros((0, self._n_out)); Db = np.zeros((0, self._n_out))
         Xnodes = np.vstack([x_heg, x_gea, Xb])

@@ -43,6 +43,11 @@ committed in full (orbital files are small, ~90 KB each).
 - `build_refs_full.py` — full flat (atom×r0) **spin-resolved** exact-hole table with leakage →
   `hole_refs_full.npz` (all 69 atoms; `orbital_hole.exchange_hole_spin` + Hund per-spin occupations;
   reduces to the restricted hole for closed subshells). Load via `loader.load_hole_refs_full()`.
+- `build_closed_shell_functional.py` — pins the best CLOSED-SHELL-ONLY functional →
+  `atom/xc/data/kernel_fp_refs_closed_n512.npz` (512 FPS refs, closed-valid pool only). Load cleanly:
+  `SIMPLEHOLEKERNELFPParameters(fp_l0=0.7, fp_l1=0.5, refs_path=<file>)` (also via
+  `AtomicDFTSolver(xc_params=...)`). Non-SCF MAE in 64 / out 50 mHa. **SCF caveat:** converges for
+  He (FA-dominated) but NOT Ne at 512 nodes (slow, non-converged) — benchmark non-SCF for now.
 - `benchmark_vs_baselines.py` — categorized SIMPLE-vs-PBE/rSCAN. **Currently INVALID**: the cached
   PBE/rSCAN exchange is inconsistent with `Ehf` (0.7–13 Ha gap, a PSP/setup mismatch, not spin/density)
   — needs PBE/rSCAN recomputed non-SCF on the HF densities. See `simple-hole-baseline-cache` memory.
