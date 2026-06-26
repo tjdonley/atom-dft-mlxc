@@ -5,13 +5,13 @@ from atom.xc.simple_hole_expansion import SIMPLE_HOLE_KERNEL_FP
 from atom.descriptors.simple.pipeline import window_basis, transfer_matrix
 from atom.descriptors.simple.bessel import radial_gauss_grid
 from cache.refs.loader import load_hf, load_hole_refs_full
-NIN,NOUT,RC,LMAX,NPP=20,10,6.0,6,80
+NIN,NOUT,RC,LMAX,NPP=20,10,6.0,6,150
 quad=radial_gauss_grid(RC,512); qn=np.asarray(quad.nodes); qw=np.asarray(quad.weights)
 u,wu=leggauss(64); BAS={l:window_basis(l,NIN).evaluate(l,qn) for l in range(LMAX+1)}
 ANG={l:np.sqrt(4*np.pi/(2*l+1)) for l in range(LMAX+1)}; PLv={l:eval_legendre(l,u) for l in range(LMAX+1)}
 Cmom=SIMPLE_HOLE_KERNEL_FP(r_quad=np.linspace(1e-3,14,400),quadrature_weights=np.gradient(np.linspace(1e-3,14,400)))._Cmom
 f=load_hole_refs_full(); Zf=np.asarray(f['atom_Z']); off=np.asarray(f['atom_offset']); npt=np.asarray(f['atom_npts'])
-CLOSED=[2,4,10,12,18,20,30,36,48,54]
+CLOSED=[2,4,10,12,18,20,30,36,38,46,48,54,56,80]  # all 14 closed-shell
 def rho_fn(r,rho): rs=np.sort(r); rr=rho[np.argsort(r)]; return lambda x: np.interp(np.asarray(x),rs,rr,left=rr[0],right=0.0)
 def coeffs(rf,r0,Rad):
     dist=np.sqrt(np.maximum(r0**2+qn[:,None]**2-2*qn[:,None]*r0*u[None,:],0.0)); rv=rf(dist); out=[]
