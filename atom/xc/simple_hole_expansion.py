@@ -232,9 +232,11 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
     fp_l1: float = 0.5
     fp_DG: float = 0.3
     fp_ridge: float = 1e-8
-    fp_ref_ridge: Optional[float] = None  # ridge on the REFERENCE block only (kernel ridge regression);
-                                          # None -> fp_ridge (exact interp). Backbone stays un-ridged so
-                                          # the HEG (LDA) and GEA-slope limits remain exact.
+    fp_ref_ridge: Optional[float] = 1e-2  # ridge on the REFERENCE block only (kernel ridge regression);
+                                          # default 1e-2 makes loaded references SCF-stable out of the box
+                                          # (exact interp ill-conditions v_x -> SCF spikes). Set to fp_ridge
+                                          # for exact interpolation. Backbone stays un-ridged so the HEG
+                                          # (LDA) and GEA-slope limits remain exact.
     refs_path: Optional[str] = None   # kernel reference-node .npz (X, DELTA); None -> module _KERNEL_FP_REFS
 
 

@@ -474,7 +474,8 @@ def test_FP_closed_shell_functional_saved():
     l0=0.7, l1=0.5, loaded cleanly via the refs_path param (no globals; baseline stays
     reference-free). It carries 512 reference nodes + 2 backbone, and cuts the non-SCF in-domain
     exchange error vs reference-free (Ne). NOTE: SCF convergence is atom-dependent for the
-    referenced functional (He converges; Ne does not at 512 nodes) -- benchmarking is non-SCF."""
+    referenced functional; the default fp_ref_ridge=1e-2 (kernel ridge regression) is what makes it
+    SCF-stable -- see test_FP_closed_shell_scf_converges."""
     import os, sys
     import atom.xc.simple_hole_expansion as She
     from atom.xc.simple_hole_expansion import SIMPLE_HOLE_KERNEL_FP, SIMPLEHOLEKERNELFPParameters
@@ -499,5 +500,21 @@ def test_FP_closed_shell_functional_saved():
     assert len(Fref._fp_Xnodes) == 514, f"expected 512 refs + 2 backbone, got {len(Fref._fp_Xnodes)}"
     assert abs(e_ref - Ehf) < abs(e_free - Ehf), "closed-shell refs should reduce Ne non-SCF error"
     assert abs(e_ref - Ehf) < 0.15, f"Ne non-SCF err {1e3 * (e_ref - Ehf):.0f} mHa too large"
+
+
+def test_FP_closed_shell_scf_converges():
+    """The LOCKED SCF-stable closed-shell functional (closed-shell refs + default
+    fp_ref_ridge=1e-2, l0=0.7, l1=0.5) converges self-consistently where exact interpolation
+    (fp_ref_ridge=fp_ridge) diverges. Be: references active and SCF must converge."""
+    import os
+    import atom.xc.simple_hole_expansion as She
+    from atom import AtomicDFTSolver
+    from atom.xc.simple_hole_expansion import SIMPLEHOLEKERNELFPParameters
+    closed = os.path.join(os.path.dirname(She.__file__), "data", "kernel_fp_refs_closed_n64.npz")
+    assert os.path.exists(closed), "run cache/refs/regen/build_closed_shell_functional.py --N 64"
+    p = SIMPLEHOLEKERNELFPParameters(fp_l0=0.7, fp_l1=0.5, refs_path=closed)   # fp_ref_ridge defaults to 1e-2
+    res = AtomicDFTSolver(atomic_number=4, xc_functional="SIMPLE_HOLE_KERNEL_FP", xc_params=p,
+                          all_electron_flag=False, max_scf_iterations=300).solve()
+    assert res["converged"], "Be: ridge-stabilized closed-shell functional did not converge"
 
 
