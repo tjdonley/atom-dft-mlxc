@@ -1,0 +1,31 @@
+Re-referencing the exact-hole references to the SATURATING gradient backbone (sat_gradient).
+Script: cache/refs/regen/build_refs_resaturate.py.  Closed-shell in-domain MAE vs Ehf (mHa).
+
+PROBLEM: DELTA = sigma_ref - sigma_LDA double-counts the gradient enhancement on a LDA+strong-GEA
+backbone -> refs HURT. FIX: DELTA_new = DELTA_old - A_max h(s^2_raw) _dgea, so the kernel reproduces
+the exact hole on top of the saturating backbone (mu cancels exactly at the nodes).
+
+RESULT (sat backbone at PBE params mu=0.2195, kappa_lo=0.804; closed n512 refs; in-domain):
+    sat backbone, NO refs                 120
+    sat + OLD refs (exact - LDA)          181   <- double-counting confirmed (refs hurt)
+    sat + RE-REF refs (exact - backbone)  111  (ridge 1e-2) / 88 (exact interp 1e-8)   <- refs help again
+
+So re-referencing WORKS: it removes the double-counting and the references help (120 -> 88).
+
+BUT a hard ceiling appears. Optimizing the backbone mu does NOTHING in-domain:
+    mu          0.24  0.26  0.28
+    exact-interp  88    88    88     <- mu-INDEPENDENT
+This is structural, not a tuning miss: at a reference node the kernel adds DELTA_new and the
+saturating term adds back A_max h _dgea, so rhotilde -> sigma_ref EXACTLY regardless of mu. The
+backbone only matters BETWEEN nodes / out of domain. The 88 mHa is the exact-hole-REPRODUCTION
+residual: R_c=6 window leakage on the references + kernel interpolation under sparse FPS nodes. It is
+also robust to kernel bandwidth (l0=0.7 -> 83, l0=0.3 -> 100 on a 6-atom subset) -- bandwidth shifts
+it but cannot push it below PBE.
+
+VERDICT: the saturating backbone + re-referenced refs is the correct, non-double-counting construction,
+and the refs now help. But closed-shell exchange is capped ~75 (backbone reffree) to ~88 (referenced,
+exact interp) mHa -- both ABOVE PBE (49), far from rSCAN (16). The ceiling is the under-resolved
+FEATURE SPACE (the SIMPLE l=0 monopole + l=1 s^2 do not fully determine the hole shape, so exact-hole
+interpolation has irreducible residual) plus R_c=6 leakage -- NOT the backbone or the kernel tail.
+Breaking it requires MORE FEATURES (tau / kinetic-energy density = the rSCAN ingredient; or higher
+multipoles l=2+), not a better gradient enhancement. That is the next lever.
