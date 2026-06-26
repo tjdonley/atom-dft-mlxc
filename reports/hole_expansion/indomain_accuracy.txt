@@ -55,3 +55,24 @@ sum-neutral at all R_ad and the projection becomes a near-no-op); (b) a projecti
 sum/on-top WITHOUT leaking into the Cmom/energy moment (e.g. project in the Cmom-orthogonal subspace);
 (c) hybrid full-sigma in-domain / DELTA->LDA in extrapolation. Each preserves the limits differently and
 is a deliberate redesign, not a tuning knob.
+
+=== CORRECTION (prompted by "does the bare kernel hit ~1 within the machinery?") ===
+indomain_ownatom_verify.py: ACTUAL full functional (FA blend + 2-constraint projection), OWN-ATOM dense
+refs (all 150), in-domain, err vs Ehf (mHa):
+  atom   own dense (1e-8)   prod n1098 mixed (1e-8)
+   He        -6                  -6
+   Ne         0                  99
+   Ar         1                 128
+   Kr        -0                 154
+=> the FULL functional DOES reach ~0-6 mHa in-domain with own-atom refs. The ~90 with the mixed pool is
+   therefore CROSS-ATOM CONTAMINATION, not a construction limit. THE PREVIOUS "core-construction limit"
+   CONCLUSION (commit 5a2683b) WAS WRONG.
+
+Mechanism: cn+s2 is cross-atom INCOMPLETE (floor analysis), so other atoms' reference points sit nearby
+in cn+s2 space but carry different holes -> the global kernel pulls the in-domain prediction toward them.
+This explains the earlier negatives: density (mixed) added contaminators; the local kernel picked the
+k-nearest from the MIXED pool (the contaminators). => the in-domain 90 and the cross-atom transfer floor
+are the SAME problem (cn+s2 incompleteness); the fix is COMPLETE FEATURES (l=2 power spectrum).
+Caveat: the earlier use_l2 test used the single reduced-l2 scalar t^2, NOT the floor-analysis winner
+(power spectrum |d_l2|^2, sum over radial modes) -- so it didn't actually probe the completeness fix.
+NEXT: dense mixed refs + the proper power-spectrum l=2 feature -> does mixed-pool in-domain drop to ~1?
