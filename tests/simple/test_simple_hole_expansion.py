@@ -428,6 +428,19 @@ def test_FP_l1_tunable_no_lo_cap():
     assert slope == pytest.approx(_GEA2, rel=2e-2), f"slope {slope:.5f} != 10/81 at l1=1.5"
 
 
+def test_FP_mu_tunable_gradient_enhancement():
+    """The gradient-enhancement slope is tunable via fp_mu (default GEA2=10/81). Setting it larger
+    (e.g. PBE's 0.2195) makes F_x -> 1 + fp_mu s^2 with the stronger slope -- the realized GEA-axis
+    slope tracks fp_mu."""
+    from atom.xc.simple_hole_expansion import SIMPLE_HOLE_KERNEL_FP, SIMPLEHOLEKERNELFPParameters
+    s = np.linspace(0.0, 30.0, 6000); sm = (s > 1e-6) & (s < 0.2)
+    for mu in (10.0 / 81.0, 0.2195):
+        F = SIMPLE_HOLE_KERNEL_FP(r_quad=np.linspace(1e-3, 14.0, 600), quadrature_weights=np.gradient(np.linspace(1e-3, 14.0, 600)),
+                                  params=SIMPLEHOLEKERNELFPParameters(fp_mu=mu))
+        slope = np.polyfit(s[sm] ** 2, F._fx_gea_axis(s)[sm] - 1.0, 1)[0]
+        assert slope == pytest.approx(mu, rel=3e-2), f"fp_mu={mu}: realized slope {slope:.4f}"
+
+
 def test_FP_l2_feature_optional():
     """The optional l=2 (quadrupole) axial coordinate (use_l2) adds an 11th kernel feature dim and
     runs, while leaving the backbone limits intact: t^2 = 0 at the HEG/GEA nodes, so the 10/81 GEA

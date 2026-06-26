@@ -234,6 +234,8 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
     fp_ridge: float = 1e-8
     use_l2: bool = False       # add the l=2 (quadrupole) axial feature as an extra kernel coordinate
     fp_l2: float = 0.5         # its RBF length scale (only used when use_l2)
+    fp_mu: float = 10.0 / 81.0 # small-gradient enhancement slope F_x->1+mu*s^2 (default GEA2=10/81;
+                               # set larger -- e.g. PBE mu=0.2195 -- for stronger gradient enhancement)
     fp_ref_ridge: Optional[float] = 1e-2  # ridge on the REFERENCE block only (kernel ridge regression);
                                           # default 1e-2 makes loaded references SCF-stable out of the box
                                           # (exact interp ill-conditions v_x -> SCF spikes). Set to fp_ridge
@@ -295,6 +297,7 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         self._fp_l0, self._fp_l1 = float(p.fp_l0), float(p.fp_l1)
         self._fp_DG, self._fp_ridge = float(p.fp_DG), float(p.fp_ridge)
         self._fp_ell = None                              # optional ARD-SE per-dim length scales (n_out,)
+        self._fp_mu = float(getattr(self.params, "fp_mu", _GEA2))   # gradient-enhancement slope target
         A = self._X ** 2 / (3.0 * np.pi ** 2) ** (2.0 / 3.0)
         self._fp_kappa = np.pi * A / abs(_C_LDA)              # F_x-1 = kappa (delta_rhotilde . C)
         self._fp_dgb = float(self._dgea @ self._Cmom)
@@ -402,7 +405,7 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         nl0 = self._n_out - 1
         dK1 = self._Kmat(x_heg, Xnodes)[0] * Xnodes[:, nl0] / self._fp_l1 ** 2   # dK/d(s^2) at HEG
         row = self._fp_kappa * (dK1 @ Kinv)                              # a1 = row . mu (linear in c_G)
-        c_G = (_GEA2 - float(row @ mu)) / float(row[1] * self._fp_dgb)    # solve l=1 slope = 10/81
+        c_G = (self._fp_mu - float(row @ mu)) / float(row[1] * self._fp_dgb)  # solve l=1 slope = fp_mu (def 10/81)
         Delta = np.vstack([np.zeros(self._n_out), c_G * self._dgea, Db])
         self._fp_Xnodes = Xnodes; self._fp_coef = np.linalg.solve(K, Delta); self._fp_cG = c_G
 

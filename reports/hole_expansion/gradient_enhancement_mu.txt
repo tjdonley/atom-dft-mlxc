@@ -1,0 +1,23 @@
+Pushing the gradient enhancement (tunable slope mu). Closed-shell exchange MAE vs Ehf (valence-only, mHa).
+Original SIMPLE locks the small-gradient slope to the EXACT GEA2 value 10/81=0.1235; PBE uses mu=0.2195.
+
+Diagnosis chain (reference-free, isolating the enhancement):
+  - Broadening l1 (GEA bump width): NO effect (369->368) -- the enhancement is gated OFF for real atoms
+    because it is calibrated on the HEG axis (cn=cnH) and atoms have cn != cnH (l=0 distance suppresses it).
+  - Freeing l0 (let enhancement reach atoms): 369 -> 234 (l0=20), but SATURATES >> PBE. The 10/81 slope
+    is simply too weak.
+  - Tuning the slope mu (fp_mu), l0=20 l1=10:
+        mu=0.1235(GEA2) 234 | 0.2195(PBE) 117 | 0.28 -> 75 (min) | 0.30 77 | 0.40 148 | 0.50 241
+    Optimum mu~0.28: reference-free closed-shell MAE 75 mHa (median bias +35), max|err| 150.
+
+RESULT: tuning the gradient-enhancement slope cuts reference-free closed-shell MAE ~3x (234 -> 75),
+closing most of the gap to PBE (49). We do NOT yet beat PBE (75 vs 49; rSCAN 16).
+
+Adding closed-shell references on TOP of the strong-mu backbone does NOT help and often hurts (l0=5:
+77->88; l0=2: 91->101): the references encode (exact - LDA) holes, so on a LDA+strong-GEA backbone they
+DOUBLE-COUNT the gradient enhancement. To use references with the tuned backbone they must be
+RE-REFERENCED to (exact - tuned-backbone).
+
+Path to beat PBE: (1) re-reference the corrections to the tuned-mu backbone; (2) a saturating PBE-like
+enhancement FORM (constant-mu s^2 diverges and leaves max|err| ~150 scatter); (3) re-check SCF stability
+of the stronger enhancement. Capability added: fp_mu param (default 10/81 -> no regression).
