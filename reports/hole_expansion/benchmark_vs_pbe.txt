@@ -1,0 +1,42 @@
+Exchange-functional benchmark: SIMPLE vs PBE vs rSCAN.
+All evaluated IDENTICALLY: valence-only int(rho*eps_x) on the HF density vs Ehf (valence Fock exchange),
+non-SCF, spin-unpolarized, NLCC-free -> a clean, common-footing exchange-energy-accuracy test.
+SIMPLE = production closed-shell functional (kernel_fp_refs_closed_n512, ridge 1e-2, l0=0.7, l1=0.5).
+
+valence-only int(rho*eps_x) vs Ehf (mHa). SIMPLE = closed-n512 refs (ridge 1e-2, l0=.7 l1=.5).
+atom  dom       Ehf   SIMPLE      PBE    rSCAN
+  He   in   -1.0019       -6      +23       +1
+  Be   in   -1.9215     +163      +44      +17
+  Ne   in   -5.4012      +70      +78       +2
+  Mg   in   -6.8576      +85     +105       +6
+  Ar   in   -3.3774     +149      +62       -5
+  Ca   in   -4.5679      +65      +73      +10
+  Zn   in  -16.5890     +142      +19      +30
+  Kr   in   -2.9048     +150      +35      -26
+  Cd   in  -13.5857     +148      +22      +28
+  Xe   in   -2.4284     +188      +24      -30
+  Li  out   -1.4512      +17      +15      -18
+   B  out   -0.5670      -51     -102      -91
+   C  out   -0.9627     -142     -250     -225
+   N  out   -1.6052     -258     -371     -338
+   O  out   -2.5568     -307     -397     -372
+   F  out   -3.8555     -228     -267     -274
+  Si  out   -0.6635      -66     -165     -154
+   P  out   -1.0561     -101     -232     -223
+   S  out   -1.6112     -106     -234     -240
+  Cl  out   -2.3742      -34     -145     -176
+  Fe  out   -9.9958     -775     -781     -693
+  Cu  out  -16.0826      +42      -29      -11
+MAE  in (n=10): SIMPLE 116  PBE 49  rSCAN 16
+MAE out (n=12): SIMPLE 177  PBE 249  rSCAN 235
+MAE ALL (n=22): SIMPLE 150  PBE 158  rSCAN 135
+
+Ridge cost (closed-shell in-domain MAE vs fp_ref_ridge): 1e-2->116, 1e-3->121, 1e-4->121, 1e-8(exact)->92 mHa.
+
+VERDICT: NOT beating PBE. The CLEAN comparison is closed-shell (restricted=unpolarized=exact, no spin
+ambiguity): SIMPLE 92(best)/116(SCF-stable) vs PBE 49 vs rSCAN 16 mHa. Even un-ridged and in-domain
+(atoms IN the reference set), SIMPLE is ~2x worse than PBE and ~6x worse than rSCAN.
+The open-shell column is CONFOUNDED: all methods are spin-unpolarized vs the spin-RESTRICTED Ehf, so
+all overbind similarly (SIMPLE has no spin input at all) -- not a clean functional comparison.
+Gaps to close: (1) SCF-stability ridge costs ~24 mHa; (2) the kernel-interpolation residual caps
+in-domain at ~92 even un-ridged; (3) rSCAN's edge is tau (kinetic-energy density) -- SIMPLE lacks it.
