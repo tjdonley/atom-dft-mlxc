@@ -342,15 +342,25 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         cn = np.atleast_2d(np.asarray(cn, float)); s2 = np.atleast_1d(np.asarray(s2, float))
         return np.column_stack([cn[:, 1:], s2])                  # [l=0 power vector cn[1:], l=1 s^2]
 
-    def _Kmat(self, Xa, Xb):
+    def _inv_ell(self):
+        """Per-dimension inverse length scales (n_out,): ARD `_fp_ell` if set, else isotropic
+        [1/l0]*(n_out-1) on the l=0 block + [1/l1] on s^2. Cached until the scales change."""
         ell = getattr(self, "_fp_ell", None)
-        if ell is not None:                              # ARD-SE: per-dimension length scales (n_out,)
-            diff = (Xa[:, None, :] - Xb[None, :, :]) / np.asarray(ell)[None, None, :]
-            return np.exp(-0.5 * np.sum(diff ** 2, axis=2))
-        nl0 = self._n_out - 1                            # isotropic: shared l0 (l=0 block) + l1 (s^2)
-        d0 = np.sum((Xa[:, None, :nl0] - Xb[None, :, :nl0]) ** 2, axis=2) / self._fp_l0 ** 2
-        d1 = (Xa[:, None, nl0] - Xb[None, :, nl0]) ** 2 / self._fp_l1 ** 2
-        return np.exp(-0.5 * (d0 + d1))
+        key = ("ard", id(ell)) if ell is not None else ("iso", self._fp_l0, self._fp_l1)
+        if getattr(self, "_inv_ell_key", None) != key:
+            nl0 = self._n_out - 1
+            w = (1.0 / np.asarray(ell, float)) if ell is not None else \
+                np.concatenate([np.full(nl0, 1.0 / self._fp_l0), [1.0 / self._fp_l1]])
+            self._inv_ell_cache = w; self._inv_ell_key = key
+        return self._inv_ell_cache
+
+    def _Kmat(self, Xa, Xb):
+        # squared-exp kernel via the BLAS distance identity ||a-b||^2 = |a|^2 + |b|^2 - 2 a.b
+        # (avoids the (Na, Nb, n_out) broadcast; dominant cost with many nodes).
+        w = self._inv_ell()
+        A = np.asarray(Xa) * w; B = np.asarray(Xb) * w
+        d2 = np.sum(A * A, axis=1)[:, None] + np.sum(B * B, axis=1)[None, :] - 2.0 * (A @ B.T)
+        return np.exp(-0.5 * np.maximum(d2, 0.0))
 
     def _build_fp_nodes(self, include_refs=True):
         x_heg = self._xfeat(self._cnH[None, :], np.array([0.0]))          # HEG node (LDA, Delta=0)
