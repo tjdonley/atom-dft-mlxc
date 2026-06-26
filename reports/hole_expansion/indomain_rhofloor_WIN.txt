@@ -1,0 +1,27 @@
+IN-DOMAIN ACCURACY WIN: reference COVERAGE (relax the rho>=0.1 filter) -- NOT features, NOT construction.
+indomain_rhofloor.py. Closed-shell in-domain MAE/max vs Ehf (mHa). PBE 49, rSCAN 16. Build: build_rf.py
+-> kernel_fp_refs_closed_rf{03,01}.npz (leak<=10%, rho>=floor, all points, no FPS downsample).
+
+  rho_floor   Npts    exact-interp MAE/max    ridge-1e-2 MAE/max
+  0.10(orig)  1098        90 / 154               113 / 188
+  0.05        1241        79 / 240                88 / 166
+  0.03        1345        44 / 128               103 / 471
+  0.01        1529        30 /  99               197 / 994
+
+=> At rho_floor=0.01, exact interp: in-domain MAE 30 mHa -- BEATS PBE (49), approaches rSCAN (16); 3x
+   better than the filtered set (90). The rho>=0.1 filter was STARVING the structured (intermediate-rho)
+   regions of references. This is the lever the whole in-domain investigation was missing -- coverage,
+   not features (l=2 didn't help) or construction (own-atom refs already gave ~0).
+
+TRADEOFF (the remaining engineering): the low-rho references have large DELTA (sigma=rt/(-rho/2) grows
+as rho->0), so denser low-rho coverage ILL-CONDITIONS the Gram matrix -> the SCF-stabilizing ridge fails
+(ridge MAE 197 at rho_floor 0.01). So the ENERGY accuracy (non-SCF) is solved (exact interp, MAE 30);
+SCF stability with dense coverage is the open problem. This reconnects to the earlier SCF-stabilization
+work: the fix is better conditioning of the low-rho DELTA block -- e.g. the sat-backbone / re-referencing
+(which shrink DELTA magnitude), per-block adaptive ridge, or a low-rho DELTA representation that doesn't
+diverge. (The FA blend already owns the very-low-rho tail; the issue is the intermediate-rho structured
+band that the 0.1 cut excluded.)
+
+NEXT: (a) lock the energy result -- re-benchmark rf01/rf03 vs PBE/rSCAN by category on the full set;
+(b) restore SCF stability at low rho_floor via better low-rho-DELTA conditioning (sat backbone +
+re-referencing, or adaptive ridge). Then in-domain beats PBE AND is SCF-stable.
