@@ -232,6 +232,9 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
     fp_l1: float = 0.5
     fp_DG: float = 0.3
     fp_ridge: float = 1e-8
+    fp_ref_ridge: Optional[float] = None  # ridge on the REFERENCE block only (kernel ridge regression);
+                                          # None -> fp_ridge (exact interp). Backbone stays un-ridged so
+                                          # the HEG (LDA) and GEA-slope limits remain exact.
     refs_path: Optional[str] = None   # kernel reference-node .npz (X, DELTA); None -> module _KERNEL_FP_REFS
 
 
@@ -372,7 +375,13 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
             Xb = np.zeros((0, self._n_out)); Db = np.zeros((0, self._n_out))
         Xnodes = np.vstack([x_heg, x_gea, Xb])
         mu = np.concatenate([[0.0, 0.0], Db @ self._Cmom])               # node energy-moments (GEA via c_G)
-        K = self._Kmat(Xnodes, Xnodes) + self._fp_ridge * np.eye(len(Xnodes))
+        # kernel ridge regression on the REFERENCE block only (Tikhonov for the ill-conditioned Gram
+        # matrix); backbone (HEG+GEA) diagonal stays at fp_ridge so its exact limits are untouched.
+        ref_ridge = getattr(self.params, "fp_ref_ridge", None)
+        ridge_diag = np.full(len(Xnodes), self._fp_ridge)
+        if ref_ridge is not None:
+            ridge_diag[2:] = float(ref_ridge)
+        K = self._Kmat(Xnodes, Xnodes) + np.diag(ridge_diag)
         Kinv = np.linalg.solve(K, np.eye(len(K)))
         nl0 = self._n_out - 1
         dK1 = self._Kmat(x_heg, Xnodes)[0] * Xnodes[:, nl0] / self._fp_l1 ** 2   # dK/d(s^2) at HEG
