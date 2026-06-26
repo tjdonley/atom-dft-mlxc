@@ -239,6 +239,10 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
     sat_gradient: bool = False # use the PBE-like SATURATING gradient kernel h(s^2) (rises to LO) instead
                                # of the decaying Gaussian GEA bump; references keep the RBF on top
     fp_kappa_lo: float = 0.804 # Lieb-Oxford enhancement ceiling F_x -> 1+fp_kappa_lo at large s (sat mode)
+    use_l2_power: bool = False # add the l=2 POWER SPECTRUM |d_l2|^2 = sum_n d_{n,2}^2 (adaptive-radius,
+                               # monopole-normalized) -- the cross-atom-completeness feature (vs the
+                               # single reduced-l2 scalar t^2 of use_l2, which is too weak)
+    fp_l2pow: float = 0.5      # RBF length scale for the l=2 power-spectrum coordinate
     fp_ref_ridge: Optional[float] = 1e-2  # ridge on the REFERENCE block only (kernel ridge regression);
                                           # default 1e-2 makes loaded references SCF-stable out of the box
                                           # (exact interp ill-conditions v_x -> SCF spikes). Set to fp_ridge
@@ -275,6 +279,19 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         self._use_l2 = bool(getattr(self.params, "use_l2", False))
         self._fp_l2 = float(getattr(self.params, "fp_l2", 0.5))
         self._l2_op = build_spectral_l2_operator(self._r_grid) if self._use_l2 else None
+        self._use_l2pow = bool(getattr(self.params, "use_l2_power", False))
+        self._fp_l2pow = float(getattr(self.params, "fp_l2pow", 0.5))
+        if self._use_l2pow:                                  # l=2 power-spectrum machinery (adaptive radius)
+            from ..descriptors.simple.pipeline import window_basis, transfer_matrix
+            from ..descriptors.simple.bessel import radial_gauss_grid
+            q = radial_gauss_grid(self.params.r_c, 256)
+            self._l2p_qn = np.asarray(q.nodes); self._l2p_qw = np.asarray(q.weights)
+            uu, wuu = np.polynomial.legendre.leggauss(48)
+            self._l2p_u, self._l2p_wu = uu, wuu; self._l2p_P2 = 0.5 * (3.0 * uu ** 2 - 1.0)
+            self._l2p_ang = np.sqrt(4.0 * np.pi / 5.0)       # sqrt(4pi/(2l+1)), l=2
+            self._l2p_BAS = window_basis(2, self._n_in).evaluate(2, self._l2p_qn)   # (n_in, n_win)
+            self._l2p_T = np.stack([transfer_matrix(2, float(ra), self._n_out, self._n_in)
+                                    for ra in self._rad_grid])   # (n_rad, n_out, n_in)
         n = self._n_out
         # Notation tracks the writeup: B = charge moments, C = Coulomb moments, R0 = on-top (basis at
         # origin), rhotilde = dimensionless hole shape, cprime = raw monopole coefficient op@rho
@@ -356,28 +373,53 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         lam3 = np.linalg.solve(A3 @ np.transpose(A3, (0, 2, 1)), rhs3[..., None])[..., 0]
         return heg + np.einsum('nk,nkm->nm', lam3, A3)
 
-    def _xfeat(self, cn, s2, t2=None):
+    def _xfeat(self, cn, s2, t2=None, p2=None):
         cn = np.atleast_2d(np.asarray(cn, float)); s2 = np.atleast_1d(np.asarray(s2, float))
         cols = [cn[:, 1:], s2]                                   # [l=0 power vector cn[1:], l=1 s^2]
-        if getattr(self, "_use_l2", False):                      # optional l=2 (quadrupole) coordinate
+        if getattr(self, "_use_l2", False):                      # optional l=2 (quadrupole) scalar t^2
             t2 = np.zeros_like(s2) if t2 is None else np.atleast_1d(np.asarray(t2, float))
             cols.append(t2)
+        if getattr(self, "_use_l2pow", False):                   # optional l=2 power spectrum |d_l2|^2
+            p2 = np.zeros_like(s2) if p2 is None else np.atleast_1d(np.asarray(p2, float))
+            cols.append(p2)
         return np.column_stack(cols)
+
+    def _l2_power_feat(self, rho, R_ad, d00):
+        """l=2 power spectrum p2 = sum_n d_{n,2}^2 at each grid point: the l=2 axial multipole about r0,
+        window-projected, transferred to the adaptive radius R_ad, monopole-normalized (/ d00^2), bounded.
+        The cross-atom-completeness coordinate (the single reduced-l2 scalar t^2 is too weak)."""
+        qn, u = self._l2p_qn, self._l2p_u; N = len(rho); p2 = np.zeros(N)
+        rg, T = self._rad_grid, self._l2p_T
+        idx = np.clip(np.searchsorted(rg, R_ad) - 1, 0, len(rg) - 2)
+        fr = (R_ad - rg[idx]) / (rg[idx + 1] - rg[idx])
+        aw = (self._l2p_wu * self._l2p_P2)[None, :]; rw = self._l2p_qw * qn ** 2
+        for i in range(N):
+            dist = np.sqrt(np.maximum(self._r_grid[i] ** 2 + qn[:, None] ** 2
+                                      - 2.0 * qn[:, None] * self._r_grid[i] * u[None, :], 0.0))
+            rv = np.interp(dist.ravel(), self._r_grid, rho).reshape(dist.shape)
+            prof = 2.5 * (rv * aw).sum(1)                                   # rho_2(u;r0) = (5/2) int P2 rho
+            cwin = self._l2p_ang * self._l2p_BAS @ (rw * prof)              # window l=2 coeffs
+            d2 = (T[idx[i]] * (1.0 - fr[i]) + T[idx[i] + 1] * fr[i]) @ cwin  # -> adaptive radius
+            p2[i] = np.sum(d2 ** 2) / max(d00[i] ** 2, 1e-30)
+        return _bound(p2)[0]
 
     def _inv_ell(self):
         """Per-dimension inverse length scales (n_out,): ARD `_fp_ell` if set, else isotropic
         [1/l0]*(n_out-1) on the l=0 block + [1/l1] on s^2. Cached until the scales change."""
         ell = getattr(self, "_fp_ell", None)
         l2 = self._fp_l2 if getattr(self, "_use_l2", False) else None
-        key = ("ard", id(ell)) if ell is not None else ("iso", self._fp_l0, self._fp_l1, l2)
+        l2p = self._fp_l2pow if getattr(self, "_use_l2pow", False) else None
+        key = ("ard", id(ell)) if ell is not None else ("iso", self._fp_l0, self._fp_l1, l2, l2p)
         if getattr(self, "_inv_ell_key", None) != key:
             nl0 = self._n_out - 1
             if ell is not None:
                 w = 1.0 / np.asarray(ell, float)
             else:
                 w = np.concatenate([np.full(nl0, 1.0 / self._fp_l0), [1.0 / self._fp_l1]])
-                if l2 is not None:                               # extra l=2 coordinate
+                if l2 is not None:                               # extra l=2 scalar coordinate
                     w = np.concatenate([w, [1.0 / l2]])
+                if l2p is not None:                              # extra l=2 power-spectrum coordinate
+                    w = np.concatenate([w, [1.0 / l2p]])
             self._inv_ell_cache = w; self._inv_ell_key = key
         return self._inv_ell_cache
 
@@ -429,10 +471,13 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         s2, _ = _bound((g / (2.0 * kF * rho0)) ** 2)
         cn = c_ad / np.where(np.abs(c_ad[:, :1]) > 1e-30, c_ad[:, :1], 1e-30)
         t2 = None
-        if self._use_l2:                                         # reduced l=2 (quadrupole) feature
+        if self._use_l2:                                         # reduced l=2 (quadrupole) scalar feature
             t2, _ = _bound((self._l2_op @ rho0 / (4.0 * kF ** 2 * rho0)) ** 2)
+        p2 = None
+        if getattr(self, "_use_l2pow", False):                   # l=2 power spectrum (cross-atom completeness)
+            p2 = self._l2_power_feat(rho0, R_ad, c_ad[:, 0])
         # dimensionless hole shape rhotilde = rhotilde_LDA + kernel deviation; hole = -rho/2 * rhotilde
-        rhotilde = self._rhotilde_lda[None, :] + self._Kmat(self._xfeat(cn, s2, t2), self._fp_Xnodes) @ self._fp_coef
+        rhotilde = self._rhotilde_lda[None, :] + self._Kmat(self._xfeat(cn, s2, t2, p2), self._fp_Xnodes) @ self._fp_coef
         if self._sat_gradient:
             # PBE-like saturating gradient kernel: F_x -> 1 + kappa_LO h(s^2), h = a s^2/(1+a s^2),
             # a = mu/kappa_LO so slope(0)=mu and h(inf)=1 (saturates at the Lieb-Oxford ceiling, vs the

@@ -76,3 +76,29 @@ are the SAME problem (cn+s2 incompleteness); the fix is COMPLETE FEATURES (l=2 p
 Caveat: the earlier use_l2 test used the single reduced-l2 scalar t^2, NOT the floor-analysis winner
 (power spectrum |d_l2|^2, sum over radial modes) -- so it didn't actually probe the completeness fix.
 NEXT: dense mixed refs + the proper power-spectrum l=2 feature -> does mixed-pool in-domain drop to ~1?
+
+=== l=2 POWER-SPECTRUM feature implemented and tested (use_l2_power) -- does NOT fix in-domain ===
+Wired the floor-analysis winner into the functional: param use_l2_power adds the adaptive-radius,
+monopole-normalized l=2 power spectrum p2 = sum_n d_{n,2}^2 (method _l2_power_feat), as an 11th kernel
+coordinate. GEA limit PRESERVED (backbone p2=0, s^2 column unchanged; slope 0.1257). Verified p2 matches
+the floor-analysis l2pow (Ne medians 0.135 cache vs 0.133 functional). 12->13 FP tests pass.
+
+IN-DOMAIN result (n1098 dense refs, exact interp), err vs Ehf (no-l2pow: Ne99 Ar128 Kr154):
+  bounded p2, fp_l2pow scan 0.03/0.07/0.15/0.30: Ne 145/136/104/99, Ar 149/152/163/171, Kr 170/184/189/182
+  unbounded p2, fp_l2pow 0.5/2/5:                Ne 102/101/99, Ar 170/139/129, Kr 172/155/154
+=> l=2 POWER SPECTRUM does NOT remove the in-domain contamination at ANY length scale/bounding; it hurts
+   or (at large scale) reverts to ignoring p2. WHY: the references are filtered to rho>=0.1 and have
+   p2 range [0,0.42], but the eval grid reaches p2~3.4 -- the high-l2 regions have NO reference coverage,
+   so adding l2pow makes them EXTRAPOLATE. And the contaminating cross-atom refs are not separated by
+   l2pow in the global solve.
+
+COMPREHENSIVE IN-DOMAIN VERDICT: own-atom refs -> ~0 mHa (achievable, verified); mixed refs -> ~90
+(cross-atom contamination). RESISTANT to every tried lever: reference density (no), local kernel (no),
+l=2 single-t^2 (no), l=2 power spectrum bounded/unbounded all scales (no). The floor-analysis
+completeness (a property of the feature->hole MAP) does NOT translate into removing the functional's
+in-domain contamination -- which is a GLOBAL-SOLVE + REFERENCE-COVERAGE effect (filtered refs don't span
+the structured/high-l2 eval regions), not a feature-separability effect. So in-domain accuracy in this
+kernel-on-fixed-mixed-refs construction is bounded by cross-atom contamination; the achievable ~0
+(own-atom) needs atom-specific references, i.e. NOT a universal functional. Improving it requires a
+reference/solve-strategy change (atom-aware reference selection, or removing the rho>=0.1 filter so refs
+span the structured regions), not features.

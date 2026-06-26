@@ -441,6 +441,27 @@ def test_FP_mu_tunable_gradient_enhancement():
         assert slope == pytest.approx(mu, rel=3e-2), f"fp_mu={mu}: realized slope {slope:.4f}"
 
 
+def test_FP_l2_power_feature_optional():
+    """use_l2_power adds the l=2 POWER SPECTRUM coordinate (adaptive-radius |d_l2|^2, monopole-normalized)
+    as an 11th kernel feature, runs, and PRESERVES the GEA limit: the backbone HEG/GEA nodes have
+    p2=0 (uniform/HEG has no l=2), and the GEA-slope solve uses the s^2 column (index n_out-1), so the
+    10/81 small-s slope is untouched. Default (use_l2_power=False) is unaffected."""
+    from atom.xc.simple_hole_expansion import SIMPLE_HOLE_KERNEL_FP, SIMPLEHOLEKERNELFPParameters, _GEA2
+    r = np.linspace(1e-3, 14.0, 500); w = np.gradient(r)
+    F0 = SIMPLE_HOLE_KERNEL_FP(r_quad=r, quadrature_weights=w)
+    F = SIMPLE_HOLE_KERNEL_FP(r_quad=r, quadrature_weights=w,
+                              params=SIMPLEHOLEKERNELFPParameters(use_l2_power=True))
+    assert F._fp_Xnodes.shape[1] == F0._fp_Xnodes.shape[1] + 1, "use_l2_power should add one feature dim"
+    s = np.linspace(0.0, 30.0, 6000); sm = (s > 1e-6) & (s < 0.2)
+    slope = np.polyfit(s[sm] ** 2, F._fx_gea_axis(s)[sm] - 1.0, 1)[0]
+    assert slope == pytest.approx(_GEA2, rel=3e-2), f"l=2 power broke the GEA slope: {slope:.5f}"
+    # the feature evaluates and is finite on a model density
+    rho = 0.5 * np.exp(-0.5 * r ** 2) + 1e-3; R_ad, _ = F._R_ad(rho)
+    cp = np.array([op @ rho for op in F._ops]); c_ad = F._c_ad(cp, R_ad)
+    p2 = F._l2_power_feat(rho, R_ad, c_ad[:, 0])
+    assert np.all(np.isfinite(p2)) and np.all(p2 >= 0.0), "l=2 power must be finite and non-negative"
+
+
 def test_FP_saturating_gradient_kernel():
     """sat_gradient swaps the decaying Gaussian GEA bump for the PBE-like SATURATING gradient kernel:
     F_x = 1 + kappa_lo h(s^2), h = a s^2/(1+a s^2), a = fp_mu/kappa_lo -- slope fp_mu at small s,
