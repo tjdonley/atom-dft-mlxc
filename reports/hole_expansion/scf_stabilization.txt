@@ -145,3 +145,26 @@ adjoint calls _kernel_eps ~22x (FD over channels), so SCF (200 iters x ~22 evals
 impractically slow as written -- SCF convergence at fp_l2pow~0.02 is NOT yet tested. NEXT: vectorize
 _l2_power_feat over grid points and CACHE the rho-only angular profile across the cprime-channel FD
 (p2's slow part depends on rho0, not cprime), then run the SCF + min-roughness(deriv_smooth)+gate test.
+
+=== OPTIMIZATION: _l2_power_feat 27x faster (SCF now tractable); SCF convergence still open ===
+Profiled compute_xc with use_l2_power (1615-pt grid): 14.67 s, of which _l2_power_feat 14.4s (97%),
+dominated by np.interp called 72675x (= 45 adjoint-FD _kernel_eps calls x 1615 grid points). Two exact
+optimizations (bit-identical, max |dp2| = 8.9e-16; 14/14 FP tests pass; OEP unchanged):
+  (1) CACHE the rho-only angular power sum_n d_{n,2}^2 across the adjoint FD. It depends on rho only
+      (NOT the perturbed cprime/g), so the 40 cprime-FD + 2 g-FD calls reuse it; only base + 2 rho-FD
+      recompute -> 45 angular evals collapse to 3. (_l2_sumd2sq, keyed on rho.tobytes(), LRU cap 8.)
+  (2) PRECOMPUTE the gather: the interp targets dist(r0,q,u) depend only on the fixed grid+quadrature,
+      so the np.interp search + sqrt are constant across densities -- precompute kidx/frac once
+      (_l2_precompute, 0.38s one-time, 238 MB for 1615 pts), per-call cost = gather + lerp.
+  Result: compute_xc 14.67 -> 1.19 (cache) -> 0.54 s (gather) = 27x. SCF is now ~0.74 s/iter (was
+  ~16 s/iter, i.e. impractical). Profile after: _Kmat (0.28s/45 calls, BLAS-bound) is the new floor.
+
+SCF CONVERGENCE at the best OEP setting (fp_l2pow=0.02, OEP Be 1.5) -- STILL DOES NOT CONVERGE:
+  Be l2pow0.02 plain        -> diverges (E=nan, 200 iters)
+  Be l2pow0.02 + gate 3e-3  -> diverges (E=nan, 200 iters)
+So the much-better bulk potential (OEP 14->1.5) is necessary but NOT sufficient: SCF diverges (nan),
+pointing to the low-density TAIL (rho<0.01, below the rf001 ref floor -> kernel extrapolates) and/or
+residual roughness, not the bulk. The gate at 3e-3 is BELOW the 0.01 ref floor so it doesn't protect
+the 0.001-0.01 no-ref region. NEXT (now fast to iterate, ~2.5 min/atom): gate threshold ~ ref floor
+(0.01-0.03), deriv_smooth (min-roughness, with the GEA-slope constraint added), and/or extend the
+references below rho=0.01. The speed barrier to iterating SCF is removed.

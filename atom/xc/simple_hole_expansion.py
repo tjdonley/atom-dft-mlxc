@@ -306,6 +306,7 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
             self._l2p_BAS = window_basis(2, self._n_in).evaluate(2, self._l2p_qn)   # (n_in, n_win)
             self._l2p_T = np.stack([transfer_matrix(2, float(ra), self._n_out, self._n_in)
                                     for ra in self._rad_grid])   # (n_rad, n_out, n_in)
+            self._l2_cache = {}   # rho-keyed cache of the (cprime/g-independent) l=2 angular power
         self._ref_gate_rho = float(getattr(self.params, "ref_gate_rho", 0.0))  # SCF low-density damping
         self._ref_gate_dec = float(getattr(self.params, "ref_gate_dec", 0.4))
         self._deriv_smooth = float(getattr(self.params, "deriv_smooth", 0.0))   # min-roughness shape fit
@@ -401,24 +402,62 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
             cols.append(p2)
         return np.column_stack(cols)
 
-    def _l2_power_feat(self, rho, R_ad, d00):
-        """l=2 power spectrum p2 = sum_n d_{n,2}^2 at each grid point: the l=2 axial multipole about r0,
-        window-projected, transferred to the adaptive radius R_ad, monopole-normalized (/ d00^2), bounded.
-        The cross-atom-completeness coordinate (the single reduced-l2 scalar t^2 is too weak)."""
-        qn, u = self._l2p_qn, self._l2p_u; N = len(rho); p2 = np.zeros(N)
-        rg, T = self._rad_grid, self._l2p_T
+    def _l2_precompute(self):
+        """Precompute the l=2 angular-integral gather: the interpolation targets dist(r0,q,u) =
+        |r0 - q u| depend ONLY on the fixed radial grid and (q,u) quadrature, not on rho. So the
+        np.interp search + the sqrt are constant across all densities -- do them once, store the linear
+        gather indices kidx and weights frac (matching np.interp's clamped linear rule), and reduce the
+        per-evaluation cost to a gather + lerp. Memory ~ N*n_q*n_u (int32 + float64)."""
+        if getattr(self, "_l2_kidx", None) is not None:
+            return
+        qn, u, rgrid = self._l2p_qn, self._l2p_u, self._r_grid; N = len(rgrid); qn2 = qn ** 2
+        kidx = np.empty((N, len(qn), len(u)), dtype=np.int32); frac = np.empty((N, len(qn), len(u)))
+        for s in range(0, N, 256):
+            e = min(s + 256, N); r0 = rgrid[s:e]
+            dist = np.sqrt(np.maximum(r0[:, None, None] ** 2 + qn2[None, :, None]
+                                      - 2.0 * r0[:, None, None] * qn[None, :, None] * u[None, None, :], 0.0))
+            k = np.clip(np.searchsorted(rgrid, dist) - 1, 0, N - 2)        # interval index (np.interp)
+            kidx[s:e] = k
+            frac[s:e] = np.clip((dist - rgrid[k]) / (rgrid[k + 1] - rgrid[k]), 0.0, 1.0)  # clamp = np.interp
+        self._l2_kidx = kidx; self._l2_frac = frac
+
+    def _l2_sumd2sq(self, rho, R_ad):
+        """The rho-only part of the l=2 power: sum_n d_{n,2}^2 (pre-normalization) at each grid point --
+        the l=2 axial multipole about r0, window-projected, transferred to the adaptive radius R_ad.
+        Depends ONLY on the density (not cprime or g), so it is cached on rho across the adjoint FD
+        (which perturbs cprime/g): 45 _kernel_eps calls/compute_xc collapse to ~3 angular evaluations.
+        Uses the precomputed gather (no per-call search/sqrt), chunked to bound the (b,n_q,n_u) temp."""
+        key = hash(rho.tobytes())
+        cached = self._l2_cache.get(key)
+        if cached is not None:
+            return cached
+        self._l2_precompute()
+        qn, rg, T = self._l2p_qn, self._rad_grid, self._l2p_T
         idx = np.clip(np.searchsorted(rg, R_ad) - 1, 0, len(rg) - 2)
         fr = (R_ad - rg[idx]) / (rg[idx + 1] - rg[idx])
-        aw = (self._l2p_wu * self._l2p_P2)[None, :]; rw = self._l2p_qw * qn ** 2
-        for i in range(N):
-            dist = np.sqrt(np.maximum(self._r_grid[i] ** 2 + qn[:, None] ** 2
-                                      - 2.0 * qn[:, None] * self._r_grid[i] * u[None, :], 0.0))
-            rv = np.interp(dist.ravel(), self._r_grid, rho).reshape(dist.shape)
-            prof = 2.5 * (rv * aw).sum(1)                                   # rho_2(u;r0) = (5/2) int P2 rho
-            cwin = self._l2p_ang * self._l2p_BAS @ (rw * prof)              # window l=2 coeffs
-            d2 = (T[idx[i]] * (1.0 - fr[i]) + T[idx[i] + 1] * fr[i]) @ cwin  # -> adaptive radius
-            p2[i] = np.sum(d2 ** 2) / max(d00[i] ** 2, 1e-30)
-        return _bound(p2)[0]
+        awu = self._l2p_wu * self._l2p_P2                  # (n_u,)
+        rw = self._l2p_qw * qn ** 2                        # (n_q,)
+        BAS, ang = self._l2p_BAS, self._l2p_ang; kidx, frac = self._l2_kidx, self._l2_frac
+        N = len(rho); sumd2sq = np.empty(N); CH = 256       # chunk grid points to bound the (b,n_q,n_u) temp
+        for s in range(0, N, CH):
+            e = min(s + CH, N); ki = kidx[s:e]; fk = frac[s:e]
+            rv = rho[ki] * (1.0 - fk) + rho[ki + 1] * fk                    # gather + lerp = np.interp
+            prof = 2.5 * (rv * awu[None, None, :]).sum(2)                   # rho_2(u;r0), (b, n_q)
+            cwin = ang * (rw[None, :] * prof) @ BAS.T                       # window l=2 coeffs, (b, n_in)
+            Tb = (T[idx[s:e]] * (1.0 - fr[s:e])[:, None, None]
+                  + T[idx[s:e] + 1] * fr[s:e][:, None, None])              # -> adaptive radius, (b,n_out,n_in)
+            d2 = np.einsum('boi,bi->bo', Tb, cwin)                          # (b, n_out)
+            sumd2sq[s:e] = np.sum(d2 ** 2, axis=1)
+        if len(self._l2_cache) >= 8:
+            self._l2_cache.pop(next(iter(self._l2_cache)))
+        self._l2_cache[key] = sumd2sq
+        return sumd2sq
+
+    def _l2_power_feat(self, rho, R_ad, d00):
+        """l=2 power spectrum p2 = sum_n d_{n,2}^2 / d00^2 at each grid point, bounded -- the
+        cross-atom-completeness coordinate (the single reduced-l2 scalar t^2 is too weak). The rho-only
+        sum_n d_{n,2}^2 is cached (see _l2_sumd2sq); only the monopole normalization /d00^2 is per-call."""
+        return _bound(self._l2_sumd2sq(rho, R_ad) / np.maximum(d00 ** 2, 1e-30))[0]
 
     def _inv_ell(self):
         """Per-dimension inverse length scales (n_out,): ARD `_fp_ell` if set, else isotropic
