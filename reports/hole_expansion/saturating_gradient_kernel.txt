@@ -1,0 +1,36 @@
+A PBE-like SATURATING gradient kernel (param sat_gradient, default False -> no regression).
+
+MOTIVATION: the RBF kernel decays to 0 with distance, so the hole deviation vanishes far from the
+nodes -> the gradient enhancement RELAXES BACK TO LDA. PBE does the opposite: F_x RISES and SATURATES
+at the Lieb-Oxford ceiling (1+kappa = 1.804) as s->inf. So along the gradient axis we want a kernel
+that saturates at LO, not one that decays to zero.
+
+DESIGN: replace the decaying Gaussian GEA bump with a saturating "kernel" on the gradient feature:
+    F_x = 1 + kappa_lo * h(s^2),   h(s^2) = a s^2/(1 + a s^2),   a = mu/kappa_lo
+  h(0)=0 (LDA at uniform), h'(0)=mu/kappa_lo (slope mu), h(inf)=1 (saturates: F_x -> 1+kappa_lo).
+  This is exactly the PBE Pade enhancement. Implemented as an analytic term added to rhotilde on the
+  charge/on-top-neutral GEA mode _dgea (amplitude A_max = kappa_lo/(kappa*_dgb) so the moment gives
+  F_x->1+kappa_lo); the Gaussian GEA kernel node is disabled (c_G=0). l=0 dirs + references keep RBF.
+
+VERIFIED: saturates at 1.804; at PBE params (mu=0.2195, kappa_lo=0.804) the F_x curve is identical to
+PBE's; pointwise energy-weighted effective F_x matches the PBE target (1.023 vs 1.024) in the
+energy-relevant core+valence (the FA tail holds ~0% of the exchange weight -- FA dilution is NOT a
+factor). SCF-stable reference-free (Be/Ne/Ar converge) -- the bounded form is well-behaved (the
+constant-mu s^2 enhancement, by contrast, DIVERGES at high gradient: violates LO, risks SCF blowup).
+
+RESULT (reference-free, closed-shell exchange MAE vs Ehf, mHa; PBE 49, rSCAN 16):
+  errors vs Ehf, +=underbind:      Ne    Mg    Ar
+    LDA (actual)                  +430  +537  +288
+    SIM reference-free (LDA-like) +440  +512  +312
+    SIM saturating (mu=0.2195)    +127  +130  +151    <- 3-4x better than LDA, between LDA and PBE
+    PBE                            +78  +105   +62
+  Best reference-free saturating: mu~0.30 -> MAE 78 (=~ the non-saturating tuned-mu 75; both bounded by
+  the same hole-machinery limit, NOT by the saturation). At PBE's own params SIM-sat is 120 (vs PBE 49)
+  -- PBE extracts more binding from the same nominal F_x curve (residual ~60-80 mHa, hole-projection
+  vs energy-density application).
+
+VERDICT: the saturating kernel is the RIGHT structural object for the gradient axis -- bounded at LO,
+no divergence, doesn't relax to LDA, SCF-stable, PBE-like reference-free. It does not by itself beat
+PBE reference-free (78 vs 49). The path to beat PBE: add the non-local references on top of this clean
+saturating backbone -- but they must be RE-REFERENCED to (exact - saturating-backbone), else they
+double-count (DELTA currently = exact - LDA). 12/12 FP tests pass (added test_FP_saturating_gradient_kernel).

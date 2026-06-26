@@ -236,6 +236,9 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
     fp_l2: float = 0.5         # its RBF length scale (only used when use_l2)
     fp_mu: float = 10.0 / 81.0 # small-gradient enhancement slope F_x->1+mu*s^2 (default GEA2=10/81;
                                # set larger -- e.g. PBE mu=0.2195 -- for stronger gradient enhancement)
+    sat_gradient: bool = False # use the PBE-like SATURATING gradient kernel h(s^2) (rises to LO) instead
+                               # of the decaying Gaussian GEA bump; references keep the RBF on top
+    fp_kappa_lo: float = 0.804 # Lieb-Oxford enhancement ceiling F_x -> 1+fp_kappa_lo at large s (sat mode)
     fp_ref_ridge: Optional[float] = 1e-2  # ridge on the REFERENCE block only (kernel ridge regression);
                                           # default 1e-2 makes loaded references SCF-stable out of the box
                                           # (exact interp ill-conditions v_x -> SCF spikes). Set to fp_ridge
@@ -298,6 +301,8 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         self._fp_DG, self._fp_ridge = float(p.fp_DG), float(p.fp_ridge)
         self._fp_ell = None                              # optional ARD-SE per-dim length scales (n_out,)
         self._fp_mu = float(getattr(self.params, "fp_mu", _GEA2))   # gradient-enhancement slope target
+        self._sat_gradient = bool(getattr(self.params, "sat_gradient", False))  # PBE-like saturating gradient kernel
+        self._fp_kappa_lo = float(getattr(self.params, "fp_kappa_lo", 0.804))   # Lieb-Oxford F_x ceiling (sat mode)
         A = self._X ** 2 / (3.0 * np.pi ** 2) ** (2.0 / 3.0)
         self._fp_kappa = np.pi * A / abs(_C_LDA)              # F_x-1 = kappa (delta_rhotilde . C)
         self._fp_dgb = float(self._dgea @ self._Cmom)
@@ -406,6 +411,8 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         dK1 = self._Kmat(x_heg, Xnodes)[0] * Xnodes[:, nl0] / self._fp_l1 ** 2   # dK/d(s^2) at HEG
         row = self._fp_kappa * (dK1 @ Kinv)                              # a1 = row . mu (linear in c_G)
         c_G = (self._fp_mu - float(row @ mu)) / float(row[1] * self._fp_dgb)  # solve l=1 slope = fp_mu (def 10/81)
+        if self._sat_gradient:
+            c_G = 0.0                  # saturating analytic GEA term replaces the decaying kernel bump
         Delta = np.vstack([np.zeros(self._n_out), c_G * self._dgea, Db])
         self._fp_Xnodes = Xnodes; self._fp_coef = np.linalg.solve(K, Delta); self._fp_cG = c_G
 
@@ -426,6 +433,15 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
             t2, _ = _bound((self._l2_op @ rho0 / (4.0 * kF ** 2 * rho0)) ** 2)
         # dimensionless hole shape rhotilde = rhotilde_LDA + kernel deviation; hole = -rho/2 * rhotilde
         rhotilde = self._rhotilde_lda[None, :] + self._Kmat(self._xfeat(cn, s2, t2), self._fp_Xnodes) @ self._fp_coef
+        if self._sat_gradient:
+            # PBE-like saturating gradient kernel: F_x -> 1 + kappa_LO h(s^2), h = a s^2/(1+a s^2),
+            # a = mu/kappa_LO so slope(0)=mu and h(inf)=1 (saturates at the Lieb-Oxford ceiling, vs the
+            # Gaussian bump which decays to 0 = back to LDA). Uses RAW s^2 (h saturates -> no divergence).
+            s2_raw = (g / (2.0 * kF * rho0)) ** 2
+            a = self._fp_mu / self._fp_kappa_lo
+            h = a * s2_raw / (1.0 + a * s2_raw)
+            A_max = self._fp_kappa_lo / (self._fp_kappa * self._fp_dgb)
+            rhotilde = rhotilde + (A_max * h)[:, None] * self._dgea[None, :]
         bulk = (-0.5 * rho0)[:, None] * rhotilde
         fa = -d / Qs[:, None]
         coeffs = (1.0 - W)[:, None] * bulk + W[:, None] * fa

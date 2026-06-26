@@ -441,6 +441,31 @@ def test_FP_mu_tunable_gradient_enhancement():
         assert slope == pytest.approx(mu, rel=3e-2), f"fp_mu={mu}: realized slope {slope:.4f}"
 
 
+def test_FP_saturating_gradient_kernel():
+    """sat_gradient swaps the decaying Gaussian GEA bump for the PBE-like SATURATING gradient kernel:
+    F_x = 1 + kappa_lo h(s^2), h = a s^2/(1+a s^2), a = fp_mu/kappa_lo -- slope fp_mu at small s,
+    rising to the Lieb-Oxford ceiling 1+kappa_lo at large s (vs the bump, which decays back to LDA=1).
+    Verifies the Gaussian node is disabled (c_G=0) and the realized enhancement has the right slope
+    and saturation ceiling. Default (sat_gradient=False) keeps the bump (c_G != 0)."""
+    from atom.xc.simple_hole_expansion import SIMPLE_HOLE_KERNEL_FP, SIMPLEHOLEKERNELFPParameters
+    r = np.linspace(1e-3, 14.0, 600); w = np.gradient(r)
+    F = SIMPLE_HOLE_KERNEL_FP(r_quad=r, quadrature_weights=w,
+                              params=SIMPLEHOLEKERNELFPParameters(sat_gradient=True, fp_mu=0.2195))
+    assert F._fp_cG == 0.0, "saturating mode must disable the Gaussian GEA kernel node"
+    # realized gradient enhancement F_x(s^2) = 1 + kappa_lo h(s^2) (the term _kernel_eps adds to rhotilde)
+    s2 = np.array([1e-4, 1e-3, 1e-2, 1e2, 1e4, 1e8])
+    a = F._fp_mu / F._fp_kappa_lo
+    A_max = F._fp_kappa_lo / (F._fp_kappa * F._fp_dgb)
+    Fx = 1.0 + F._fp_kappa * (A_max * (a * s2 / (1.0 + a * s2))) * F._fp_dgb
+    assert Fx[-1] == pytest.approx(1.0 + F._fp_kappa_lo, rel=1e-6), "must saturate at LO ceiling 1+kappa_lo"
+    assert Fx[-1] == pytest.approx(1.804, abs=1e-3), "default LO ceiling = 1.804"
+    slope = (Fx[0] - 1.0) / s2[0]
+    assert slope == pytest.approx(F._fp_mu, rel=1e-2), f"small-s slope should be fp_mu: {slope:.4f}"
+    # default keeps the decaying bump (Gaussian node active)
+    Fb = SIMPLE_HOLE_KERNEL_FP(r_quad=r, quadrature_weights=w)
+    assert Fb._fp_cG != 0.0, "default (non-sat) must keep the Gaussian GEA node"
+
+
 def test_FP_l2_feature_optional():
     """The optional l=2 (quadrupole) axial coordinate (use_l2) adds an 11th kernel feature dim and
     runs, while leaving the backbone limits intact: t^2 = 0 at the HEG/GEA nodes, so the 10/81 GEA
