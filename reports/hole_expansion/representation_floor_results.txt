@@ -45,3 +45,35 @@ reparametrization-invariant estimator -- KSG mutual information I(R; e_sf) and c
 I(e_sf; V_full | R) -- which sidesteps the metric/dimensionality confound and directly answers
 "does the reduction discard energy-relevant information"; (c) only then revisit the bispectrum / 1-RDM
 question with a trustworthy floor.
+
+=== UPDATE: feature pre-analysis + sqrt(delta) floor extrapolation (representation_floor_extrap.py) ===
+FEATURE PRE-ANALYSIS (PI: drop zero features): NONE are dead. All 69 monopole-normalized axial
+channels d_{nl} (l=0..6, n=0..9, minus the constant d00) have O(1) magnitude (1-7), growing with l.
+So there is nothing to drop; V_full's high dimension is genuine, not zero-padding. (Whether the high-l
+channels are INFORMATIVE vs numerically noisy is a separate question for mutual information.)
+
+FLOOR RECOVERY via |Delta e_sf| ~ sqrt(delta) extrapolation (intercept at sqrt(d)->0 = irreducible floor,
+removes the finite-neighbor-spacing bias of the raw k-NN). Energy floor mHa/atom:
+  invariants     IN-DOMAIN floor    CROSS-ATOM (nearest-cross sqrt-d)
+  cn+s2(cur)         2.6                78   (sqrt-d 0.35)
+  powspec_l6         1.2                86   (sqrt-d 0.41)
+  V_full            -3.6 (~0)           67   (sqrt-d 0.86)
+
+IN-DOMAIN floor RECOVERED at ~1-3 mHa == the known model result -> the fit-free estimator is VALIDATED
+(the earlier ~20 was neighbor-spacing bias). NB even the CURRENT features reach ~1-3 mHa in-domain, so
+in-domain they are already sufficient; the problem is purely cross-atom transfer.
+
+CORRECTION to the earlier ~80 cross-atom reading: the cross-atom energy spread is FLAT vs neighbor rank
+(no sqrt-d->0 convergence) and the nearest cross-atom neighbor is FAR (sqrt-d 0.35-0.86, vs ~0 in-domain).
+So ~67-86 is the spread AT the nearest (distant) cross-atom point -- an upper bound inflated by that gap,
+NOT a determined floor. At 10 atoms x 80 pts there are NO close cross-atom pairs to anchor the
+extrapolation; the true cross-atom floor is undetermined (could be much lower). This is a hard DATA
+limitation, not a method failure (the method works in-domain).
+
+CONSEQUENCE: to determine the cross-atom floor we MUST sample densely enough that different atoms have
+genuinely-close feature neighbors. Path: (a) scale the descriptor cache to all closed+open atoms and
+many more points per atom; re-run the sqrt(delta) cross-atom extrapolation -- if close cross-atom pairs
+appear and their Delta e_sf -> small, the features transfer; if it stays large, real cross-atom
+incompleteness. (b) KSG mutual information as the metric/dimensionality-robust cross-check. The
+deconvolution conclusion stands regardless: the KRR transfer errors (6761+) are >> any plausible floor,
+so they were fitting-dominated.
