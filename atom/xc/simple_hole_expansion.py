@@ -44,7 +44,7 @@ from scipy.optimize import brentq
 from scipy.special import spherical_jn
 
 from ..descriptors.simple.bessel import RadialBesselBasis
-from ..descriptors.simple.derivatives import build_spectral_gradient_operator
+from ..descriptors.simple.derivatives import build_spectral_gradient_operator, build_spectral_l2_operator
 from ..descriptors.simple.params import R_C as _PIPELINE_R_C
 from ..descriptors.simple.pipeline import transfer_matrix
 from .evaluator import DensityData, XCParameters, XCPotentialData
@@ -232,6 +232,8 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
     fp_l1: float = 0.5
     fp_DG: float = 0.3
     fp_ridge: float = 1e-8
+    use_l2: bool = False       # add the l=2 (quadrupole) axial feature as an extra kernel coordinate
+    fp_l2: float = 0.5         # its RBF length scale (only used when use_l2)
     fp_ref_ridge: Optional[float] = 1e-2  # ridge on the REFERENCE block only (kernel ridge regression);
                                           # default 1e-2 makes loaded references SCF-stable out of the box
                                           # (exact interp ill-conditions v_x -> SCF spikes). Set to fp_ridge
@@ -265,6 +267,9 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
                          quadrature_weights=quadrature_weights, params=params)
         # --- precompute on the adaptive unit frame ---
         self._grad_op = build_spectral_gradient_operator(self._r_grid)
+        self._use_l2 = bool(getattr(self.params, "use_l2", False))
+        self._fp_l2 = float(getattr(self.params, "fp_l2", 0.5))
+        self._l2_op = build_spectral_l2_operator(self._r_grid) if self._use_l2 else None
         n = self._n_out
         # Notation tracks the writeup: B = charge moments, C = Coulomb moments, R0 = on-top (basis at
         # origin), rhotilde = dimensionless hole shape, cprime = raw monopole coefficient op@rho
@@ -343,19 +348,28 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         lam3 = np.linalg.solve(A3 @ np.transpose(A3, (0, 2, 1)), rhs3[..., None])[..., 0]
         return heg + np.einsum('nk,nkm->nm', lam3, A3)
 
-    def _xfeat(self, cn, s2):
+    def _xfeat(self, cn, s2, t2=None):
         cn = np.atleast_2d(np.asarray(cn, float)); s2 = np.atleast_1d(np.asarray(s2, float))
-        return np.column_stack([cn[:, 1:], s2])                  # [l=0 power vector cn[1:], l=1 s^2]
+        cols = [cn[:, 1:], s2]                                   # [l=0 power vector cn[1:], l=1 s^2]
+        if getattr(self, "_use_l2", False):                      # optional l=2 (quadrupole) coordinate
+            t2 = np.zeros_like(s2) if t2 is None else np.atleast_1d(np.asarray(t2, float))
+            cols.append(t2)
+        return np.column_stack(cols)
 
     def _inv_ell(self):
         """Per-dimension inverse length scales (n_out,): ARD `_fp_ell` if set, else isotropic
         [1/l0]*(n_out-1) on the l=0 block + [1/l1] on s^2. Cached until the scales change."""
         ell = getattr(self, "_fp_ell", None)
-        key = ("ard", id(ell)) if ell is not None else ("iso", self._fp_l0, self._fp_l1)
+        l2 = self._fp_l2 if getattr(self, "_use_l2", False) else None
+        key = ("ard", id(ell)) if ell is not None else ("iso", self._fp_l0, self._fp_l1, l2)
         if getattr(self, "_inv_ell_key", None) != key:
             nl0 = self._n_out - 1
-            w = (1.0 / np.asarray(ell, float)) if ell is not None else \
-                np.concatenate([np.full(nl0, 1.0 / self._fp_l0), [1.0 / self._fp_l1]])
+            if ell is not None:
+                w = 1.0 / np.asarray(ell, float)
+            else:
+                w = np.concatenate([np.full(nl0, 1.0 / self._fp_l0), [1.0 / self._fp_l1]])
+                if l2 is not None:                               # extra l=2 coordinate
+                    w = np.concatenate([w, [1.0 / l2]])
             self._inv_ell_cache = w; self._inv_ell_key = key
         return self._inv_ell_cache
 
@@ -374,7 +388,7 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         if include_refs and os.path.exists(refs_path):
             z = np.load(refs_path); Xb = z["X"]; Db = z["DELTA"]
         else:
-            Xb = np.zeros((0, self._n_out)); Db = np.zeros((0, self._n_out))
+            Xb = np.zeros((0, x_heg.shape[1])); Db = np.zeros((0, self._n_out))   # Xb: feature dim; Db: n_out
         Xnodes = np.vstack([x_heg, x_gea, Xb])
         mu = np.concatenate([[0.0, 0.0], Db @ self._Cmom])               # node energy-moments (GEA via c_G)
         # kernel ridge regression on the REFERENCE block only (Tikhonov for the ill-conditioned Gram
@@ -404,8 +418,11 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         kF = (3.0 * np.pi ** 2 * rho0) ** (1.0 / 3.0)
         s2, _ = _bound((g / (2.0 * kF * rho0)) ** 2)
         cn = c_ad / np.where(np.abs(c_ad[:, :1]) > 1e-30, c_ad[:, :1], 1e-30)
+        t2 = None
+        if self._use_l2:                                         # reduced l=2 (quadrupole) feature
+            t2, _ = _bound((self._l2_op @ rho0 / (4.0 * kF ** 2 * rho0)) ** 2)
         # dimensionless hole shape rhotilde = rhotilde_LDA + kernel deviation; hole = -rho/2 * rhotilde
-        rhotilde = self._rhotilde_lda[None, :] + self._Kmat(self._xfeat(cn, s2), self._fp_Xnodes) @ self._fp_coef
+        rhotilde = self._rhotilde_lda[None, :] + self._Kmat(self._xfeat(cn, s2, t2), self._fp_Xnodes) @ self._fp_coef
         bulk = (-0.5 * rho0)[:, None] * rhotilde
         fa = -d / Qs[:, None]
         coeffs = (1.0 - W)[:, None] * bulk + W[:, None] * fa

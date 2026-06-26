@@ -215,6 +215,45 @@ def build_spectral_gradient_operator(r_grid, n_channels=40, r_c=R_C,
     return operator
 
 
+def build_spectral_l2_operator(r_grid, n_channels=40, r_c=R_C, n_window=256, n_angle=64):
+    """Fixed linear operator (N x N) for the leading l=2 (quadrupole) axial coefficient of the local
+    density about each r0 -- the next axial multipole after the l=1 gradient. For the l=2 axial
+    expansion rho_2(u;r0) = sum_n alpha_n R_{n2}(u) (R_{n2}(u) ~ c_n u^2 near 0), the leading l=2
+    amplitude is the u^2-coefficient sum_n alpha_n [R_{n2}(u)/u^2]_{u->0}. Parameter-free, full window,
+    constant-annihilated (a uniform density has no l=2 component -> HEG limit 0). The reduced l=2
+    feature is t = (L2 @ rho)/(4 k_F^2 rho) (dimensionless, scale-free; ~O(1) on atoms), used only as a
+    kernel coordinate (NOT in the energy). Mirrors build_spectral_gradient_operator with P_2 and the
+    u^2-coefficient in place of P_1 and the slope-at-origin."""
+    basis = window_basis(2, n_channels)
+    wq = radial_gauss_grid(r_c, n_window)
+    radial = basis.evaluate(2, wq.nodes)                  # (n_channels, n_window)
+    eps = 1.0e-4
+    curv0 = basis.evaluate(2, np.array([eps]))[:, 0] / eps ** 2     # R_{n2}(u)/u^2 |_{u->0}
+    with np.errstate(over="ignore", divide="ignore", invalid="ignore"):
+        proj = curv0 @ radial
+    u, wu = leggauss(n_angle)
+    P2 = 0.5 * (3.0 * u ** 2 - 1.0)
+    r_grid = np.asarray(r_grid, dtype=float)
+    n = r_grid.size
+    operator = np.zeros((n, n))
+    # rho_2(u;r0) = (5/2) int P_2(mu) rho(dist) dmu  ((2l+1)/2 = 5/2 for l=2)
+    kernel = 2.5 * (wq.weights * wq.nodes ** 2 * proj)[:, None] * (wu * P2)[None, :]
+    kflat = kernel.ravel()
+    lo, hi = r_grid[0], r_grid[-1]
+    for i, r0 in enumerate(r_grid):
+        dist = np.sqrt(np.maximum(
+            r0 ** 2 + wq.nodes[:, None] ** 2 - 2.0 * wq.nodes[:, None] * r0 * u[None, :], 0.0
+        )).ravel()
+        dist = np.clip(dist, lo, hi)
+        idx = np.clip(np.searchsorted(r_grid, dist) - 1, 0, n - 2)
+        left, right = r_grid[idx], r_grid[idx + 1]
+        frac = np.where(right > left, (dist - left) / np.where(right > left, right - left, 1.0), 0.0)
+        np.add.at(operator[i], idx, kflat * (1.0 - frac))
+        np.add.at(operator[i], idx + 1, kflat * frac)
+    operator -= np.diag(operator.sum(axis=1))             # uniform density -> 0 (HEG limit)
+    return operator
+
+
 # =============================================================================
 # Windowed-convolution / Coulomb operator [Eq. (coulomb)]
 # =============================================================================

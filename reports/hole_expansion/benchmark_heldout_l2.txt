@@ -1,0 +1,19 @@
+Held-out benchmark: does adding the l=2 (quadrupole) axial feature help closed-shell references?
+Same closed-shell refs + same FPS points (test atoms excluded); 10-dim [l0,l1] vs 11-dim [l0,l1,l2].
+Eval = valence-only int(rho*eps_x) vs spin-resolved exact (atom_Emm), N=256 refs.
+
+closed refs: 256 pts; built 10-dim (l0+l1) and 11-dim (l0+l1+l2)
+atom  shell  Ex_exact   closed closed+l2(.5) closed+l2(1)   (err vs spin-resolved exact, mHa)
+  Ne closed   -5.4012      +64        +47        +55
+  Ar closed   -3.3772     +133       +132       +132
+   N   open   -2.1145     +210       +196       +203
+   O   open   -2.8332      -70        -95        -82
+  Fe   open  -10.6963      -76        -80        -80
+  Cu   open  -16.1442     +117       +110       +111
+MAE closed: closed 99  closed+l2(.5) 89  closed+l2(1) 94
+MAE  open: closed 118  closed+l2(.5) 120  closed+l2(1) 119
+
+VERDICT: l=2 gives a SMALL improvement on closed held-out (MAE 99->89 mHa at ell2=0.5, ~10%) and
+NEGLIGIBLE change on open held-out (118->120). Consistent with l0+l1 already resolving the holes
+smoothly (target Lipschitz ~0.02). l=2 is a minor refinement, not a structural gain. Implemented as a
+flag (use_l2, default OFF) so production closed-shell functional is unchanged.

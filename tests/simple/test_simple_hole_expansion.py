@@ -428,6 +428,19 @@ def test_FP_l1_tunable_no_lo_cap():
     assert slope == pytest.approx(_GEA2, rel=2e-2), f"slope {slope:.5f} != 10/81 at l1=1.5"
 
 
+def test_FP_l2_feature_optional():
+    """The optional l=2 (quadrupole) axial coordinate (use_l2) adds an 11th kernel feature dim and
+    runs, while leaving the backbone limits intact: t^2 = 0 at the HEG/GEA nodes, so the 10/81 GEA
+    slope is preserved. Default (use_l2=False) is unaffected."""
+    from atom.xc.simple_hole_expansion import SIMPLE_HOLE_KERNEL_FP, SIMPLEHOLEKERNELFPParameters, _GEA2
+    F, r, w = _build_fp()
+    F2 = SIMPLE_HOLE_KERNEL_FP(r_quad=r, quadrature_weights=w, params=SIMPLEHOLEKERNELFPParameters(use_l2=True))
+    assert F2._fp_Xnodes.shape[1] == F._fp_Xnodes.shape[1] + 1, "use_l2 should add one feature dim"
+    s = np.linspace(0.0, 30.0, 6000); sm = (s > 1e-6) & (s < 0.2)
+    slope = np.polyfit(s[sm] ** 2, F2._fx_gea_axis(s)[sm] - 1.0, 1)[0]
+    assert slope == pytest.approx(_GEA2, rel=2e-2), f"l=2 broke the GEA slope: {slope:.5f}"
+
+
 def test_FP_adjoint_matches_fd():
     """The discrete adjoint v_x (compute_xc) matches FD of the direct hole-integral
     energy through the C / rho / gradient channels (gauge_fix off to drop the
