@@ -121,3 +121,27 @@ PATH TO SCF-STABLE + ACCURATE: build references with the FULL richer invariants 
 l=3/bispectrum) so cross-atom refs are CONSISTENT -> potential -> in-domain 0.27 -> SCF-stable, energy
 kept by coverage. Then add the min-roughness fit (deriv_smooth) + GEA-slope constraint for residual
 roughness. The fit was a red herring; feature completeness is the lever.
+
+=== FULL l=2 POWER SPECTRUM (use_l2_power) RESOLVES THE CROSS-ATOM POTENTIAL (confirms feature analysis) ===
+Built rf001 + the full l=2 power scalar p2 = sum_n d_{n,2}^2 (adaptive-radius, monopole-normalized,
+bounded) for all 14 closed atoms: build_refs_add_l2power.py -> kernel_fp_refs_closed_rf001_l2power.npz
+(1529 refs, 11 dims). p2 distinguishes atoms (Be max 0.49, Kr 0.13). Tuning its length scale fp_l2pow
+(l2power_lengthscale_scan.py) -- the atom-separation knob:
+  fp_l2pow   OEP-Be   OEP-Mg   energyMAE(8 closed)
+  (cn+s^2)    14.085    7.712    34       <- no l=2
+  0.50         7.49     4.84     32
+  0.20         4.98     6.02     30
+  0.10         3.82     2.07     31
+  0.05         4.11     2.45     29
+  0.02         1.51     2.02     29       <- BEST: Be 14->1.5, Mg 7.7->2.0, energy beats PBE (45)
+in-domain (own-atom only) floor: Be 0.27, Mg 0.93. So the full l=2 power at a tight scale gets the
+cross-atom potential to ~1.5-2.0 -- a ~7x improvement over cn+s^2, approaching the in-domain floor,
+WHILE keeping the energy (29-31 MAE, beats PBE 45). This is "coverage + consistency": atoms separated
+by p2, each atom's own refs still covering its energy. The single reduced t^2 (Be 4.5/Mg 7.6) was too
+weak; the FULL power spectrum resolves both, as the feature-space floor analysis predicted.
+
+OPEN ENGINEERING ITEM: _l2_power_feat is a per-grid-point Python angular loop (256x48 integral); the
+adjoint calls _kernel_eps ~22x (FD over channels), so SCF (200 iters x ~22 evals x the loop) is
+impractically slow as written -- SCF convergence at fp_l2pow~0.02 is NOT yet tested. NEXT: vectorize
+_l2_power_feat over grid points and CACHE the rho-only angular profile across the cprime-channel FD
+(p2's slow part depends on rho0, not cprime), then run the SCF + min-roughness(deriv_smooth)+gate test.
