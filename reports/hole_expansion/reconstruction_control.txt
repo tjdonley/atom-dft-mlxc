@@ -1,0 +1,33 @@
+CONTROL: is the ~88 mHa closed-shell error a HOLE-RECONSTRUCTION error or a KERNEL feature->hole
+INTERPOLATION error?  (cache/refs/regen/reconstruction_control.py; valence-only int(rho eps_x) vs Ehf)
+
+closed-shell exchange error vs Ehf (mHa). PBE: He23 Be44 Ne78 Mg105 Ar62; rSCAN ~16.
+atom  (1)recon (3a)exactBulk (3b)exact+mach  (D)kernBulk   (full)
+  He      -0.1            -1             -6          110       -6
+  Be      -0.2            -1            126          150       62
+  Ne       0.0            -3             -1          170       89
+  Mg      -0.1            -3             -4          272       26
+  Ar       0.2            -2             -1          297      121
+
+(1) reconstruction = exact moment-matched hole rt integrated directly (stored atom_Emm) vs Ehf:
+    **0.15 mHa MAE (max 0.4)**. The exchange energy is ONE linear Coulomb moment of the hole, so the
+    n_out=10 representation reproduces it exactly -- the reconstruction error is NEGLIGIBLE.
+(3a) exact hole -> direct bulk integral (no kernel, no FA, no projection): **1-3 mHa**. The functional
+    COULD be near-exact given the right hole.
+(3b) exact hole through the functional's FA blend + 2-constraint projection: -6..-1 for most, but
+    **Be +126** -- the FA blend (designed for the tail / He-exact SIC) POISONS the closed-shell bulk
+    for Be (low enclosed charge -> FA gate active -> mixes in the wrong FA hole).
+(D) KERNEL-reconstructed bulk hole, direct integral (no FA): **110-297 mHa**. The feature->hole map is
+    grossly off -- the kernel hole even violates the sum rule.
+(full) kernel + FA + projection: ~88 mHa. The 2-constraint projection (sum rule + on-top) RESCUES the
+    kernel hole from 110-297 down to ~88; FA adjusts the tail.
+
+CONCLUSION (the skeptic was right): the reconstruction error is ~0.15 mHa, negligible. The 88 mHa is
+the KERNEL feature->hole INTERPOLATION: the SIMPLE features (l=0 monopole cn + l=1 s^2) under-determine
+the energy-relevant hole shape. Even after the projection pins charge + on-top, the Coulomb/energy
+moment is off by ~88. This is exactly the "under-resolved feature space" hypothesis, now quantified
+against the 1-3 mHa exact-hole control. Secondary: the FA blend specifically hurts Be (+126).
+
+FIX (the next lever): add FEATURES that resolve the hole -- tau (kinetic-energy density, rSCAN's
+ingredient) and/or higher multipoles (l>=2) -- so the kernel reconstructs the bulk hole accurately;
+and revisit the FA-blend gating for low-enclosed-charge closed shells (Be).
