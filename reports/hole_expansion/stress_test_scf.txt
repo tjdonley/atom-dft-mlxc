@@ -1,8 +1,9 @@
 SCF stress test -- locked ridge-stabilized functional (closed_n64, fp_ref_ridge=1e-2, l0=0.7, l1=0.5)
 Convergence is the signal. CAVEAT: the heavy-atom energy columns are UNRELIABLE -- not density drift
 (the SCF density barely changes vs HF and the functional's own int(rho*eps_x) is sensible, e.g. Ar -3.06),
-but a SOLVER bug: energy_components.exchange disagrees with int(rho*eps_x) by up to ~1.6 Ha for Ar+ while
-matching exactly for light atoms (Ne). Use int(rho*eps_x) directly for energies; trust only the conv column.
+but the NONLINEAR CORE CORRECTION: energy_components.exchange is the semilocal XC of (rho_val+rho_nlcc),
+verified val+NLCC int(rho*eps_x) reproduces it exactly (Ar NLCC core 1.85 e -> +1.6 Ha; Ne NLCC=0 -> matches).
+Ehf is valence Fock exchange (no NLCC), so the VALID comparison is valence-only int(rho_val*eps_x); the conv column is the signal.
 
 Stress test: LOCKED functional (closed_n64, ridge 1e-2, l0=0.7 l1=0.5) SCF. err vs Ehf(restricted)
 atom block    dom reffree(c,err)  locked(c,err)
