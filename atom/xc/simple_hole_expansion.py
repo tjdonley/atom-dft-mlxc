@@ -255,14 +255,11 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
                                # reference coverage. 0 = off. Potential-only (does not change e_x).
     lb94_beta: float = 0.05    # LB94 beta
     lb94_dec: float = 0.5      # switch width in decades of log10(rho)
-    deriv_smooth: float = 0.0  # EXPERIMENTAL/INCOMPLETE. Fit the hole SHAPE with a smoother POTENTIAL:
-                               # among interpolants matching the reference holes exactly (-> energy), pick
-                               # the one minimizing the node feature-derivative roughness d sigma/d x
-                               # (-> v_x). 0 = plain interpolation. Improves both energy AND potential
-                               # (energy ~preserved, OEP-potential mismatch ~halved) -- but (1) it is NOT
-                               # yet enough to stabilize SCF (the smoothed potential is still rougher than
-                               # the backbone), and (2) it smooths the GEA slope too, BREAKING the 10/81
-                               # limit -- a slope CONSTRAINT must be added before this is a valid functional.
+    deriv_smooth: float = 0.0  # Fit the hole SHAPE with a smoother POTENTIAL (removes the v_x spikes that
+                               # block SCF): among interpolants matching the reference holes exactly
+                               # (-> energy), pick the one minimizing the feature-derivative roughness
+                               # d sigma/d x (-> v_x), with the GEA 10/81 slope re-pinned (see
+                               # _build_fp_nodes). 0 = plain interpolation. Pairs with lb94_tail for SCF.
     fp_ref_ridge: Optional[float] = 1e-2  # ridge on the REFERENCE block only (kernel ridge regression);
                                           # default 1e-2 makes loaded references SCF-stable out of the box
                                           # (exact interp ill-conditions v_x -> SCF spikes). Set to fp_ridge
@@ -517,23 +514,30 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         nl0 = self._n_out - 1
         dK1 = self._Kmat(x_heg, Xnodes)[0] * Xnodes[:, nl0] / self._fp_l1 ** 2   # dK/d(s^2) at HEG
         row = self._fp_kappa * (dK1 @ Kinv)                              # a1 = row . mu (linear in c_G)
-        c_G = (self._fp_mu - float(row @ mu)) / float(row[1] * self._fp_dgb)  # solve l=1 slope = fp_mu (def 10/81)
-        if self._sat_gradient:
-            c_G = 0.0                  # saturating analytic GEA term replaces the decaying kernel bump
-        Delta = np.vstack([np.zeros(self._n_out), c_G * self._dgea, Db])
         if getattr(self, "_deriv_smooth", 0.0) > 0.0 and len(Xnodes) > 2:
-            # min-roughness shape fit: among coef matching Delta at the nodes (Kp coef = Delta -> energy),
-            # minimize the feature-derivative roughness sum_d ||d sigma/d x_d||^2 = coef^T G coef (-> v_x).
-            # constrained solution coef = M Kp (Kp M Kp)^-1 Delta, M = (G + eps I)^-1.
+            # min-roughness shape fit (smooth d sigma/d x -> smooth v_x, no spikes), WITH the GEA slope
+            # re-pinned. Among coef matching Delta at the nodes (Kp coef = Delta -> energy), minimize the
+            # feature-derivative roughness sum_d ||d sigma/d x_d||^2 = coef^T G coef (-> potential):
+            # coef = M Kp (Kp M Kp)^-1 Delta, M = (G + eps I)^-1. Because that smooths the GEA slope too,
+            # re-solve c_G so the realized l=1 slope = fp_mu: coef is linear in c_G (Delta is), so two
+            # solves (c_G=0 and the d/dc_G part) fix it -- preserving the 10/81 limit AND the smooth v_x.
             Kp = self._Kmat(Xnodes, Xnodes); ww = self._inv_ell(); Nn = len(Xnodes); G = np.zeros((Nn, Nn))
             for dd in range(Xnodes.shape[1]):
                 Dd = -(ww[dd] ** 2) * (Xnodes[:, dd][:, None] - Xnodes[:, dd][None, :]) * Kp
                 G += Dd.T @ Dd
-            M = np.linalg.solve(G + self._deriv_smooth * np.eye(Nn), np.eye(Nn))
-            MK = M @ Kp
-            self._fp_coef = MK @ np.linalg.solve(Kp @ MK + 1e-10 * np.eye(Nn), Delta)
+            M = np.linalg.solve(G + self._deriv_smooth * np.eye(Nn), np.eye(Nn)); MK = M @ Kp
+            KMK = Kp @ MK + 1e-10 * np.eye(Nn)
+            coef0 = MK @ np.linalg.solve(KMK, np.vstack([np.zeros((2, self._n_out)), Db]))         # c_G = 0
+            coefg = MK @ np.linalg.solve(KMK, np.vstack([np.zeros(self._n_out), self._dgea,        # d/dc_G
+                                                         np.zeros_like(Db)]))
+            sl = lambda c: self._fp_kappa * float((dK1 @ c) @ self._Cmom)   # realized l=1 slope dF/d(s^2)|HEG
+            c_G = 0.0 if self._sat_gradient else (self._fp_mu - sl(coef0)) / sl(coefg)
+            self._fp_coef = coef0 + c_G * coefg
         else:
-            self._fp_coef = np.linalg.solve(K, Delta)
+            c_G = (self._fp_mu - float(row @ mu)) / float(row[1] * self._fp_dgb)  # l=1 slope = fp_mu (10/81)
+            if self._sat_gradient:
+                c_G = 0.0              # saturating analytic GEA term replaces the decaying kernel bump
+            self._fp_coef = np.linalg.solve(K, np.vstack([np.zeros(self._n_out), c_G * self._dgea, Db]))
         self._fp_Xnodes = Xnodes; self._fp_cG = c_G
 
     def _kernel_eps(self, cprime, rho0, g):

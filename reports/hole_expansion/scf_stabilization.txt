@@ -191,3 +191,23 @@ amplifying the rough d sigma/d s^2). So LB94 (a tail asymptote fix) cannot resol
 NEXT: smooth the v_x spikes -- the min-roughness shape fit (deriv_smooth) WITH the GEA-slope constraint,
 or a direct v_x roughness penalty; testing LB94 + deriv_smooth now. The functional has a stable SCF
 fixed point; the task is reaching it within tolerance.
+
+=== GEA-CONSTRAINED min-roughness (deriv_smooth now VALID) + SCF status ===
+Fixed deriv_smooth to preserve the GEA slope: the min-roughness smooths d sigma/d x (incl. the GEA
+slope), so re-solve c_G for slope = fp_mu. coef is linear in c_G, so two min-roughness solves (c_G=0 and
+d/dc_G) give it (_build_fp_nodes). Now deriv_smooth PRESERVES both the GEA limit AND the energy
+(MAE 8-closed: ds=0 -> 29, ds=100 -> 30; was ruined to E_x=-1.1 by the broken-GEA version) and slightly
+improves OEP (Mg 2.0->1.7). 14/14 FP tests pass.
+
+The "E=nan" earlier was a SCRIPT BUG (solver returns key 'energy', not 'total_energy'); SCF does NOT
+diverge. With all_electron_flag=False (valence/pseudopotential), the SCF reaches a near-fixed-point
+(E ~ -13.19 for Be) but does NOT formally converge (conv=False): LB94 + GEA-constrained deriv_smooth
+(ds=100 and ds=1) both stall at the same point. The blocker is the persistent v_x SPIKES (Be [-18,12],
+Mg [-24,47], incl. a WRONG-SIGN positive ~+47) -- the gradient-channel adjoint roughness
+grad_op^T(d eps/d g) that the node-feature-derivative penalty barely reduces. The tight fp_l2pow=0.02
+(best OEP, atom separation) makes the kernel response sharp -> rough d sigma/d s^2 -> spikes: a
+genuine OEP-vs-smoothness tension.
+NEXT: target the GRADIENT-channel roughness directly (the spikes live there, not in the l=0/l=2
+channels deriv_smooth's isotropic G mostly penalizes); or loosen fp_l2pow (trade OEP for smoothness);
+or a bounded v_x filter. Cross-atom OEP (1.5) may also be too coarse for a good self-consistent density
+vs the in-domain 0.27 -- closing that (l=3/bispectrum) likely required for SCF-quality self-consistency.
