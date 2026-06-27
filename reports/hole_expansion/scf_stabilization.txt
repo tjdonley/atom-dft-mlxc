@@ -211,3 +211,26 @@ NEXT: target the GRADIENT-channel roughness directly (the spikes live there, not
 channels deriv_smooth's isotropic G mostly penalizes); or loosen fp_l2pow (trade OEP for smoothness);
 or a bounded v_x filter. Cross-atom OEP (1.5) may also be too coarse for a good self-consistent density
 vs the in-domain 0.27 -- closing that (l=3/bispectrum) likely required for SCF-quality self-consistency.
+
+=== SPIKE SOURCE LOCATED: gradient term grad_op^T(ew rho d eps/d g) at the CORE/CUSP (not tail, not refs) ===
+Gradient-channel node-derivative penalty (param deriv_smooth_grad: build G from the s^2 channel only,
+since the isotropic G ~ sum_d w_d^4 is p2-dominated, w_p2=1/0.02=50 -> w^4~6e6, vs s^2 w^4=16):
+swept eps {1e2..1e-6} -- DOES NOT reduce the spikes (Mg vx stays [-24,53]) and destabilizes the GEA
+slope at small eps. So the node-derivative penalty is the wrong tool.
+
+v_x TERM DECOMPOSITION (vx_term_decomposition.py, Mg OEP density) pinpoints the spike:
+  eps             [-1.0,-0.1]
+  rho*d eps/d rho [-2.6, 5.1]
+  monopole acc    [-8.6, 4.9]
+  gradient grad   [-30.9, 50.9]   <-- THE SPIKE, |max|=51 at r=0.05 (CORE/cusp), 95 pts |.|>5 at r~0.04
+  TOTAL           [-30.2, 51.3]
+=> the spike is grad_op^T (the SPECTRAL gradient operator's transpose) acting on (ew rho d eps/d g) in
+   the high-density CUSP region -- a Gibbs/spectral artifact at the nuclear cusp, NOT reference roughness
+   and NOT the low-density tail. This explains why (a) the reference smoothing (node-derivative G, any
+   channel) cannot remove it (it's spatial roughness of d eps/d g on the grid, not d sigma/d x at nodes),
+   and (b) LB94 (a TAIL fix) was aimed at the wrong region.
+CAVEAT: the OEP diagnostics use ALL-ELECTRON densities (cusp at r=0); the SCF tests used
+all_electron_flag=False (pseudopotential, smooth core) -- reconcile these (re-run diagnostics + SCF in
+the same mode). NEXT: damp the gradient term in the core / treat the cusp (e.g. real-space FD gradient
+for grad_op instead of spectral to kill the Gibbs ringing, or a high-density damping of d eps/d g);
+this is a gradient-OPERATOR/cusp fix, independent of the reference fit.

@@ -255,6 +255,11 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
                                # reference coverage. 0 = off. Potential-only (does not change e_x).
     lb94_beta: float = 0.05    # LB94 beta
     lb94_dec: float = 0.5      # switch width in decades of log10(rho)
+    deriv_smooth_grad: bool = False  # target the GRADIENT (s^2) feature channel only in the min-roughness
+                               # penalty. The SCF v_x spikes are grad_op^T(d eps/d g), i.e. roughness in
+                               # d sigma/d s^2; the isotropic penalty's G ~ sum_d w_d^4 is dominated by the
+                               # p2 channel (w=1/l2pow=50 -> w^4~6e6) which does NOT spike, leaving s^2
+                               # (w^4=16) unsmoothed. This builds G from the s^2 channel alone.
     deriv_smooth: float = 0.0  # Fit the hole SHAPE with a smoother POTENTIAL (removes the v_x spikes that
                                # block SCF): among interpolants matching the reference holes exactly
                                # (-> energy), pick the one minimizing the feature-derivative roughness
@@ -313,6 +318,7 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         self._ref_gate_rho = float(getattr(self.params, "ref_gate_rho", 0.0))  # SCF low-density damping
         self._ref_gate_dec = float(getattr(self.params, "ref_gate_dec", 0.4))
         self._deriv_smooth = float(getattr(self.params, "deriv_smooth", 0.0))   # min-roughness shape fit
+        self._deriv_smooth_grad = bool(getattr(self.params, "deriv_smooth_grad", False))  # s^2-channel only
         self._lb94_tail = float(getattr(self.params, "lb94_tail", 0.0))         # LB94 asymptotic tail damping
         self._lb94_beta = float(getattr(self.params, "lb94_beta", 0.05))
         self._lb94_dec = float(getattr(self.params, "lb94_dec", 0.5))
@@ -522,7 +528,10 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
             # re-solve c_G so the realized l=1 slope = fp_mu: coef is linear in c_G (Delta is), so two
             # solves (c_G=0 and the d/dc_G part) fix it -- preserving the 10/81 limit AND the smooth v_x.
             Kp = self._Kmat(Xnodes, Xnodes); ww = self._inv_ell(); Nn = len(Xnodes); G = np.zeros((Nn, Nn))
-            for dd in range(Xnodes.shape[1]):
+            # roughness Gram: sum_d ||d sigma/d x_d||^2 = coef^T (sum_d D_d^T D_d) coef, D_d = dK/dx_d.
+            # deriv_smooth_grad -> only the s^2 (gradient) channel, where the SCF v_x spikes live.
+            dims = [self._n_out - 1] if self._deriv_smooth_grad else range(Xnodes.shape[1])
+            for dd in dims:
                 Dd = -(ww[dd] ** 2) * (Xnodes[:, dd][:, None] - Xnodes[:, dd][None, :]) * Kp
                 G += Dd.T @ Dd
             M = np.linalg.solve(G + self._deriv_smooth * np.eye(Nn), np.eye(Nn)); MK = M @ Kp
