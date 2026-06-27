@@ -234,3 +234,20 @@ all_electron_flag=False (pseudopotential, smooth core) -- reconcile these (re-ru
 the same mode). NEXT: damp the gradient term in the core / treat the cusp (e.g. real-space FD gradient
 for grad_op instead of spectral to kill the Gibbs ringing, or a high-density damping of d eps/d g);
 this is a gradient-OPERATOR/cusp fix, independent of the reference fit.
+
+=== RECONCILED: OEP / HF-refs / SCF are all the SAME pseudopotential mode (no all-electron mismatch) ===
+The all-electron caveat was UNFOUNDED. load_oep is PSP; checked densities (reconcile_scf_oep_mode.py):
+  OEP(Mg):                rho(r->0)=1.89  Nelec=10.00  finite core (no cusp)
+  HF refs(Mg):            rho(r->0)=1.8   Nelec=10.00  finite core
+  SCF(Mg, all_elec=False):rho(r->0)=2.38  Nelec=10.00  finite core
+All three agree (pseudopotential, 10-e Mg, smooth core). So the diagnostics and the SCF are consistent
+-- we are debugging the right v_x.
+
+CONFIRMED on the SCF's OWN density: v_x spike is the gradient term, same as the OEP diagnostic:
+  eps[-1.1,-0.1]  rho_t[-6.2,4.6]  mono[-39.5,6.0]  GRAD[-68.9,23.4]   spike r=0.045: grad=-66 (102%).
+Refinement: the core is a PSP core (smooth, NO cusp), so the spike is NOT a cusp Gibbs artifact -- it is
+the SPECTRAL gradient operator grad_op^T's behavior near the r=0 boundary. The monopole term op_n^T is
+ALSO elevated in the SCF ([-39.5,6]), so the r~0 region spikes both adjoint operators (grad_op^T
+dominant, op_n^T secondary). NEXT: r=0-boundary handling of the adjoint operators -- real-space FD
+grad_op (no spectral boundary ringing) and/or taper the v_x adjoint contributions at the innermost
+points; a gradient-OPERATOR fix, confirmed to be the right target.
