@@ -249,6 +249,12 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
                                # potential blows up (backbone+FA owns the tail). 0 = off. Gates BOTH
                                # energy and potential, so v_x = dE/drho stays consistent.
     ref_gate_dec: float = 0.4  # switch width in decades of density (log10)
+    fa_ontop: bool = True      # blend the on-top target toward Fermi-Amaldi (-rho/Q) via the W(Q) switch.
+                               # The EXACT closed-shell exchange on-top is -rho/2 everywhere (n_x(r,r) =
+                               # -sum_sigma rho_sigma^2/rho), Q-INDEPENDENT; the FA blend is a spurious
+                               # ~0.19 deviation in the low-density tail (Q~2-4). False -> exact -rho/2.
+    fa_coeff: bool = True      # blend the hole SHAPE toward the Fermi-Amaldi form -d/Q via W(Q). False ->
+                               # the kernel bulk shape everywhere (sum-rule still enforced by the projection).
     lb94_tail: float = 0.0     # SCF tail damping: blend v_x toward the LB94 asymptotic potential
                                # (van Leeuwen-Baerends, correct -1/r decay) below this density, so the
                                # kernel cannot extrapolate wildly where the density wanders out of
@@ -319,6 +325,8 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         self._ref_gate_dec = float(getattr(self.params, "ref_gate_dec", 0.4))
         self._deriv_smooth = float(getattr(self.params, "deriv_smooth", 0.0))   # min-roughness shape fit
         self._deriv_smooth_grad = bool(getattr(self.params, "deriv_smooth_grad", False))  # s^2-channel only
+        self._fa_ontop = bool(getattr(self.params, "fa_ontop", True))           # FA on-top blend (vs exact -rho/2)
+        self._fa_coeff = bool(getattr(self.params, "fa_coeff", True))           # FA hole-shape blend
         self._lb94_tail = float(getattr(self.params, "lb94_tail", 0.0))         # LB94 asymptotic tail damping
         self._lb94_beta = float(getattr(self.params, "lb94_beta", 0.05))
         self._lb94_dec = float(getattr(self.params, "lb94_dec", 0.5))
@@ -589,8 +597,8 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
             rhotilde = rhotilde + (A_max * h)[:, None] * self._dgea[None, :]
         bulk = (-0.5 * rho0)[:, None] * rhotilde
         fa = -d / Qs[:, None]
-        coeffs = (1.0 - W)[:, None] * bulk + W[:, None] * fa
-        ontop = (1.0 - W) * (-0.5 * rho0) + W * (-rho0 / Qs)
+        coeffs = (1.0 - W)[:, None] * bulk + W[:, None] * fa if self._fa_coeff else bulk
+        ontop = (1.0 - W) * (-0.5 * rho0) + W * (-rho0 / Qs) if self._fa_ontop else (-0.5 * rho0)
         Bmom, R0, Cmom = self._Bmom, self._R0, self._Cmom
         a_row = 4.0 * np.pi * (R_ad ** 3)[:, None] * Bmom[None, :]
         row0 = np.sum(a_row * coeffs, axis=1); row1 = coeffs @ R0

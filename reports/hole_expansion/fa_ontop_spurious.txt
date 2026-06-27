@@ -1,0 +1,27 @@
+=== The Fermi-Amaldi W(Q) blend is spurious for the on-top, and energy-hurting for the shape ===
+Motivation (PI): the on-top condition is mixed in via an arbitrary gating W(Q) spanning Q_spin=1-2
+(enclosed_charge_switch: quintic, 1=FA for Q<=2, 0=bulk for Q>=4). Can it be learned in the kernel?
+
+ON-TOP IS EXACT -rho/2, Q-INDEPENDENT (closed shell) -- nothing to learn (ontop_vs_Q_diagnostic.py):
+The exact closed-shell exchange on-top is n_x(r,r) = -sum_sigma rho_sigma^2/rho = -rho/2 EVERYWHERE
+(rho_up=rho_dn). The references encode -rho/2 (build_refs_full matched to it -- and that IS the exact
+value, not circular). The W-blend pushes the on-top TARGET to (1-W) + 2W/Q (dimensionless): a spurious
+deviation up to 0.19 at Q~2.5-3 (the low-density tail) -- the "spurious tail behavior". [Learning the
+on-top WOULD matter for OPEN shells, where on-top = -rho(1+zeta^2)/2 varies.]
+
+REMOVING THE FA MACHINERY IMPROVES THE ENERGY (full 14 closed atoms, l2power refs, params fa_ontop /
+fa_coeff; non-SCF benchmark vs HF):
+  A current (FA on)     MAE 27.3   max +129 (Be!)   signed +0.5
+  B no-FA-ontop (-rho/2)MAE 26.2   max +114 (Be)    signed -0.5   (on-top blend removal: small)
+  C no-FA-anywhere      MAE 20.1   max  -71 (Sr)    signed -9.6   (Be +129 -> -2; fixes the outlier)
+The FA SHAPE blend (-d/Q in the tail) causes a +129 mHa catastrophe on Be (and the few-electron atoms),
+while giving some heavy-atom tail binding. Removing all FA: MAE 27.3 -> 20.1 (beats PBE 45; vs rSCAN 14),
+Be fixed, but a -9.6 systematic underbinding of heavy atoms (Sr/Ba) appears (the lost tail binding).
+The v_x SPIKES (SCF blocker) are UNCHANGED by FA removal -- they are the separate gradient-operator
+artifact (grad_op^T at r~0). 14/14 FP tests pass; fa_ontop/fa_coeff default True (no regression).
+
+SYNTHESIS / NEXT: the on-top needs no learning (exact -rho/2 -> just drop fa_ontop). The TAIL SHAPE is
+where the PI's "embed in the kernel" idea applies: instead of the crude FA shape OR nothing (-9.6
+underbind), add the enclosed charge Q as a KERNEL FEATURE so the kernel LEARNS the tail/few-electron
+hole shape from the references (which span Q=2..20) -- potentially fixing Be AND the heavy-atom tail at
+once. References cover the transition (rf001: 117 FA + 70 transition + 1342 bulk points).
