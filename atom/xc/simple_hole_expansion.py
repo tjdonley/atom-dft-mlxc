@@ -249,6 +249,12 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
                                # potential blows up (backbone+FA owns the tail). 0 = off. Gates BOTH
                                # energy and potential, so v_x = dE/drho stays consistent.
     ref_gate_dec: float = 0.4  # switch width in decades of density (log10)
+    lb94_tail: float = 0.0     # SCF tail damping: blend v_x toward the LB94 asymptotic potential
+                               # (van Leeuwen-Baerends, correct -1/r decay) below this density, so the
+                               # kernel cannot extrapolate wildly where the density wanders out of
+                               # reference coverage. 0 = off. Potential-only (does not change e_x).
+    lb94_beta: float = 0.05    # LB94 beta
+    lb94_dec: float = 0.5      # switch width in decades of log10(rho)
     deriv_smooth: float = 0.0  # EXPERIMENTAL/INCOMPLETE. Fit the hole SHAPE with a smoother POTENTIAL:
                                # among interpolants matching the reference holes exactly (-> energy), pick
                                # the one minimizing the node feature-derivative roughness d sigma/d x
@@ -310,6 +316,9 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         self._ref_gate_rho = float(getattr(self.params, "ref_gate_rho", 0.0))  # SCF low-density damping
         self._ref_gate_dec = float(getattr(self.params, "ref_gate_dec", 0.4))
         self._deriv_smooth = float(getattr(self.params, "deriv_smooth", 0.0))   # min-roughness shape fit
+        self._lb94_tail = float(getattr(self.params, "lb94_tail", 0.0))         # LB94 asymptotic tail damping
+        self._lb94_beta = float(getattr(self.params, "lb94_beta", 0.05))
+        self._lb94_dec = float(getattr(self.params, "lb94_dec", 0.5))
         n = self._n_out
         # Notation tracks the writeup: B = charge moments, C = Coulomb moments, R0 = on-top (basis at
         # origin), rhotilde = dimensionless hole shape, cprime = raw monopole coefficient op@rho
@@ -598,6 +607,18 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         deps_dg = (self._kernel_eps(cprime, rho, g + hg) - self._kernel_eps(cprime, rho, g - hg)) / (2.0 * hg)
         v_x = (eps + rho * deps_drho0 + acc / ew
                + self._grad_op.T @ (ewrho * deps_dg) / ew)
+        if getattr(self, "_lb94_tail", 0.0) > 0.0:
+            # blend v_x -> LB94 asymptotic potential below lb94_tail density (kernel extrapolation guard).
+            # x = |grad rho|/rho^{4/3} from the functional's BOUNDED reduced gradient (the raw spectral
+            # gradient is noise-dominated as rho->0, blowing x up ~1000x); x^2 = 4(3 pi^2)^{2/3} s^2.
+            kF = (3.0 * np.pi ** 2 * rho) ** (1.0 / 3.0)
+            s2b, _ = _bound((g / (2.0 * kF * rho)) ** 2)
+            xq = 2.0 * (3.0 * np.pi ** 2) ** (1.0 / 3.0) * np.sqrt(s2b)
+            b = self._lb94_beta
+            v_lda = -(3.0 * rho / np.pi) ** (1.0 / 3.0)
+            v_lb = v_lda - b * rho ** (1.0 / 3.0) * xq ** 2 / (1.0 + 3.0 * b * xq * np.arcsinh(xq))
+            D = 0.5 * (1.0 + np.tanh((np.log10(rho) - np.log10(self._lb94_tail)) / self._lb94_dec))
+            v_x = D * v_x + (1.0 - D) * v_lb
         if getattr(self.params, "gauge_fix", True):
             v_x = self._apply_gauge(v_x, eps, rho)
         zero = np.zeros_like(rho)

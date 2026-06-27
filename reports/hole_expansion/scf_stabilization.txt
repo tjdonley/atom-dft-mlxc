@@ -168,3 +168,26 @@ residual roughness, not the bulk. The gate at 3e-3 is BELOW the 0.01 ref floor s
 the 0.001-0.01 no-ref region. NEXT (now fast to iterate, ~2.5 min/atom): gate threshold ~ ref floor
 (0.01-0.03), deriv_smooth (min-roughness, with the GEA-slope constraint added), and/or extend the
 references below rho=0.01. The speed barrier to iterating SCF is removed.
+
+=== LB94 TAIL DAMPING (param lb94_tail) + SCF FAILURE DIAGNOSED: it is v_x SPIKES, not divergence/tail ===
+Implemented LB94 asymptotic tail damping (van Leeuwen-Baerends): below lb94_tail density, blend
+v_x -> v_lda + LB94 gradient correction (correct -1/r decay). KEY detail: the raw spectral gradient is
+noise-dominated as rho->0 (x=|grad rho|/rho^{4/3} computes as ~36000 vs the analytic ~40), so x is taken
+from the functional's BOUNDED reduced gradient (x^2 = 4(3pi^2)^{2/3} s^2_bounded). Verified: energy
+UNCHANGED (potential-only, delta=0); v_x unchanged in the bulk, tail fixed (r=9: kernel's wrong -0.10
+plateau -> -0.02 decaying). 14/14 FP tests pass (default off).
+SCF (Be, fp_l2pow=0.02) at lb94_tail in {0.03,0.1,0.3}: ALL report conv=False E=nan.
+
+BUT a traced SCF (scf_trace_diagnose.py, instrument compute_xc) shows the run does NOT diverge:
+  call  1: ex=-1.7968  vx[min,max]=[-29,17]
+  call  4: ex=-1.8503  vx=[-57,38]
+  call  8..14: ex=-1.8540 (stable to 1e-4)  vx=[-55,38] (stable)   density finite, NO nan anywhere.
+So the SCF reaches a STABLE near-fixed-point (energy converged ~-1.854); "E=nan" is the solver's
+NOT-CONVERGED sentinel, not an actual blow-up. The real blocker: v_x carries persistent SPIKES
+(range [-55,+38], incl. a WRONG-SIGN positive +38) that keep the density jittering above the solver's
+tolerance so it never formally converges. These spikes are in the valence/intermediate region (NOT the
+deep tail LB94 fixes) -- the gradient-channel adjoint roughness grad_op^T(eps_g) (a spatial derivative
+amplifying the rough d sigma/d s^2). So LB94 (a tail asymptote fix) cannot resolve them.
+NEXT: smooth the v_x spikes -- the min-roughness shape fit (deriv_smooth) WITH the GEA-slope constraint,
+or a direct v_x roughness penalty; testing LB94 + deriv_smooth now. The functional has a stable SCF
+fixed point; the task is reaching it within tolerance.
