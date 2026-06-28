@@ -243,6 +243,10 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
                                # monopole-normalized) -- the cross-atom-completeness feature (vs the
                                # single reduced-l2 scalar t^2 of use_l2, which is too weak)
     fp_l2pow: float = 0.5      # RBF length scale for the l=2 power-spectrum coordinate
+    ref_scale: float = 1.0     # homotopy/continuation knob: scales the reference-hole DEVIATION (Db) by
+                               # this factor. 0 = smooth reference-free backbone (LDA+GEA), 1 = full
+                               # functional. Ramping 0->1 with warm-started SCF turns the rough reference
+                               # complexity on perturbatively, keeping the density near the fixed point.
     use_Q: bool = False        # add the enclosed charge Q (bounded) as a KERNEL coordinate, so the
                                # few-electron / tail hole SHAPE is LEARNED from the references (which span
                                # Q=2..20) instead of the hand-built Fermi-Amaldi shape + W(Q) switch.
@@ -316,6 +320,7 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         self._l2_op = build_spectral_l2_operator(self._r_grid) if self._use_l2 else None
         self._use_l2pow = bool(getattr(self.params, "use_l2_power", False))
         self._fp_l2pow = float(getattr(self.params, "fp_l2pow", 0.5))
+        self._ref_scale = float(getattr(self.params, "ref_scale", 1.0))  # homotopy reference-coupling knob
         self._use_Q = bool(getattr(self.params, "use_Q", False))         # enclosed-charge kernel coordinate
         self._fp_lQ = float(getattr(self.params, "fp_lQ", 0.5))
         if self._use_l2pow:                                  # l=2 power-spectrum machinery (adaptive radius)
@@ -529,7 +534,7 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         x_gea = self._xfeat(self._cnH[None, :], np.array([self._fp_DG]))  # GEA node (l=1 axis)
         refs_path = getattr(self.params, "refs_path", None) or _KERNEL_FP_REFS
         if include_refs and os.path.exists(refs_path):
-            z = np.load(refs_path); Xb = z["X"]; Db = z["DELTA"]
+            z = np.load(refs_path); Xb = z["X"]; Db = z["DELTA"] * getattr(self, "_ref_scale", 1.0)
         else:
             Xb = np.zeros((0, x_heg.shape[1])); Db = np.zeros((0, self._n_out))   # Xb: feature dim; Db: n_out
         Xnodes = np.vstack([x_heg, x_gea, Xb])
