@@ -1,0 +1,39 @@
+=== Does the local density determine the exact hole? (doppelganger + coverage test) + HK consistency ===
+Test (doppelganger_search.py, coverage_vs_doppelganger.py): for each reference point, find the nearest
+OTHER-atom point in the SCALE-FREE local-density description the functional uses (cn[1:], s^2, bounded Q),
+and compare the exact scale-free exchange enhancement e_sf = sigma . Cmom.
+
+FINDING: the local density LARGELY DETERMINES the hole.
+  within-atom (N): NN feature-dist 0.11, |de_sf| 0.0003
+  tight cross-atom matches (dist<0.06): |de_sf| ~ 0.002 = ~2% of e_sf
+  example (genuine same-input, different-hole): Na (rho 1.60) vs K (rho 0.47) -- different atoms/periods,
+    very different rho, but SAME scale-free (cn,s^2,Q) to dist 0.057 -> e_sf 0.0366 vs 0.0360 (1.6%).
+    (The scale-free frame maps Na & K to the same description; the 1.6% is the irreducible spread.)
+There is NO strong "same density, very different hole": the biggest apparent gap, C (2p^2) |de_sf| 0.108,
+occurs at NN-dist 1.28 -- C's density is UNIQUE (far from any other atom) -> that is EXTRAPOLATION, not a
+same-density doppelganger.
+
+=> REFINES the prior "1-RDM gap" framing: the genuine same-density-different-hole spread is SMALL (~2%).
+The large OPEN-SHELL errors are dominated by EXTRAPOLATION -- open-shell (C/N/O) and even light closed
+(He/Be) densities sit FAR from the bulk reference manifold (NN-dist 0.6-1.3 vs 0.1-0.3 for Mg/Ne/Ar) ->
+the kernel extrapolates. This is a finite-COVERAGE limitation (fixable in principle by open-shell refs
+done without dilution), plus the small ~2% representation spread -- NOT a fundamental density->hole gap.
+
+CONSISTENCY WITH HOHENBERG-KOHN.
+HK1: the GROUND-STATE density rho(r) (over ALL space) determines v_ext, hence H, Psi, and EVERY property
+-- including the 1-RDM gamma(r,r') and the exact exchange hole n_x(r,r'). So the GLOBAL density -> energy
+(and -> hole) map EXISTS and is EXACT. Nothing here violates that:
+ 1. HK is a GLOBAL, NON-LOCAL existence theorem (functional of the whole density). It does NOT assert that
+    the LOCAL density determines the LOCAL hole. Semilocal functionals (SIMPLE included) ADD that locality
+    assumption -- E_x ~ int rho(r) eps_x[local density](r) dr -- which is an APPROXIMATION, not implied by HK.
+ 2. The exact hole is a functional of gamma (the 1-RDM). Globally, rho -> gamma (via HK). But two DIFFERENT
+    global systems (e.g. Na and K) can have locally-similar densities with slightly different global rho ->
+    slightly different gamma -> the ~2% local-hole spread. That spread is the semilocal ANSATZ's error, not
+    an HK violation.
+ 3. Empirically the local density NEARLY determines the local hole (<=2%) -- an emergent near-locality that
+    is WHY semilocal DFT (and SIMPLE) works (MAE 19 closed). HK guarantees exactness only for the exact
+    (non-local) functional; the small 2% is the price of the local approximation, and the open-shell error
+    is finite coverage of the kernel -- both fully consistent with the exact HK map existing.
+SUMMARY: HK = global density determines energy (exact, non-local). SIMPLE = local density approximates the
+local hole (good to ~2%, plus coverage). The two are consistent: HK is silent on the semilocal locality
+that SIMPLE exploits; SIMPLE's residual is the approximation + finite data, not a breakdown of HK.
