@@ -1742,9 +1742,15 @@ class SCFDriver:
                     rho             = rho_new,
                 )
             
+            # A self-annealing XC functional (e.g. SIMPLE_HOLE_KERNEL_FP auto_continuation) may still be
+            # ramping its internal complexity toward the true functional; do not declare convergence until it
+            # signals it is done, so the single loop ends at the FULL functional's fixed point. Opt-in: other
+            # functionals never set this attribute and are unaffected.
+            if converged and getattr(self.xc_calculator, "continuation_active", False):
+                converged = False
             if converged:
                 break
-            
+
             # ===== Step 5: Mix densities and update density_data =====
             if self.mixer.use_preconditioner:
                 # compute dielectric matrix for preconditioning

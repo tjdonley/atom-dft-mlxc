@@ -1,0 +1,69 @@
+COLLAPSING TO A SINGLE, CLEAN, SELF-ANNEALING SCF LOOP
+======================================================
+Goal (user): "Collapse as much complexity as possible. Remove the 2-stage [homotopy] loop, LB94
+damping, and other hacks. The goal is a single, clean adaptive loop that goes to the correct fixed
+point (the functional CAN adaptively change during the loop, as long as it automatically ends in the
+right place)." Use the largest reference set + most descriptors (rf001_l2power_Q_gf06: 1529 nodes,
+12 dims = cn[1:]+s^2+p2+Q).
+
+WHAT WAS REMOVED
+----------------
+* LB94 tail damping (lb94_tail) and the low-density gate (ref_gate_rho): already default-OFF; not in
+  the production config. Confirmed not needed.
+* Manual 2-stage homotopy (converge backbone lambda=0, then a wrapper ramps lambda->1 over discrete
+  stages, new solver per stage): REPLACED by auto_continuation inside ONE solve() call.
+
+WHY A SINGLE COLD-START LOOP ISN'T ENOUGH (the motivation)
+----------------------------------------------------------
+Cold-starting the full functional (lambda=1) is unreliable: the reference-mapped v_x has SPURIOUS
+fixed points. Cold start: Ne DIVERGES (res 0.31), Mg "converges" to a WRONG fixed point (-55.33 vs
+-55.51), Ar/Kr OK. An LDA/physical warm start does NOT help (Ne still diverges, Etot +18) -- the
+lambda=1 jump itself is the problem, not the initial guess. The references must be turned on
+gradually so the density stays glued to the TRUE branch (continuation).
+
+THE SINGLE SELF-ANNEALING LOOP (auto_continuation)
+--------------------------------------------------
+The functional starts at the smooth backbone (ref_scale=lambda=0) and AUTOMATICALLY ramps lambda->1
+within one solve() as the density tracks, ending at the full functional's correct fixed point. Two
+ingredients:
+
+(1) lambda is CHEAP to change. The coefficients are LINEAR in the reference coupling: Db = DELTA*lambda
+    and the min-roughness matrices (M, MK, KMK) are lambda-independent, so coef(lambda) = lambda*A +
+    c_G(lambda)*B with c_G linear in lambda (10/81 GEA slope stays pinned at every lambda). The basis
+    A,B is built ONCE; each advance is O(N) (_set_ref_scale) -- no per-iteration kernel re-solve.
+    Verified exact: build at lambda=0 then _set_ref_scale(1) == fresh lambda=1 build to 0.0.
+
+(2) The SCF must not stop mid-ramp. The functional advances lambda by cont_step whenever the
+    inter-iteration ||d rho||_1/||rho||_1 < cont_tol (the density is tracking the current lambda).
+    BUT the solver's convergence test (rho_residual < scf_tol) fires at LOW lambda for atoms whose
+    total density is insensitive to the references (Mg: converges at iter 15, lambda~0.3 -> wrong
+    energy). Fix = a minimal, general SCF-driver hook: the functional exposes continuation_active
+    (True while lambda<1); the driver does NOT declare convergence while it is set. So the loop ends
+    at the FULL functional's fixed point. Opt-in: other functionals never set the attribute and are
+    unaffected (PBE/LDA/driver/convergence tests all pass).
+
+RESULT -- CLEAN SINGLE LOOP, COLD START, NO homotopy/LB94/gate (cont_step=0.05, scf_tol=3e-4):
+  atom   converged   residual   E_tot (Ha)   target
+  Ne     True        2.7e-4     -32.4778     -32.477
+  Mg     True        1.0e-4     -55.5051     -55.505    (cold-start-alone gave WRONG -55.33)
+  Ar     True        1.7e-4     -22.1473     -22.147
+  Kr     True        1.8e-4     -20.3693     -20.369
+All reach the CORRECT fixed point from a cold start in one solve() call. cont_step 0.05 and 0.10 both
+work (Mg/Ne); 0.05 is the gentler default. ~40-120 s/atom (one continuous loop; the lambda ramp adds
+iterations but no extra solves).
+
+THE LOOP IS NOW (production):
+  AtomicDFTSolver(... xc_functional="SIMPLE_HOLE_KERNEL_FP", scf_tolerance=3e-4,
+     xc_params=P(grad_filter=0.6, deriv_smooth=1.0, deriv_smooth_adaptive=True,
+                 use_l2_power=True, use_Q=True, fa_ontop=False, fa_coeff=False,
+                 fp_l2pow=0.02, fp_lQ=0.3, fp_l0=0.7, fp_l1=0.5,
+                 refs_path=...rf001_l2power_Q_gf06.npz, auto_continuation=True)).solve()
+No rho_initial, no ramp wrapper, no LB94, no ref_gate. ONE call.
+
+REMAINING (principled) PIECES, not hacks:
+  grad_filter (GEA-motivated low-pass on the spectral gradient operator), deriv_smooth +
+  deriv_smooth_adaptive (operator-amplification-weighted min-roughness coef fit -> smooth v_x),
+  auto_continuation (the self-annealer). All default-off; 14/14 FP tests pass.
+
+NOTE: auto_continuation is left default-OFF (no regression on existing callers / FP tests) but is THE
+recommended way to run the functional self-consistently.

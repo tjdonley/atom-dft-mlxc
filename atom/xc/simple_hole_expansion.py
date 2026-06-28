@@ -251,6 +251,22 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
                                # this factor. 0 = smooth reference-free backbone (LDA+GEA), 1 = full
                                # functional. Ramping 0->1 with warm-started SCF turns the rough reference
                                # complexity on perturbatively, keeping the density near the fixed point.
+    auto_continuation: bool = False  # SELF-annealing single SCF loop (replaces the manual 2-stage homotopy):
+                               # the functional starts at the smooth backbone (ref_scale=cont_lambda0) and
+                               # AUTOMATICALLY ramps ref_scale->1 as the density stabilizes, all within ONE
+                               # solve() call. Each compute_xc tracks ||d rho|| between iterations; when it
+                               # drops below cont_tol the reference coupling advances by cont_step (ratchet,
+                               # monotone). Cheap: the coefs are LINEAR in ref_scale (Db = DELTA*lambda and
+                               # the min-roughness matrices are lambda-independent), so the basis is built
+                               # ONCE and each advance is O(N) (_set_ref_scale), no per-iteration rebuild.
+                               # The fixed point is ref_scale=1 + self-consistent rho = the CORRECT one (the
+                               # backbone basin guides past the spurious fixed points of the raw functional).
+    cont_lambda0: float = 0.0  # auto_continuation: initial reference coupling (0 = pure smooth backbone)
+    cont_step: float = 0.05    # auto_continuation: ref_scale increment per advance (0.05/0.1 both reach the
+                               # correct fixed point for Ne/Mg/Ar/Kr; 0.05 is the safer/gentler default)
+    cont_tol: float = 3e-3     # auto_continuation: advance when the inter-iteration ||d rho||_1/||rho||_1 < this.
+                               # With a small cont_step this is a gentle gated ramp: lambda creeps up only as
+                               # fast as the density can track it, staying glued to the true branch.
     use_Q: bool = False        # add the enclosed charge Q (bounded) as a KERNEL coordinate, so the
                                # few-electron / tail hole SHAPE is LEARNED from the references (which span
                                # Q=2..20) instead of the hand-built Fermi-Amaldi shape + W(Q) switch.
@@ -338,6 +354,13 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         self._use_l2pow = bool(getattr(self.params, "use_l2_power", False))
         self._fp_l2pow = float(getattr(self.params, "fp_l2pow", 0.5))
         self._ref_scale = float(getattr(self.params, "ref_scale", 1.0))  # homotopy reference-coupling knob
+        self._auto_continuation = bool(getattr(self.params, "auto_continuation", False))
+        self._cont_step = float(getattr(self.params, "cont_step", 0.2))
+        self._cont_tol = float(getattr(self.params, "cont_tol", 3e-3))
+        self._prev_rho_cont = None; self._cont_trace = []                # auto_continuation: last-iter density + (lambda,proxy) log
+        self.continuation_active = False                                 # SCF-driver hook: True while still annealing
+        if self._auto_continuation:                                      # start at the smooth backbone, ramp ->1
+            self._ref_scale = float(getattr(self.params, "cont_lambda0", 0.0))
         self._use_Q = bool(getattr(self.params, "use_Q", False))         # enclosed-charge kernel coordinate
         self._fp_lQ = float(getattr(self.params, "fp_lQ", 0.5))
         if self._use_l2pow:                                  # l=2 power-spectrum machinery (adaptive radius)
@@ -576,7 +599,7 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         x_gea = self._xfeat(self._cnH[None, :], np.array([self._fp_DG]))  # GEA node (l=1 axis)
         refs_path = getattr(self.params, "refs_path", None) or _KERNEL_FP_REFS
         if include_refs and os.path.exists(refs_path):
-            z = np.load(refs_path); Xb = z["X"]; Db = z["DELTA"] * getattr(self, "_ref_scale", 1.0)
+            z = np.load(refs_path); Xb = z["X"]; Db = z["DELTA"]         # UNSCALED reference deviation (lambda=1)
         else:
             Xb = np.zeros((0, x_heg.shape[1])); Db = np.zeros((0, self._n_out))   # Xb: feature dim; Db: n_out
         Xnodes = np.vstack([x_heg, x_gea, Xb])
@@ -614,14 +637,27 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
             coefg = MK @ np.linalg.solve(KMK, np.vstack([np.zeros(self._n_out), self._dgea,        # d/dc_G
                                                          np.zeros_like(Db)]))
             sl = lambda c: self._fp_kappa * float((dK1 @ c) @ self._Cmom)   # realized l=1 slope dF/d(s^2)|HEG
-            c_G = 0.0 if self._sat_gradient else (self._fp_mu - sl(coef0)) / sl(coefg)
-            self._fp_coef = coef0 + c_G * coefg
+            # coef(lambda) = lambda*coef0 + c_G(lambda)*coefg is LINEAR in the reference coupling (Db enters
+            # only coef0, linearly) -> store the basis; _set_ref_scale evaluates any lambda in O(N).
+            self._fp_A = coef0; self._fp_B = coefg
+            self._fp_clin_s = sl(coef0); self._fp_clin_g = sl(coefg)
         else:
-            c_G = (self._fp_mu - float(row @ mu)) / float(row[1] * self._fp_dgb)  # l=1 slope = fp_mu (10/81)
-            if self._sat_gradient:
-                c_G = 0.0              # saturating analytic GEA term replaces the decaying kernel bump
-            self._fp_coef = np.linalg.solve(K, np.vstack([np.zeros(self._n_out), c_G * self._dgea, Db]))
-        self._fp_Xnodes = Xnodes; self._fp_cG = c_G
+            base_ref = np.linalg.solve(K, np.vstack([np.zeros((2, self._n_out)), Db]))       # lambda-linear ref part
+            base_gea = np.linalg.solve(K, np.vstack([np.zeros(self._n_out), self._dgea,       # c_G GEA part
+                                                     np.zeros_like(Db)]))
+            self._fp_A = base_ref; self._fp_B = base_gea
+            self._fp_clin_s = float(row @ mu); self._fp_clin_g = float(row[1] * self._fp_dgb)
+        self._fp_Xnodes = Xnodes
+        self._set_ref_scale(self._ref_scale)     # realize coef at the current (possibly continuation) lambda
+
+    def _set_ref_scale(self, lam):
+        """Set the reference coupling lambda in O(N): coef(lambda) = lambda*A + c_G(lambda)*B, with c_G linear
+        in lambda so the 10/81 GEA slope stays pinned at every lambda. A/B/clin_* are built once by
+        _build_fp_nodes; this is what makes auto_continuation cheap (no per-iteration kernel re-solve)."""
+        lam = float(np.clip(lam, 0.0, 1.0))
+        c_G = 0.0 if self._sat_gradient else (self._fp_mu - lam * self._fp_clin_s) / self._fp_clin_g
+        self._fp_coef = lam * self._fp_A + c_G * self._fp_B
+        self._ref_scale = lam; self._fp_cG = c_G
 
     def _kernel_eps(self, cprime, rho0, g):
         """eps_x from the kernel map; cprime (n_in,N) raw monopole coefficients (op@rho), rho0 (N,) density,
@@ -679,6 +715,18 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
 
     def compute_xc(self, density_data: DensityData) -> XCPotentialData:
         rho = np.maximum(np.asarray(density_data.rho, dtype=float), 1e-12)
+        if self._auto_continuation and self._ref_scale < 1.0:
+            # self-annealing single loop: advance the reference coupling lambda->1 as the density stabilizes.
+            # ||d rho|| between SCF iterations is the convergence proxy; ratchet (monotone) so the functional
+            # only ever turns the references further ON, ending at the full functional's correct fixed point.
+            if self._prev_rho_cont is not None:
+                proxy = np.sum(np.abs(rho - self._prev_rho_cont)) / (np.sum(np.abs(rho)) + 1e-30)
+                if proxy < self._cont_tol:                               # density tracking -> advance one step
+                    self._set_ref_scale(self._ref_scale + self._cont_step)   # cheap O(N) update
+                self._cont_trace.append((self._ref_scale, float(proxy)))
+            self._prev_rho_cont = np.array(rho, copy=True)
+        # tell the SCF driver whether we are still ramping (it must not converge until lambda has reached 1)
+        self.continuation_active = bool(self._auto_continuation and self._ref_scale < 1.0)
         ew = self.energy_weights; ewrho = ew * rho
         cprime = np.array([op @ rho for op in self._ops])   # raw monopole coefficient (writeup c'_{n00})
         g = self._grad_op @ rho
