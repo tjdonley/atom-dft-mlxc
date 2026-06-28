@@ -1,0 +1,44 @@
+ONE-ELECTRON (H) ANCHOR -- production reference addition
+========================================================
+Goal: with the Fermi-Amaldi blend removed and Q a learned kernel coordinate, the closed-shell
+references span only local bounded-Q ~1.3-3.3. H (one electron) has local bounded-Q ~0.8, BELOW the
+band -> pure extrapolation -> H exchange badly off. Add the one-electron limit as its own fixed-point
+anchor (analogous to the HEG and GEA backbone anchors) so H is reproduced WITHOUT disturbing many-
+electron systems. NOTE: this is an APPROXIMATE functional -- "anchored" means H joins the windowing-
+limited accuracy of the other atoms (~8 mHa), NOT that it is exact.
+
+CONSTRUCTION (cache/refs/regen/build_h_anchor.py)
+-------------------------------------------------
+* H target is RESTRICTED (occ 0.5/0.5 per spin -> on-top -rho/2), the convention that matches the
+  project's HF reference: orbital_hole eps integrates to -0.128 = Ehf (hund 1/0 gives -0.256). So H is
+  fully consistent with the closed-shell machinery -- no on-top special-casing.
+* 40 nodes at H's significant-density radial shells. Per node: exact restricted H hole via
+  orbital_hole.exchange_hole_spin -> project -> moment-match (charge -1, on-top -rho/2, Coulomb=exact
+  eps_full) -> rt; DELTA = rt/(-0.5 rho) - sigma_LDA. Features (cn, s^2, p2, Q) taken from the production
+  functional (grad_filter=0.6) so node and query coordinates match the gf06 references.
+* The energy is the single pinned Coulomb moment of the hole, so anchoring eps_full sets H's exchange
+  energy directly (windowing floor: node Emm = -0.13097 vs Ehf -0.12820, ~-2.8 mHa).
+* Appended to kernel_fp_refs_closed_rf001_l2power_Q_gf06.npz (1529 closed nodes) -> 1569 nodes; the H
+  nodes carry idx=-1. Output: kernel_fp_refs_closed_rf001_l2power_Q_gf06_Hanchor.npz (the production set).
+
+VALIDATION (production config: gf=0.6, deriv_smooth_adaptive, use_l2_power, use_Q, no FA)
+-----------------------------------------------------------------------------------------
+Exchange vs HF (mHa err, non-SCF on HF density), base -> +H anchor:
+  H    -53.3 -> -8.5     (fixed: now in-family with the universal R_c=6 windowing floor)
+  He    +9.6 -> +9.6     (unchanged -- He's error is its own reference windowing, not a low-Q gap)
+  Be    -1.8 -> -1.8     Ne  +15.2 -> +15.2   Mg  -12.5 -> -12.5   Ar  +19.2 -> +19.2   Kr  +14.2 -> +14.2
+=> closed shells EXACTLY unchanged. The anchor is LOCALIZED at Q~0.8, far from many-electron cores
+   (Q>=2) at fp_lQ=0.3, so its kernel influence decays before reaching them -- the clean property the
+   removed *global* FA blend lacked.
+
+Single adaptive-loop SCF (auto_continuation, cold start, scf_tol=3e-4) with the anchored refs:
+  Mg  converged  -55.5060   (production -55.5051)
+  Ne  converged  -32.4771   (production -32.4778)
+=> SCF undisturbed.
+
+FP regression: 14/14 pass (the FP tests use separate n64/n512 files; unaffected).
+
+STATUS: H reduced from a -53 mHa outlier to -8.5 mHa (approximate, windowing-limited, consistent with
+every other atom); closed shells and SCF unchanged. He still +9.6 (needs a different lever -- its own
+reference coverage, not the low-Q anchor). Could tighten H 8.5 -> ~3 mHa (the Emm floor) with denser or
+true-low-ridge anchor nodes if desired.
