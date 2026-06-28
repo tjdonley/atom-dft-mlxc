@@ -1,0 +1,14 @@
+=== SCF check of the most-complex functional (l2power + Q + no FA), scf_tolerance=1e-6 ===
+"Most complex" = full angular descriptor (l=2 power) + enclosed-charge Q + exact on-top (-rho/2, no FA).
+CLOSED Q-references (rf001_l2power_Q, 1529): CONVERGES tightly for the few-electron atoms --
+  Be conv=True (55 iters, rho_res 8e-7) ; He conv=True (67 iters, 9.8e-7)   [this session, q_conv].
+So the complex feature set is genuinely SCF-capable: a spike-free, fixed v_x, self-consistent solution.
+ALL-SHELL Q-references (2048, build_allshell_Q.py; the all-atom version): SCF robustness DEGRADES --
+  Be conv=False rho_res 2.5e-5 (near-converged, stable) ; Ne conv=False rho_res 0.96 (oscillates).
+The open-shell reference holes add gradient-channel v_x roughness that breaks self-consistency for the
+heavier closed atoms. So: the complex functional IS self-consistent (Be/He, closed refs), but full-table
+SCF ROBUSTNESS with the broad all-shell references is NOT achieved -- it remains the open SCF-stabilization
+problem (the grad_op^T(eps_g) spikes; the deriv_smooth min-roughness + lb94 tail + ref-gate stack
+mitigates but does not yet fully resolve it across the table). Energy hardening (closed-shell convergence
+to the exact; open-shell convergence to the spherical-exact target) is SEPARATE from and ahead of the
+self-consistency robustness.
