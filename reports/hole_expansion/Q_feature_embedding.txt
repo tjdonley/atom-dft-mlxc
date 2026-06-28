@@ -28,3 +28,12 @@ First-ever SCF convergence for this functional (Be/He never converged under any 
 ref_gate, deriv_smooth, LB94, FA-removal all failed). Mg (higher Q ~2.8) still oscillates -- lQ tuning
 in progress. The Q-embedding was the missing ingredient. 14/14 FP tests pass; use_Q/fa_* default to
 current behavior (no regression).
+
+HEAVY-CLUSTER STATUS (Mg lQ sweep, scf_tolerance=1e-6): the heavier closed atoms share Q~2.6-2.8
+(Ne/Mg/Ar/Ca cluster), so the single Q coordinate cannot separate them from each other (it separates
+only the few-electron He/Be at Q<2). Mg gets CLOSE but does not formally converge:
+  Ar lQ=0.3: rho_res 2.4e-3    Mg lQ=0.3: 1.2e-2 | lQ=0.5: 2.5e-4 (best) | lQ=0.7: 5.7e-4 | lQ=1.0: 8.5e-4
+So the few-electron atoms (He, Be -- the WORST under FA, Be's +129 outlier) now CONVERGE; the heavy
+Q~2.7 cluster oscillates at ~1e-4 (close, but the intra-cluster contamination isn't removed by Q alone).
+NEXT for the cluster: separate the Q~2.7 atoms by a finer feature (l=3 / CG bispectrum), or solver-side
+(stronger DIIS/mixing) since rho_res ~2.5e-4 is a stable near-fixed-point.
