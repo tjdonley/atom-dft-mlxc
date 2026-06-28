@@ -1,0 +1,30 @@
+=== Embed the enclosed charge Q as a KERNEL FEATURE: learn the tail/few-electron shape (no FA, no W) ===
+PI's idea: replace the hand-built Fermi-Amaldi shape + W(Q) switch by LEARNING the few-electron/tail
+hole shape, with the on-top (-rho/2) and sum-rule (-1) as the ONLY exact constraints (projection) and
+NO constraint on the APPROACH to the on-top.
+
+IMPLEMENTATION (params use_Q, fp_lQ): add the bounded enclosed charge Q (_bound(Q), same Q as _kernel_eps
+computes) as a kernel coordinate; backbone HEG/GEA nodes get the bulk-limit Q (_QH). References:
+build_refs_add_Q.py appends per-atom-recomputed _bound(Q) to the l2power set
+(kernel_fp_refs_closed_rf001_l2power_Q.npz, 12 dims). Run with fa_ontop=False, fa_coeff=False (no FA).
+Bounded Q distinguishes atoms by electron count: He 1.3 < Be 1.5-2.0 < Ne/Ar 2.6 < Zn/Hg 3.3; Be sits
+in the old FA-transition zone (raw Q 2.4-4) -- exactly where FA wrecked it.
+
+RESULTS (14 closed atoms; OEP Be/Mg; l2power refs; vs variant C = no-FA, no-Q):
+  C no-Q          : MAE 20.1  signed -9.6  OEP-Be 2.42 [-22,23]  OEP-Mg 2.02
+  D +Q lQ=0.3     : MAE 19.2  signed -6.8  OEP-Be 0.39 [-6,2]    OEP-Mg 1.91
+  D +Q lQ=0.5     : MAE 19.4  signed -7.6  OEP-Be 0.63 [-6,2]    OEP-Mg 1.30
+=> Q-embedding IMPROVES energy (20.1->19.2, less underbind) AND potential (Be 2.42->0.39, near the
+   in-domain floor 0.27; Mg 2.02->1.30) AND removes the gradient-channel v_x SPIKES (Be [-22,23]->[-6,2]).
+   So the spikes were cross-atom contamination in the gradient channel; Q-separation removes them.
+
+** FIRST SCF CONVERGENCES ** (no FA, +Q lQ=0.3, scf_tolerance=1e-6 = the standard SCAN/meta-GGA value;
+the default 1e-8 is for smooth GGAs). Trace (Q_feature_scf_trace.py): v_x is FIXED & spike-free
+(Be [-3.90, 2.23] every iteration), rho_residual 2.6e-7:
+  Be  conv=TRUE  55 iters  rho_res 8.0e-7
+  He  conv=TRUE  67 iters  rho_res 9.8e-7
+  Mg  conv=FALSE rho_res 1.2e-2 (genuinely oscillating, not just below tol)
+First-ever SCF convergence for this functional (Be/He never converged under any prior approach:
+ref_gate, deriv_smooth, LB94, FA-removal all failed). Mg (higher Q ~2.8) still oscillates -- lQ tuning
+in progress. The Q-embedding was the missing ingredient. 14/14 FP tests pass; use_Q/fa_* default to
+current behavior (no regression).

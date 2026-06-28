@@ -243,6 +243,13 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
                                # monopole-normalized) -- the cross-atom-completeness feature (vs the
                                # single reduced-l2 scalar t^2 of use_l2, which is too weak)
     fp_l2pow: float = 0.5      # RBF length scale for the l=2 power-spectrum coordinate
+    use_Q: bool = False        # add the enclosed charge Q (bounded) as a KERNEL coordinate, so the
+                               # few-electron / tail hole SHAPE is LEARNED from the references (which span
+                               # Q=2..20) instead of the hand-built Fermi-Amaldi shape + W(Q) switch.
+                               # Intended with fa_coeff=False (no FA shape) and fa_ontop=False (exact
+                               # on-top -rho/2): the on-top & sum-rule stay as the only exact constraints
+                               # (the projection), with NO constraint on the APPROACH to the on-top.
+    fp_lQ: float = 0.5         # RBF length scale for the enclosed-charge coordinate
     ref_gate_rho: float = 0.0  # SCF stabilization (LB94-style low-density damping): gate the kernel
                                # REFERENCE deviation by a smooth density switch -- full in the bulk,
                                # off below ~ref_gate_rho where the references extrapolate and the
@@ -309,6 +316,8 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         self._l2_op = build_spectral_l2_operator(self._r_grid) if self._use_l2 else None
         self._use_l2pow = bool(getattr(self.params, "use_l2_power", False))
         self._fp_l2pow = float(getattr(self.params, "fp_l2pow", 0.5))
+        self._use_Q = bool(getattr(self.params, "use_Q", False))         # enclosed-charge kernel coordinate
+        self._fp_lQ = float(getattr(self.params, "fp_lQ", 0.5))
         if self._use_l2pow:                                  # l=2 power-spectrum machinery (adaptive radius)
             from ..descriptors.simple.pipeline import window_basis, transfer_matrix
             from ..descriptors.simple.bessel import radial_gauss_grid
@@ -367,6 +376,8 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         Cu = np.array([op @ rhou for op in self._ops]); Ru, _ = self._R_ad(rhou)
         cau = self._c_ad(Cu, Ru); cnu = cau / np.where(np.abs(cau[:, :1]) > 1e-30, cau[:, :1], 1e-30)
         self._cnH = cnu[len(cnu) // 2]
+        dH = cau / (4.0 * np.pi * Ru[:, None] ** 1.5)               # HEG enclosed charge (bulk-limit Q feature)
+        self._QH = float(_bound(np.array([4.0 * np.pi * Ru[len(Ru) // 2] ** 3 * (dH[len(dH) // 2] @ self._Bmom)]))[0])
         self._build_fp_nodes()
 
     def _fx_gea_axis(self, svals):
@@ -411,7 +422,7 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         lam3 = np.linalg.solve(A3 @ np.transpose(A3, (0, 2, 1)), rhs3[..., None])[..., 0]
         return heg + np.einsum('nk,nkm->nm', lam3, A3)
 
-    def _xfeat(self, cn, s2, t2=None, p2=None):
+    def _xfeat(self, cn, s2, t2=None, p2=None, q=None):
         cn = np.atleast_2d(np.asarray(cn, float)); s2 = np.atleast_1d(np.asarray(s2, float))
         cols = [cn[:, 1:], s2]                                   # [l=0 power vector cn[1:], l=1 s^2]
         if getattr(self, "_use_l2", False):                      # optional l=2 (quadrupole) scalar t^2
@@ -420,6 +431,9 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         if getattr(self, "_use_l2pow", False):                   # optional l=2 power spectrum |d_l2|^2
             p2 = np.zeros_like(s2) if p2 is None else np.atleast_1d(np.asarray(p2, float))
             cols.append(p2)
+        if getattr(self, "_use_Q", False):                       # optional enclosed-charge coordinate
+            q = np.full_like(s2, self._QH) if q is None else np.atleast_1d(np.asarray(q, float))
+            cols.append(q)
         return np.column_stack(cols)
 
     def _l2_precompute(self):
@@ -485,7 +499,8 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         ell = getattr(self, "_fp_ell", None)
         l2 = self._fp_l2 if getattr(self, "_use_l2", False) else None
         l2p = self._fp_l2pow if getattr(self, "_use_l2pow", False) else None
-        key = ("ard", id(ell)) if ell is not None else ("iso", self._fp_l0, self._fp_l1, l2, l2p)
+        lQ = self._fp_lQ if getattr(self, "_use_Q", False) else None
+        key = ("ard", id(ell)) if ell is not None else ("iso", self._fp_l0, self._fp_l1, l2, l2p, lQ)
         if getattr(self, "_inv_ell_key", None) != key:
             nl0 = self._n_out - 1
             if ell is not None:
@@ -496,6 +511,8 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
                     w = np.concatenate([w, [1.0 / l2]])
                 if l2p is not None:                              # extra l=2 power-spectrum coordinate
                     w = np.concatenate([w, [1.0 / l2p]])
+                if lQ is not None:                               # extra enclosed-charge coordinate
+                    w = np.concatenate([w, [1.0 / lQ]])
             self._inv_ell_cache = w; self._inv_ell_key = key
         return self._inv_ell_cache
 
@@ -575,8 +592,11 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         p2 = None
         if getattr(self, "_use_l2pow", False):                   # l=2 power spectrum (cross-atom completeness)
             p2 = self._l2_power_feat(rho0, R_ad, c_ad[:, 0])
+        qf = None
+        if getattr(self, "_use_Q", False):                       # enclosed charge -> learned tail/few-e shape
+            qf = _bound(Q)[0]
         # dimensionless hole shape rhotilde = rhotilde_LDA + kernel deviation; hole = -rho/2 * rhotilde
-        Kq = self._Kmat(self._xfeat(cn, s2, t2, p2), self._fp_Xnodes)
+        Kq = self._Kmat(self._xfeat(cn, s2, t2, p2, qf), self._fp_Xnodes)
         dev = Kq @ self._fp_coef
         if getattr(self, "_ref_gate_rho", 0.0) > 0.0 and self._fp_Xnodes.shape[0] > 2:
             # LB94-style low-density damping: keep the backbone (HEG+GEA nodes 0,1), gate the REFERENCE
