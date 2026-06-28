@@ -1,0 +1,31 @@
+=== Smoothing the v_x spikes: structural options vs more OEP references ===
+The spikes are grad_op^T(ew rho * d eps/d g) at the CORE (r~0.05): the SPECTRAL gradient operator's
+transpose amplifying the high-frequency content of d eps/d g (rough because the kernel's d sigma/d s^2 is
+rough at the tight l2pow scale).
+
+OEP-REFERENCES route -- DATA-BLOCKED + non-variational:
+ OEP convergence pass (oep_convergence_sweep.py): swept oep_basis_number {5,6,8,10,12}, max_scf_outer
+ {80,120,150}, polynomial_order {31,37,41}, domain, linear_mixing_alpha1 {0.3,0.4} for Ne,Ar,Ca,Zn,Kr,Xe.
+ RESULT: 0 NEW converged. Ca -> "algorithm failed to converge"; Zn -> "Singular matrix" (both settings);
+ Ne/Ar/Kr/Xe (p^6) slow-fail. Only the 3 s^2-VALENCE atoms (He,Be,Mg) converge -- the EXX-OEP response
+ matrix is singular/ill-conditioned for multi-orbital (p^6, d) atoms, and standard numerical knobs do not
+ fix it (would need OEP-internals work: SVD/Tikhonov regularization of the response, a better OEP basis,
+ Krylov solvers). So we cannot get OEP targets for the atoms that need smoothing. AND fitting v_x to OEP
+ makes the functional NON-VARIATIONAL (v_x != dE/drho). => the OEP route is not viable for hardening.
+
+STRUCTURAL route -- preferred:
+ (1) REAL-SPACE FD GRADIENT OPERATOR (lead candidate). grad_op^T is a dense SPECTRAL derivative -> Gibbs
+     ringing + boundary misbehavior near r=0 = the spikes. A compact real-space FD gradient is local and
+     does not amplify high frequencies. Must be used CONSISTENTLY (forward s^2 AND adjoint) -> rebuild the
+     reference s^2 with FD; addresses the spike at its operator root.
+ (2) GRADIENT-CHANNEL spatial-roughness penalty in the reference fit: penalize the SPATIAL roughness of
+     d sigma/d s^2 on the grid (the H = P_g^T grad^T grad P_g operator), not the node-derivative -- targets
+     the field grad_op^T sees. (deriv_smooth + GEA constraint is the node-derivative version; sharpen to
+     the spatial/gradient channel.)
+ (3) Cusp/high-density damping of d eps/d g near r=0 (where the spikes sit) -- a targeted, cheap mitigation.
+ (4) Looser fp_l2pow (smoother kernel -> smoother d sigma/d s^2) -- trades OEP accuracy for smoothness.
+
+CONCLUSION: smooth the spikes STRUCTURALLY (lead: real-space FD gradient operator, used consistently),
+NOT via more OEP references -- the OEP route is data-blocked (response singular for the multi-orbital
+atoms we need) and non-variational. The homotopy already STABILIZES the spikes (no divergence, ~1e-3);
+the structural fix is what removes them for tight 1e-6.
