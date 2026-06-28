@@ -276,11 +276,14 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
                                # reference coverage. 0 = off. Potential-only (does not change e_x).
     lb94_beta: float = 0.05    # LB94 beta
     lb94_dec: float = 0.5      # switch width in decades of log10(rho)
-    deriv_smooth_grad: bool = False  # target the GRADIENT (s^2) feature channel only in the min-roughness
-                               # penalty. The SCF v_x spikes are grad_op^T(d eps/d g), i.e. roughness in
-                               # d sigma/d s^2; the isotropic penalty's G ~ sum_d w_d^4 is dominated by the
-                               # p2 channel (w=1/l2pow=50 -> w^4~6e6) which does NOT spike, leaving s^2
-                               # (w^4=16) unsmoothed. This builds G from the s^2 channel alone.
+    deriv_smooth_grad: bool = False  # target the cn[1:]+s^2 ENERGY-RELEVANT channels (dims 0..n_out-1) in
+                               # the min-roughness penalty, EXCLUDING the p2/Q completeness coords. The SCF
+                               # v_x roughness is MULTI-CHANNEL: grad_op^T(d eps/d g) [s^2] AND op_n^T(d eps/
+                               # d c_n) [cn monopole]. The isotropic penalty's G ~ sum_d w_d^4 is dominated by
+                               # the p2/Q channels (w=1/l2pow=50 -> w^4~6e6), which do NOT spike, smoothing the
+                               # wrong direction. Restricting to dims 0..n_out-1 smooths exactly the channels
+                               # that feed the operator-amplified v_x terms (gf=0.6 + this -> SCF 1e-3 to 1e-4
+                               # across Ne/Mg/Ar/Kr, energy ~neutral). Was s^2-only ([n_out-1]) which did ~nothing.
     deriv_smooth: float = 0.0  # Fit the hole SHAPE with a smoother POTENTIAL (removes the v_x spikes that
                                # block SCF): among interpolants matching the reference holes exactly
                                # (-> energy), pick the one minimizing the feature-derivative roughness
@@ -343,7 +346,7 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         self._ref_gate_rho = float(getattr(self.params, "ref_gate_rho", 0.0))  # SCF low-density damping
         self._ref_gate_dec = float(getattr(self.params, "ref_gate_dec", 0.4))
         self._deriv_smooth = float(getattr(self.params, "deriv_smooth", 0.0))   # min-roughness shape fit
-        self._deriv_smooth_grad = bool(getattr(self.params, "deriv_smooth_grad", False))  # s^2-channel only
+        self._deriv_smooth_grad = bool(getattr(self.params, "deriv_smooth_grad", False))  # cn[1:]+s^2 channels
         self._fa_ontop = bool(getattr(self.params, "fa_ontop", True))           # FA on-top blend (vs exact -rho/2)
         self._fa_coeff = bool(getattr(self.params, "fa_coeff", True))           # FA hole-shape blend
         self._lb94_tail = float(getattr(self.params, "lb94_tail", 0.0))         # LB94 asymptotic tail damping
@@ -564,8 +567,10 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
             # solves (c_G=0 and the d/dc_G part) fix it -- preserving the 10/81 limit AND the smooth v_x.
             Kp = self._Kmat(Xnodes, Xnodes); ww = self._inv_ell(); Nn = len(Xnodes); G = np.zeros((Nn, Nn))
             # roughness Gram: sum_d ||d sigma/d x_d||^2 = coef^T (sum_d D_d^T D_d) coef, D_d = dK/dx_d.
-            # deriv_smooth_grad -> only the s^2 (gradient) channel, where the SCF v_x spikes live.
-            dims = [self._n_out - 1] if self._deriv_smooth_grad else range(Xnodes.shape[1])
+            # deriv_smooth_grad -> the cn[1:]+s^2 ENERGY-RELEVANT channels (dims 0..n_out-1) that feed the
+            # spatial-operator-amplified v_x terms (op_n^T monopole, grad_op^T gradient), EXCLUDING the
+            # p2/Q completeness coordinates whose tight length scales (w~50) otherwise dominate the Gram.
+            dims = range(self._n_out) if self._deriv_smooth_grad else range(Xnodes.shape[1])
             for dd in dims:
                 Dd = -(ww[dd] ** 2) * (Xnodes[:, dd][:, None] - Xnodes[:, dd][None, :]) * Kp
                 G += Dd.T @ Dd
