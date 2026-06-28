@@ -1,0 +1,26 @@
+=== Structural spike smoothing: low-pass the spectral gradient operator (grad_filter); no new operator ===
+PI's idea: GEA is valid only for slowly-varying densities, so the gradient operator should be MOST
+ACCURATE there -- keep low-k (slowly-varying) exact, damp high-k (high-freq) where GEA is meaningless and
+the spikes live. Implemented as a Gaussian CHANNEL low-pass in build_spectral_gradient_operator
+(slope0 *= exp(-0.5(n/(grad_filter*n_channels))^2)); same operator forward+adjoint; default 0=unfiltered.
+
+RESULTS (most-complex functional l2power+Q):
+ - The filter KILLS the gradient-TERM v_x spike: Mg grad-term |max| 13.0 -> 3.3 (gf=0.6) -> 0.6 (0.4) ->
+   0.2 (0.15); v_x [-13,13] -> [-5,3] at gf=0.6.
+ - ENERGY is NEUTRAL once references are rebuilt consistently (rebuild_refs_grad_filter.py recomputes the
+   s^2 column with the filtered operator): 8-closed MAE gf=0 11 ; gf=0.6 STALE refs 18 ; gf=0.6 REBUILT 10.
+   So the earlier degradation was purely the stale-reference mismatch -- the smoother operator costs no
+   energy. (GEA slope is grad_op-independent in the kernel -> preserved automatically.)
+ - SCF: gf=0.6 cold-start still DIVERGES for Ne (5.7e3). Combined gf=0.6 + homotopy (warm-started
+   ref_scale ramp, scf_gradfilter_homotopy.py): backbone (lam=0) converges TIGHT (Ne 5e-8); full lam=1
+   reaches 3e-3 -- the SAME ~1e-3 floor as the homotopy alone (1.6e-3). So grad_filter does NOT tighten
+   the SCF beyond the homotopy floor.
+
+CONCLUSION: the smoother spectral operator is a CLEAN, ENERGY-NEUTRAL structural win that removes the
+GRADIENT-channel spike (the PI's idea works). But the residual SCF jitter (~1e-3) is MULTI-CHANNEL: it is
+the reference INTERPOLATION roughness feeding the monopole (op_n^T) and density v_x terms too, not just
+the spectral gradient operator. So tight 1e-6 universally needs smoothing the reference INTERPOLATION (the
+min-roughness on the holes, all channels -- deriv_smooth GEA-constrained), of which grad_filter handles
+only the gradient piece. Net SCF status: STABLE to ~1e-3 across atoms (homotopy + smoother operator, no
+divergence, full functional, energy-neutral); the last ~1e-3->1e-6 is the all-channel reference smoothing.
+Saved kernel_fp_refs_closed_rf001_l2power_Q_gf06.npz (gf=0.6 consistent refs).
