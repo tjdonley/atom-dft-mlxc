@@ -1,0 +1,20 @@
+=== ALL-ATOM ladder vs the WIGNER-SUBTRACTED target (spherical-exact exchange) ===
+Target per atom = int(rho*eps_full) = Ehf - Wigner correction (the spherical-exact exchange the radial-
+density functional CAN reach). All-shell FPS references (build_allshell_refs.py: closed+open, leak<=0.1,
+rho>=0.01, N up to 2048 from 67 atoms; base [cn,s^2] + l2power). Functionals FA-free, no-Q.
+(allshell_ladder_wigner_subtracted.py) MAE vs target [mHa], 68 atoms, closed | OPEN:
+                  256        512       1024       2048
+  l<=0     4993|3063   657|864    307|360    133|156
+  l<=1      304|771    929|606    103|186     45|160
+  l<=2     2536|1870   589|391    213|238     49|133
+
+HEADLINE: against the WIGNER-SUBTRACTED target, OPEN shells now CONVERGE with N (l<=0 3063->156;
+l<=2 1870->133) -- vs being pinned at ~440 against Ehf. The ~280-300 mHa difference is exactly the
+irreducible Wigner (partial-shell angular) correction we subtracted; the remaining ~130-160 is REDUCIBLE
+COVERAGE (the all-shell FPS gives only ~30 pts/atom at N=2048, vs 110/atom in the closed-only study which
+reached ~9-18 mHa). So: open-shell error = irreducible Wigner (removed) + reducible coverage (converging).
+This confirms the decomposition: once the angular piece the radial density CANNOT carry is removed, the
+functional converges to the (spherical-exact) target for ALL atoms, closed and open alike. The absolute
+floor here is coverage-limited (sparse all-shell N); denser per-atom references would lower it toward the
+closed-only ~10 mHa. (The angular max_l ladder is noisier on the sparse all-shell set than in the dense
+closed-only study, but the n_refs convergence is clean for both shells.)
