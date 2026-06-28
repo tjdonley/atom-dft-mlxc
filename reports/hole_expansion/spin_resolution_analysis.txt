@@ -1,0 +1,43 @@
+=== SPIN RESOLUTION: principled analysis + the conclusion that it is a NO-OP in the spin-paired solver ===
+Goal (PI): extend the formalism to spin, exchange spin-decoupled, reproduce the current HF solver
+(data-driven, density-only), comparing apples-to-apples WITHIN the spin-paired solver.
+
+WHAT THE HF REFERENCE IS. atom/xc/hf.py builds the exchange matrix with prefactor (2L+1)*(0.5*occ)*
+wigner_3j^2 (lines 327, 383) -- i.e. the RESTRICTED, spherically-averaged HF exchange with fractional
+occupations (occ/2 per spin), confirmed by orbital_hole.py ("spin-restricted convention occ/2 per spin").
+So for EVERY atom (closed and open) the reference has rho_up = rho_dn = rho/2. The solver passes only
+rho to the functional (no spin channels exist in atom/solver.py).
+
+THE PRINCIPLED SPIN EXTENSION IS A NO-OP HERE. Exchange is spin-decoupled:
+   E_x[rho_up,rho_dn] = E_x^FP[rho_up] + E_x^FP[rho_dn],
+with the fully-polarized channel E_x^FP[n] = (1/2) E_x^unpol[2n] (spin-scaling; equivalently the channel
+uses k_F^FP = (6 pi^2 n)^{1/3}). In the spin-PAIRED solver rho_up = rho_dn = rho/2, so 2 rho_sigma = rho
+and E_x = (1/2)E_x^unpol[rho] + (1/2)E_x^unpol[rho] = E_x^unpol[rho] -- EXACTLY the current functional.
+(Check: k_F^FP(rho/2) = (6 pi^2 rho/2)^{1/3} = (3 pi^2 rho)^{1/3} = k_F(rho).) There is NO spin degree of
+freedom to exploit; the apples-to-apples comparison within the spin-paired solver is identical.
+
+=> THE OPEN-SHELL ERRORS ARE NOT SPIN. They are the density-only (1-RDM-gap) limit for partially-filled-
+shell, fractional-occupation, spherically-averaged restricted exchange: E_x ~ sum_ij occ_i occ_j (Wigner
+angular coupling) while rho ~ sum_i occ_i -- the partial-shell exchange (angular L=0,2 structure +
+fractional occupation) is NOT a functional of the spherically-averaged rho. Worst at HALF-filled shells
+(C +358, N +281 with closed refs; half-filled d).
+
+EMPIRICAL CONFIRMATION (allshell_coverage_test.py): adding the open-shell RESTRICTED holes to the
+reference set (all-shell, same size as rf001) makes the open shells DRAMATICALLY WORSE, not better:
+   O 2p^4: -1 -> -502 ;  C: +358 -> -542 ;  N: +281 -> -499 ;  P: -34 -> -285 (closed also diluted).
+The open-shell holes are mutually INCONSISTENT in (cn,s^2) feature space -- the same density maps to
+different partial-shell holes -- so they inject noise, not coverage. This is the 1-RDM gap directly:
+the spherically-averaged density does not determine the open-shell exchange.
+
+CONTEXT. The wide benchmark already showed |SIMPLE - rSCAN| ~ 84 mHa on open shells vs the ~440 common
+error: SIMPLE is already at the semilocal density limit (it matches rSCAN, which even uses tau). The
+residual open-shell error is common to all semilocal functionals (the partial-shell 1-RDM gap), and the
+huge heavy-p-block errors (Ga-Se, Sn-Te, Tl-Bi > 1000 mHa for PBE/rSCAN/SIMPLE alike) are a common
+PSP/spherical-average artifact, not a SIMPLE deficiency.
+
+CONCLUSION. Within "purely density-based" + "spin-paired solver", spin resolution is inert and the
+functional is at its principled limit: excellent where rho determines the exchange (closed shells, MAE
+~19, beats PBE, ~rSCAN) and intrinsically limited where it does not (partially-filled shells). Improving
+open shells further requires information beyond the spherically-averaged density (occupation / 1-RDM /
+tau / non-spherical density) -- which "purely density-based" excludes. No functional change made; the
+spin-decoupled formalism is the current functional. Scripts + analysis recorded.
