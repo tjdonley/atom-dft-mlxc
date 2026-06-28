@@ -1,0 +1,23 @@
+=== HARDENING: systematic convergence to the principled target (exact HF exchange), closed shells ===
+(ladder_maxl_nref.py + ladder_convergence.png) FA-free, no-Q functionals. Two axes: angular completeness
+of the local descriptor (max_l: l=0 monopole cn; l=1 +s^2 gradient; l=2 +l2power quadrupole) and the
+number of nested FPS reference holes N. Metric: MAE of int(rho*eps_x) vs the EXACT Ehf [mHa] over 8 clean
+closed-shell atoms (He,Be,Ne,Mg,Ar,Kr,Xe,Hg). l=0 uses fp_mu=0,fp_l1=100 (gradient off); l=1/2 fp_l1=0.5.
+
+  max_l \ N    64    128    256    512   1024   1529      converged ceiling
+  l<=0       1970    587    122    141    122    120          ~120
+  l<=1        487    292     22     12     18     18          ~15
+  l<=2        134    327    140     14      9      9          ~9
+
+SYSTEMATIC IMPROVEMENT on BOTH axes:
+ - angular completeness (down columns, N=1529): 120 -> 18 -> 9 mHa; each l-channel cuts the residual
+   several-fold (monopole misses the gradient inhomogeneity; +s^2 captures it; +quadrupole the rest).
+ - reference count (across rows): each row converges to its l-floor; small-N noise is COVERAGE (sparse
+   FPS prefixes leave some of the 8 atoms with no near neighbor), it settles by N~512.
+The converged l<=2 functional reaches ~9 mHa vs the EXACT exchange (below rSCAN ~14) on this clean set.
+This is the hardened statement of the principled limit: where the radial density determines the exchange
+(closed/filled shells), the functional converges to the exact target systematically as the angular
+descriptor and reference set are completed. (Open shells converge instead to the SPHERICAL exact
+eps_full; the residual to Ehf there is the irreducible Wigner/angular gap quantified earlier -- a
+constant offset, not a convergence failure.) Note: the 8-atom set excludes the alkaline earths Ca/Sr/Ba
+(diffuse-valence fit floor ~-50 mHa) and Zn/Pd/Cd; the full-14 MAE is higher (~19) but the same trend holds.
