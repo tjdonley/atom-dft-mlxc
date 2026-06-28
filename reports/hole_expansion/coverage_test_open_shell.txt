@@ -1,0 +1,34 @@
+=== COVERAGE TEST (N open, Ca closed): coverage is REFUTED; open-shell error = SPHERICAL-AVERAGING gap ===
+PI's test: if the error is coverage, adding reference data should fix it. Picked N (open 2p^3, -456 mHa)
+and Ca (closed alkaline-earth, -46 mHa); added each atom's OWN exact holes (l2power+Q features) to the
+reference set, four combos. (coverage_fix_test.py)
+   atom      base    +N    +Ca   +N+Ca        own-ONLY refs
+   N(open)   -456   -496   -431  -496          -496
+   Ca(clo)    -46    -46    -46   -46           -43
+   Ne/Mg/Ar    ~13 unchanged across all combos (no contamination)
+=> Adding the atom's own references -- mixed OR alone -- does NOT fix it (N gets slightly worse, Ca
+   unchanged). COVERAGE IS REFUTED. Not dilution (own-only same), not contamination (controls untouched).
+
+SMOKING GUN (eps_full_vs_Ehf.py): the EXACT per-point energy density eps_full (the reference TARGET)
+integrates to the HF total Ehf for CLOSED shells but NOT for OPEN shells:
+   He/Be/Ne/Mg/Ar/Ca: int(eps_full) - Ehf ~ 0 mHa
+   N: -509 | O: -276 | P: -323  mHa   (== the benchmark error magnitude)
+So the reference TARGETS themselves are inconsistent with Ehf for open shells. Cause (orbital_hole.py
+docstring): the exact hole is built from the SPHERICALLY-AVERAGED 1-RDM, which is EXACT for FILLED
+subshells but APPROXIMATE for PARTIAL subshells (sum over m doesn't complete). The HF solver's Ehf
+includes the partial shell's ANGULAR (Wigner-3j, L=0,2) exchange coupling; the spherical hole omits it.
+
+CONCLUSION. The open-shell error is the SPHERICAL-AVERAGING gap (the angular exchange of partially-filled
+shells), baked into the radial/spherical-hole construction the ENTIRE SIMPLE framework rests on. It is
+IRREDUCIBLE for any functional of the spherically-averaged (radial) density: the references cannot even
+represent Ehf for open shells, so no amount of data, kernel tuning, or spin treatment fixes it. (The
+closed-shell Ca -46 is a DIFFERENT, small effect -- the functional's own fit/representation floor, also
+not coverage.) This DEFINITIVELY supports option (a): the functional is at its principled ceiling --
+excellent where the radial density determines the exchange (closed/filled shells), irreducibly limited
+where the partial-shell angular structure does not live in the radial density (open shells).
+
+HK CONSISTENCY (sharper now): HK maps the FULL 3D density -> energy. The atomic functional uses the
+RADIAL (spherically-averaged) density. The radial density EXACTLY determines the exchange of filled
+shells (spherical) but UNDER-determines it for partial shells (the L=2 angular exchange lives in the
+orbital structure, not the radial density). eps_full vs Ehf IS this gap. No HK violation: the residual
+is the radial-density restriction of the exact (full-density) HK functional.
