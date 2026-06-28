@@ -32,3 +32,23 @@ RADIAL (spherically-averaged) density. The radial density EXACTLY determines the
 shells (spherical) but UNDER-determines it for partial shells (the L=2 angular exchange lives in the
 orbital structure, not the radial density). eps_full vs Ehf IS this gap. No HK violation: the residual
 is the radial-density restriction of the exact (full-density) HK functional.
+
+=== FOLLOW-UP: YES, the code can compute the correct radially-resolved hole WITH the Wigner term ===
+(wigner_resolved_exchange.py) hf.py's CoulombCouplingCalculator (radial_kernel + wigner_3j_000) already
+has the angular machinery. The HF energy is einsum('ij,li,ki,kj,lj,kl->', occ*wigner^2, u,u,u,u, r_kernel)
+with l,k = grid points (u=r*R). Keeping the r0 (l) index -> '...->l' gives the radially-resolved exchange
+energy density INCLUDING the partial-shell Wigner (L=0,2) coupling. It sums to the true Ehf for ALL atoms:
+  N: -1.6051 (Ehf -1.6052) ; O: -2.5567 (-2.5568) ; P: -1.0559 (-1.0561) ; closed all exact.
+vs the spherical eps_full which misses it (N -2.11, O -2.83, P -1.38). The full u-averaged hole shape is
+also extractable (keep the r' index in |rho1|^2).
+
+CAVEAT (why this does not by itself fix the functional): the Wigner-resolved density/hole is the CORRECT
+target, but it is NOT a function of the spherically-averaged RADIAL density -- it depends on the partial
+shell's m-occupation (orbital/angular info). Two systems with the same radial density but different
+partial-shell angular structure have different correct eps_x(r0); the radial-density functional cannot
+represent that difference. Concretely the radial density determines only the SPHERICAL hole (eps_full),
+which already misses the Wigner part by exactly the open-shell error. So the exact Wigner targets CONFIRM
+and precisely QUANTIFY the irreducible ceiling (spherical vs angular = the open-shell error); to USE them
+one must feed the functional info beyond the radial density (the partial-shell occupation / an angular
+descriptor) -- i.e. relax "purely density-based". Useful capability regardless: exact per-r0 references,
+and the exact spherical/angular decomposition of E_x.
