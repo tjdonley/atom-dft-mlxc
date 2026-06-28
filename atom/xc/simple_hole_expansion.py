@@ -284,6 +284,15 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
                                # wrong direction. Restricting to dims 0..n_out-1 smooths exactly the channels
                                # that feed the operator-amplified v_x terms (gf=0.6 + this -> SCF 1e-3 to 1e-4
                                # across Ne/Mg/Ar/Kr, energy ~neutral). Was s^2-only ([n_out-1]) which did ~nothing.
+    deriv_smooth_adaptive: bool = False  # ELEGANT generalization of deriv_smooth_grad: instead of a binary
+                               # dim-mask, weight each channel's roughness by its v_x SPATIAL-OPERATOR
+                               # amplification alpha_d -- the factor that turns feature-derivative roughness
+                               # into v_x roughness (cn block <- ||op_n||, s^2 <- ||grad_op||). The p2/Q
+                               # completeness coords enter eps via the LOCAL rho-term (no spatial op in v_x,
+                               # eq. for v_x has only op_n^T and grad_op^T) -> alpha=0 -> smoothed out of the
+                               # penalty AUTOMATICALLY (the mask is DERIVED from the operators, not hand-set,
+                               # and robust if new features are added). alpha is grid-adaptive (operator norms)
+                               # and normalized so deriv_smooth transfers. Overrides deriv_smooth_grad when set.
     deriv_smooth: float = 0.0  # Fit the hole SHAPE with a smoother POTENTIAL (removes the v_x spikes that
                                # block SCF): among interpolants matching the reference holes exactly
                                # (-> energy), pick the one minimizing the feature-derivative roughness
@@ -347,6 +356,7 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         self._ref_gate_dec = float(getattr(self.params, "ref_gate_dec", 0.4))
         self._deriv_smooth = float(getattr(self.params, "deriv_smooth", 0.0))   # min-roughness shape fit
         self._deriv_smooth_grad = bool(getattr(self.params, "deriv_smooth_grad", False))  # cn[1:]+s^2 channels
+        self._deriv_smooth_adaptive = bool(getattr(self.params, "deriv_smooth_adaptive", False))  # op-amp weights
         self._fa_ontop = bool(getattr(self.params, "fa_ontop", True))           # FA on-top blend (vs exact -rho/2)
         self._fa_coeff = bool(getattr(self.params, "fa_coeff", True))           # FA hole-shape blend
         self._lb94_tail = float(getattr(self.params, "lb94_tail", 0.0))         # LB94 asymptotic tail damping
@@ -529,6 +539,30 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
             self._inv_ell_cache = w; self._inv_ell_key = key
         return self._inv_ell_cache
 
+    def _deriv_smooth_channel_weights(self, n_feat):
+        """Per-channel roughness weights alpha_d for the min-roughness penalty (deriv_smooth).
+        adaptive : alpha_d = the v_x SPATIAL-OPERATOR amplification of channel d (the factor mapping a
+                   feature-derivative into v_x roughness): cn[1:] block (dims 0..n_out-2) <- ||op_n||,
+                   s^2 (dim n_out-1) <- ||grad_op||; the p2/Q completeness coords (dims >= n_out) enter
+                   eps via the LOCAL rho-term -- v_x = ... + sum_n op_n^T(..) + grad_op^T(..) has NO p2/Q
+                   spatial operator -> alpha=0, excluded from the penalty AUTOMATICALLY (derived, not a
+                   hand-set mask). Normalized to unit mean over coupled channels so deriv_smooth transfers.
+        grad    : the explicit cn[1:]+s^2 mask (dims 0..n_out-1 = 1, p2/Q = 0); the discrete predecessor.
+        else    : isotropic (all channels = 1)."""
+        a = np.ones(n_feat)
+        if self._deriv_smooth_adaptive:
+            if getattr(self, "_op_amp_cache", None) is None:        # spectral norms (grid props), computed once
+                self._op_amp_cache = float(np.mean([np.linalg.norm(op, 2) for op in self._ops]))
+                self._grad_amp_cache = float(np.linalg.norm(self._grad_op, 2))
+            a = np.zeros(n_feat)
+            a[:self._n_out - 1] = self._op_amp_cache       # cn[1:] monopole channels (op_n^T term)
+            a[self._n_out - 1] = self._grad_amp_cache      # s^2 gradient channel (grad_op^T term)
+            coupled = a > 0.0                              # p2/Q stay 0 -> auto-excluded
+            a[coupled] /= a[coupled].mean()                # relative weights only; preserve deriv_smooth scale
+        elif self._deriv_smooth_grad:
+            a = np.zeros(n_feat); a[:self._n_out] = 1.0    # cn[1:]+s^2 mask, p2/Q excluded
+        return a
+
     def _Kmat(self, Xa, Xb):
         # squared-exp kernel via the BLAS distance identity ||a-b||^2 = |a|^2 + |b|^2 - 2 a.b
         # (avoids the (Na, Nb, n_out) broadcast; dominant cost with many nodes).
@@ -566,13 +600,13 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
             # re-solve c_G so the realized l=1 slope = fp_mu: coef is linear in c_G (Delta is), so two
             # solves (c_G=0 and the d/dc_G part) fix it -- preserving the 10/81 limit AND the smooth v_x.
             Kp = self._Kmat(Xnodes, Xnodes); ww = self._inv_ell(); Nn = len(Xnodes); G = np.zeros((Nn, Nn))
-            # roughness Gram: sum_d ||d sigma/d x_d||^2 = coef^T (sum_d D_d^T D_d) coef, D_d = dK/dx_d.
-            # deriv_smooth_grad -> the cn[1:]+s^2 ENERGY-RELEVANT channels (dims 0..n_out-1) that feed the
-            # spatial-operator-amplified v_x terms (op_n^T monopole, grad_op^T gradient), EXCLUDING the
-            # p2/Q completeness coordinates whose tight length scales (w~50) otherwise dominate the Gram.
-            dims = range(self._n_out) if self._deriv_smooth_grad else range(Xnodes.shape[1])
-            for dd in dims:
-                Dd = -(ww[dd] ** 2) * (Xnodes[:, dd][:, None] - Xnodes[:, dd][None, :]) * Kp
+            # roughness Gram: sum_d alpha_d^2 ||d sigma/d x_d||^2 = coef^T (sum_d alpha_d^2 D_d^T D_d) coef,
+            # D_d = dK/dx_d. The per-channel weight alpha_d controls WHICH feature-derivatives are smoothed.
+            alpha = self._deriv_smooth_channel_weights(Xnodes.shape[1])
+            for dd in range(Xnodes.shape[1]):
+                if alpha[dd] == 0.0:
+                    continue
+                Dd = alpha[dd] * (-(ww[dd] ** 2) * (Xnodes[:, dd][:, None] - Xnodes[:, dd][None, :]) * Kp)
                 G += Dd.T @ Dd
             M = np.linalg.solve(G + self._deriv_smooth * np.eye(Nn), np.eye(Nn)); MK = M @ Kp
             KMK = Kp @ MK + 1e-10 * np.eye(Nn)

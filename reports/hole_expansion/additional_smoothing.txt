@@ -73,3 +73,53 @@ use_l2_power=True, use_Q=True, fp_l2pow=0.02, fp_lQ=0.3, fp_l0=0.7, fp_l1=0.5,
 refs: kernel_fp_refs_closed_rf001_l2power_Q_gf06.npz; SCF via homotopy ref_scale ramp,
 scf_tolerance ~3e-4. All defaults remain off (deriv_smooth=0) so FP regression is unaffected
 (14/14 pass).
+
+
+ELEGANT GENERALIZATION: deriv_smooth_adaptive (operator-amplification channel weights)
+=======================================================================================
+The deriv_smooth_grad dim-mask (hand-excluding p2/Q via dims=range(n_out)) is replaced by a
+DERIVED, adaptive per-channel weight alpha_d = the v_x SPATIAL-OPERATOR amplification of channel
+d (the factor that turns feature-derivative roughness into v_x roughness).
+
+WHY operator amplification, NOT feature distance (the key insight): a purely feature-distance
+metric CANNOT target the spiking channels. The roughness Gram weights each channel by ~(1/ell_d)^4,
+and the energy kernel DELIBERATELY uses tiny ell for p2/Q (0.02, 0.3) to separate atoms in those
+completeness coords -> the fitted sigma genuinely wiggles fast along p2/Q -> any feature-distance
+penalty smooths p2/Q (which do NOT spike). What distinguishes the spiking channels is the SPATIAL
+OPERATOR that carries each feature-derivative into v_x:
+    v_x = eps + rho d eps/d rho + sum_n op_n^T(ew rho d eps/d c_n)/ew + grad_op^T(ew rho d eps/d g)/ew
+Only cn (op_n^T) and s^2 (grad_op^T) have spatial operators; p2/Q enter via the LOCAL rho-term
+(no spatial op) -> they cannot spike. So alpha_d = ||op_n|| (cn block), ||grad_op|| (s^2), 0 (p2/Q).
+p2/Q are smoothed OUT of the penalty AUTOMATICALLY (alpha=0) -- the mask is DERIVED from the
+operators, not hand-set, and robust if new features are added.
+
+Operator spectral norms (Mg grid, gf=0.6): grad_op 87.6, op_n 76-229 -- all COMPARABLE (the GEA-
+motivated grad_filter brought grad_op down to the op_n range), so the derived weights are nearly
+democratic over cn+s^2: alpha normalized -> cn 1.02, s^2 0.85, p2 0, Q 0.
+
+VALIDATION (gf=0.6 + deriv_smooth=1 + homotopy):
+* Energy: IDENTICAL to the mask (closed-shell MAE 12.6 vs 12.6 mHa; Ex matches to 4 decimals --
+  node-matching preserves the atomic energy regardless of the between-node reweighting).
+* SCF (lambda=1 residual): adaptive Ne 2e-5 (mask 4e-5), Mg 6e-5 (mask 2e-4) -- comparable, slightly
+  TIGHTER (the operator-informed, grid-adaptive cn/s^2 balance).
+* Production confirm (scf_tol=3e-4): Ne/Mg/Ar/Kr all converged=True (see table at end).
+* 14/14 FP tests pass (default-off; the deriv_smooth_grad mask path is bit-identical -- alpha=1 on
+  dims 0..n_out-1, 0 elsewhere = the old loop).
+
+deriv_smooth_adaptive is the RECOMMENDED production setting (elegant, mask-free, grid-adaptive,
+energy-neutral, marginally better SCF). deriv_smooth_grad retained as the explicit predecessor.
+
+ONE-MECHANISM LEAD (not adopted): adaptive smoothing ALONE (grad_filter=0, non-gf refs) converged
+Ne to 6e-6 -- the coefficient penalty, now folding in the gradient operator's amplification, may
+SUBSUME grad_filter into a single mechanism. But the non-gf ref set is a different functional
+(Etot -32.416 vs -32.477) -> needs a consistent ref rebuild + energy re-benchmark before adopting.
+Promising direction toward collapsing grad_filter + deriv_smooth into one adaptive knob.
+
+ADAPTIVE production confirm (gf=0.6 + deriv_smooth_adaptive=1 + homotopy, scf_tol=3e-4):
+  atom   converged   residual   E_tot (Ha)   (cf. mask E_tot)
+  Ne     True        2.3e-4     -32.4773     (-32.4751)
+  Mg     True        3.0e-4     -55.5051     (-55.5055)
+  Ar     True        1.8e-5     -22.1474     (-22.1475)
+  Kr     True        2.3e-4     -20.3694     (-20.3689)
+All converged=True; E_tot within ~2 mHa of the mask (the mild operator reweighting). Adaptive
+matches the mask everywhere and is mask-free + grid-adaptive -> the recommended production setting.
