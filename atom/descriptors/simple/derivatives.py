@@ -176,7 +176,7 @@ def build_spectral_laplacian_operator(r_grid, n_channels=40, r_c=R_C,
 
 
 def build_spectral_gradient_operator(r_grid, n_channels=40, r_c=R_C,
-                                     n_window=256, n_angle=64):
+                                     n_window=256, n_angle=64, grad_filter=0.0):
     """Fixed linear operator G (N x N) for the signed radial gradient rho'(r0) via the
     SPECTRAL slope-at-origin sum [Eq. (sq), l=1]: for the l=1 axial expansion
     rho_1 = sum_n alpha_n R_{n1}(u),
@@ -190,6 +190,11 @@ def build_spectral_gradient_operator(r_grid, n_channels=40, r_c=R_C,
     wq = radial_gauss_grid(r_c, n_window)
     radial = basis.evaluate(1, wq.nodes)                  # (n_channels, n_window)
     slope0 = basis.evaluate(1, np.array([1.0e-6]))[:, 0] / 1.0e-6   # R_{n1}'(0)
+    if grad_filter > 0.0:
+        # low-pass the radial CHANNELS: keep low-n (slowly-varying, GEA-valid) exact, smoothly damp the
+        # high-n (high-frequency) channels that produce the spectral ringing (the v_x spikes), where GEA
+        # is invalid anyway. Gaussian roll-off at n ~ grad_filter * n_channels.
+        slope0 = slope0 * np.exp(-0.5 * (np.arange(n_channels) / (grad_filter * n_channels)) ** 2)
     with np.errstate(over="ignore", divide="ignore", invalid="ignore"):
         proj = slope0 @ radial                            # fold slope weights + basis
     u, wu = leggauss(n_angle)

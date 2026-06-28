@@ -243,6 +243,10 @@ class SIMPLEHOLEKERNELFPParameters(SIMPLEHOLEEXPParameters):
                                # monopole-normalized) -- the cross-atom-completeness feature (vs the
                                # single reduced-l2 scalar t^2 of use_l2, which is too weak)
     fp_l2pow: float = 0.5      # RBF length scale for the l=2 power-spectrum coordinate
+    grad_filter: float = 0.0   # low-pass the SPECTRAL gradient operator's radial channels (Gaussian
+                               # roll-off at ~grad_filter*n_channels): keeps the slowly-varying (GEA-valid)
+                               # gradient exact, damps the high-frequency channels that produce the v_x
+                               # spikes. 0 = unfiltered. Smaller = smoother. Same operator forward+adjoint.
     ref_scale: float = 1.0     # homotopy/continuation knob: scales the reference-hole DEVIATION (Db) by
                                # this factor. 0 = smooth reference-free backbone (LDA+GEA), 1 = full
                                # functional. Ramping 0->1 with warm-started SCF turns the rough reference
@@ -314,7 +318,8 @@ class SIMPLE_HOLE_KERNEL_FP(SIMPLE_HOLE_EXPANSION):
         super().__init__(derivative_matrix=derivative_matrix, r_quad=r_quad,
                          quadrature_weights=quadrature_weights, params=params)
         # --- precompute on the adaptive unit frame ---
-        self._grad_op = build_spectral_gradient_operator(self._r_grid)
+        self._grad_filter = float(getattr(self.params, "grad_filter", 0.0))   # low-pass the spectral grad
+        self._grad_op = build_spectral_gradient_operator(self._r_grid, grad_filter=self._grad_filter)
         self._use_l2 = bool(getattr(self.params, "use_l2", False))
         self._fp_l2 = float(getattr(self.params, "fp_l2", 0.5))
         self._l2_op = build_spectral_l2_operator(self._r_grid) if self._use_l2 else None
