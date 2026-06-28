@@ -1,0 +1,34 @@
+=== WIDE EXCHANGE-ENERGY BENCHMARK: 69 atoms (Z=1-57,72-83), error trends ===
+Functional: SIMPLE Q-feature (l2power + Q, no FA, lQ=0.3). Reference: HF exchange Ehf. PBE & rSCAN for
+comparison. ALL evaluated spin-UNPOLARIZED on the total HF density (valence/PSP), error = E_x - Ehf [mHa].
+(wide_benchmark.py; per-atom rows in wide_benchmark_rows.npy.)
+
+MAE by shell:
+  CLOSED (14):  SIMPLE 19   PBE 45   rSCAN 14     (SIMPLE beats PBE, ~matches rSCAN)
+  OPEN   (55):  SIMPLE 441  PBE 544  rSCAN 433    (all huge -- the SPIN error; SIMPLE ~ rSCAN, beats PBE)
+|SIMPLE - rSCAN| (cancels the common spin error): closed 30, open 84. So SIMPLE is a SOLID
+spin-unpolarized functional -- it tracks rSCAN; the open-shell wall is the missing spin treatment, NOT
+a SIMPLE deficiency.
+
+DOMINANT TREND -- SPIN. Open-shell errors are large and NEGATIVE for ALL three functionals (signed
+SIMPLE -441, rSCAN -433), worst at highly spin-polarized shells: half-filled p (N -456, all ~-350-450)
+and the d-block / post-d p-block. This is the spin-unpolarized-on-total-density limitation (the exact
+on-top for open shells is -rho(1+zeta^2)/2, not -rho/2). => the clear next development priority is a
+SPIN-RESOLVED functional/references.
+
+CLOSED-SHELL SIGNED TRENDS (clean, no spin): noble gases slightly OVERbind and drift up with period
+(Ne+13, Ar+16, Kr+18, Xe+21); alkaline earths UNDERbind and grow with period (Ca-46, Sr-55, Ba-65);
+closed d-block excellent (Zn-3, Pd+9, Cd-5, Hg+1 -- SIMPLE MAE 5 vs rSCAN 22, BEATS rSCAN). So the
+SIMPLE-specific closed-shell signature is a small alkaline-earth-underbind / noble-gas-overbind drift.
+
+SIMPLE-vs-rSCAN TRANSFER TREND (open shell, spin-cancelled):
+  SIMPLE WORSE (extra transfer error >100 mHa): N, Sc, Ti, V, Y, Zr, Hf (early/partially-filled d) and
+    Ga, Ge, As, In (post-d p-block, full d-core under a p shell). The closed-shell references transfer
+    worst to partially-filled-d and d-core-p environments.
+  SIMPLE BETTER than rSCAN (>40 mHa): near-closed p (F, Cl, Br, I), mid/late TM (Mn, Fe, Nb-Rh) and the
+    5d metals (W, Re, Os, Ir). On these SIMPLE is the best of the three.
+
+HEADLINE: SIMPLE (closed-shell-trained, spin-unpolarized) is competitive with rSCAN across the whole
+table and beats PBE; its accuracy is capped by (1) the missing spin treatment (open shells, the big one)
+and (2) a modest closed->open d-transfer error (early TM, post-d p). Both point to concrete next steps:
+spin-resolve, and add open-shell / d-environment references (or the l=3/bispectrum for d-separation).
