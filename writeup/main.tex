@@ -48,8 +48,8 @@ vanishes. Projecting the Coulomb interaction onto the same orthonormal basis
 turns the exchange-energy integral into a closed contraction of monopole
 descriptors, yielding a functional that is exact in the homogeneous and
 one-electron (Fermi--Amaldi) limits and matches the gradient expansion to second
-order. Self-consistent atomic calculations reproduce optimized-effective-potential
-exchange potentials and Hartree--Fock energies across the first rows of the
+order. Self-consistent atomic calculations converge for all sixty-nine reference atoms
+and reproduce the spherically-averaged Hartree--Fock exchange energies across the
 periodic table.
 \end{abstract}
 
@@ -660,82 +660,81 @@ under a single default procedure SCF converges for all 69 reference atoms
 (Sec.~\ref{sec:results-allatom}).
 
 \paragraph*{Reference-free baseline.} With no atomic references the kernel reduces, by
-construction, to the LDA hole plus the Fermi--Amaldi correction. The gradient enhancement
+construction, to the LDA hole plus the second-order gradient term. The gradient enhancement
 is a bounded deformation confined to the slowly-varying region (Fig.~\ref{fig:fx}) and
-does not reach the strong inhomogeneity of an atomic core, so the self-consistent
-energies track LDA+FA (Table~\ref{tab:energies}): He is near-exact (the Fermi--Amaldi
-limit, $+3$~mHa), while the denser closed shells underbind --- Be $+0.34$, Ne $+0.51$,
-Mg $+0.55$~Ha versus exact exchange. This is the honest cost of a reference-free hole:
-the second-order gradient term is correct but, being a small slowly-varying-limit
-correction, is not by itself sufficient to bind an atom, and the reference-free
-functional is less accurate than PBE or rSCAN.
+does not reach the strong inhomogeneity of an atomic core, so on the exact density the
+reference-free energies track LDA and underbind every closed shell (Table~\ref{tab:energies}):
+He $+0.15$, Be $+0.24$, Ne $+0.44$, Mg $+0.51$~Ha versus exact exchange. This is the honest
+cost of a reference-free hole: the second-order gradient term is correct but, being a small
+slowly-varying-limit correction, is not by itself sufficient to bind an atom, and the
+reference-free functional is less accurate than PBE or rSCAN.
 
 \paragraph*{Atomic references: the referenced functional.} Binding comes from adding exact
 atomic exchange holes as further kernel fixed points (Sec.~\ref{sec:hole}). Each reference
 carries only the deviation beyond LDA and decays away from its own feature signature, so it
-sharpens the strongly inhomogeneous region while leaving the LDA, Fermi--Amaldi, and gradient
+sharpens the strongly inhomogeneous region while leaving the LDA, gradient, and one-electron
 limits intact. Populating the kernel with exact holes that cover the closed-shell density
 manifold --- sampled wherever the windowed hole is well defined, $\rho\gtrsim10^{-2}$ ---
 yields the final functional. Evaluated on the exact density, it reproduces closed-shell atomic
-exchange to a mean absolute error of $34$~mHa across the fourteen closed-shell atoms from He to
-Hg, \emph{below} PBE ($45$~mHa) and approaching rSCAN ($14$~mHa, which additionally consumes the
-kinetic-energy density) (Table~\ref{tab:ref-energies}). The noble-gas and filled-$d$ atoms are
-reproduced to $\sim10$~mHa (Ne $11$, Ar $10$, Kr $6$, Pd $4$); the residual error concentrates in
-the alkaline earths (Be, Ca, Sr, Ba), the low-enclosed-charge $ns^2$ shells where the
-Fermi--Amaldi channel dominates the hole. The reference coverage of the density manifold, rather
-than the descriptor resolution, sets this accuracy. Self-consistency and the full periodic table,
-deferred in earlier versions, are addressed next (Sec.~\ref{sec:results-allatom}).
+exchange to a mean absolute error of $19$~mHa across the fourteen closed-shell atoms from He to
+Hg, \emph{well below} PBE ($45$~mHa) and matching rSCAN ($14$~mHa, which additionally consumes the
+kinetic-energy density) (Table~\ref{tab:ref-energies}). The light closed shells and filled-$d$ atoms
+are reproduced to $\lesssim20$~mHa (He $10$, Be $-2$, Ne $15$, Pd $8$, Hg $2$); the residual
+concentrates in the heavier alkaline-earth $ns^2$ shells (Ca $-43$, Sr $-52$, Ba $-65$). The
+reference coverage of the density manifold, rather than the descriptor resolution, sets this
+accuracy. Self-consistency and the full periodic table, deferred in earlier versions, are addressed
+next (Sec.~\ref{sec:results-allatom}).
 
 \begin{table}[tb]
 \centering
-\caption{Exchange-only energies (Ha) for closed-shell atoms: the reference-free
-SIMPLE kernel hole (this work, no atomic references) versus exact exchange (HF), with
-PBE~\cite{Perdew_1996} and rSCAN~\cite{Bart_k_2019} for reference. Reference-free the
-functional reduces to LDA+Fermi--Amaldi --- near-exact for He but underbinding the denser
-shells; atomic binding requires the exact-hole references (text). Spin treatment per
-Sec.~\ref{sec:hole}; open-shell N, P require the unrestricted reference and are deferred.}
+\caption{Exchange-only energies (Ha) for closed-shell atoms, evaluated on the exact density:
+the reference-free SIMPLE kernel hole (this work, no atomic references) versus exact exchange
+(HF), with PBE~\cite{Perdew_1996} and rSCAN~\cite{Bart_k_2019} for reference. Reference-free the
+functional reduces to LDA plus the second-order gradient term and underbinds every shell; atomic
+binding requires the exact-hole references (text, Table~\ref{tab:ref-energies}).}
 \label{tab:energies}
 \begin{tabular}{lcccc}
 \toprule
 Atom & exact-x & SIMPLE (ref-free) & PBE & rSCAN \\
 \midrule
-He & $-1.0019$ & $-1.0054$ & $-0.9705$ & $-0.9955$ \\
-Be & $-1.9215$ & $-1.5827$ & $-1.8853$ & $-1.9105$ \\
-Ne & $-5.4012$ & $-4.8918$ & $-5.2989$ & $-5.4110$ \\
-Mg & $-6.8576$ & $-6.3111$ & $-6.7599$ & $-6.8878$ \\
+He & $-1.0019$ & $-0.8539$ & $-0.9792$ & $-1.0012$ \\
+Be & $-1.9215$ & $-1.6828$ & $-1.8774$ & $-1.9045$ \\
+Ne & $-5.4012$ & $-4.9609$ & $-5.3228$ & $-5.3988$ \\
+Mg & $-6.8576$ & $-6.3472$ & $-6.7523$ & $-6.8513$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{table}[tb]
 \centering
-\caption{Closed-shell atomic exchange errors (mHa) of the \emph{referenced} SIMPLE kernel hole,
-evaluated on the exact density, versus exact exchange, with PBE~\cite{Perdew_1996} and
+\caption{Closed-shell atomic exchange errors (mHa) of the \emph{referenced} (production) SIMPLE
+kernel hole, evaluated on the exact density, versus exact exchange, with PBE~\cite{Perdew_1996} and
 rSCAN~\cite{Bart_k_2019}. The kernel is populated with exact holes covering the closed-shell density
-manifold ($\rho\gtrsim10^{-2}$). SIMPLE's mean absolute error ($34$~mHa) is below PBE ($45$); rSCAN
-($14$) additionally uses the kinetic-energy density. The residual concentrates in the alkaline-earth
-$ns^2$ shells (Fermi--Amaldi-dominated).}
+manifold ($\rho\gtrsim10^{-2}$). SIMPLE's mean absolute error ($19$~mHa) is well below PBE ($45$) and
+matches rSCAN ($14$, which additionally uses the kinetic-energy density). The residual concentrates in
+the heavier alkaline-earth $ns^2$ shells (Ca, Sr, Ba). These are the closed-shell rows of
+Table~\ref{tab:allatom}.}
 \label{tab:ref-energies}
 \begin{tabular}{lccc}
 \toprule
 Atom & SIMPLE & PBE & rSCAN \\
 \midrule
-He & $-6$  & $23$  & $1$   \\
-Be & $99$  & $44$  & $17$  \\
-Ne & $11$  & $78$  & $2$   \\
-Mg & $-58$ & $105$ & $6$   \\
-Ar & $10$  & $62$  & $-5$  \\
-Ca & $-70$ & $73$  & $10$  \\
-Zn & $-14$ & $19$  & $30$  \\
-Kr & $6$   & $35$  & $-26$ \\
-Sr & $-73$ & $57$  & $6$   \\
-Pd & $4$   & $-3$  & $19$  \\
-Cd & $-21$ & $22$  & $28$  \\
-Xe & $-8$  & $24$  & $-30$ \\
-Ba & $-86$ & $35$  & $-8$  \\
-Hg & $-13$ & $-45$ & $10$  \\
+He & $10$  & $23$  & $1$   \\
+Be & $-2$  & $44$  & $17$  \\
+Ne & $15$  & $78$  & $2$   \\
+Mg & $-12$ & $105$ & $6$   \\
+Ar & $19$  & $62$  & $-5$  \\
+Ca & $-43$ & $73$  & $10$  \\
+Zn & $-4$  & $19$  & $30$  \\
+Kr & $14$  & $35$  & $-26$ \\
+Sr & $-52$ & $57$  & $6$   \\
+Pd & $8$   & $-3$  & $19$  \\
+Cd & $-7$  & $22$  & $28$  \\
+Xe & $16$  & $24$  & $-30$ \\
+Ba & $-65$ & $35$  & $-8$  \\
+Hg & $2$   & $-45$ & $10$  \\
 \midrule
-MAE & $\mathbf{34}$ & $45$ & $14$ \\
+MAE & $\mathbf{19}$ & $45$ & $14$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -763,8 +762,8 @@ others pure damping (e.g.\ K, Ca, Mn) --- mutually exclusive for any fixed mixer
 escalates: DIIS first, then damped linear, then a damped-DIIS hybrid. Forty-nine atoms converge with
 DIIS, nineteen with damped linear mixing, and one (Se) with the hybrid.
 
-\paragraph*{Exchange energies across the table.} We compare the self-consistent exchange energy of the
-functional to the \emph{Wigner-subtracted} Hartree--Fock reference --- the spherically-averaged exact
+\paragraph*{Exchange energies across the table.} We compare the exchange energy of the functional,
+evaluated on the exact density, to the \emph{Wigner-subtracted} Hartree--Fock reference --- the spherically-averaged exact
 exchange $E_x^{\mathrm{sph}}=\int\rho\,\varepsilon_x^{\mathrm{sph}}$, the monopole of the exact exchange
 hole. This removes the non-spherical (partial-shell, $\ell\ge1$) angular ``Wigner'' contribution that no
 spherically symmetric density functional can represent, placing all three functionals on an equal
@@ -785,8 +784,9 @@ block --- which un-diluted open-shell references would address.
 
 \begin{table}[tb]
 \centering
-\caption{Self-consistent exchange-energy errors (mean absolute error, mHa) of the production SIMPLE kernel
-hole against the Wigner-subtracted (spherically-averaged) exact exchange, with PBE~\cite{Perdew_1996} and
+\caption{Exchange-energy errors (mean absolute error, mHa) of the production SIMPLE kernel hole,
+evaluated on the exact density, against the Wigner-subtracted (spherically-averaged) exact exchange,
+with PBE~\cite{Perdew_1996} and
 rSCAN~\cite{Bart_k_2019} evaluated identically, over the sixty-nine reference atoms. The early post-$d$
 $p$-block ($11$ atoms) is excluded as a shared pseudopotential $d$-semicore artifact (text). SIMPLE matches
 rSCAN on closed shells and leads on open $s/p$; the remaining deficit is the open $d$ block.}

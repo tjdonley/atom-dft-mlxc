@@ -100,15 +100,15 @@ Report: `reports/hole_expansion/wigner_subtracted_comparison.txt` (full per-atom
 
 ## 5. Open items / next steps
 
-1. **Methods section — DONE** (rewritten to match production: on-top $-\rho/2$ + one-electron anchor
+1. **Writeup — DONE.** Methods rewritten to match production (on-top $-\rho/2$ + one-electron anchor
    replacing the global Fermi–Amaldi blend; kernel features cn+$s^2$+$\ell$=2 power+$Q$; band-limited
    gradient operator; operator-weighted coefficient smoothing; single annealing loop + escalating-damping
-   mixing). **Remaining results-table inconsistency:** the older Results tables still predate production
-   and now sit alongside the new self-consistent §results-allatom — Table~\ref{tab:energies} (reference-free
-   LDA+FA numbers, e.g. He $-1.0054$) and Table~\ref{tab:ref-energies} (closed-shell, *on the exact
-   density*, MAE 34 mHa). Production's self-consistent closed-shell MAE is 19. Decide whether to refresh
-   these to the production construction (needs re-running those configs) or relabel them as construction-
-   stage illustrations.
+   mixing). All Results tables refreshed to the production functional and made numerically uniform
+   (everything evaluated on the exact density vs the Wigner-subtracted target): reference-free backbone
+   (Table~\ref{tab:energies}, now LDA+gradient underbinding all shells), closed-shell referenced
+   (Table~\ref{tab:ref-energies}, MAE 19 — the closed rows of Table~\ref{tab:allatom}), and the full
+   periodic table (Table~\ref{tab:allatom}). Closed-shell MAE 19/45/14 (SIMPLE/PBE/rSCAN) consistent
+   throughout. Builds clean (19 pp). The abstract/intro remain author placeholders (`\PH`).
 2. **d-block accuracy** is SIMPLE's only real weakness (186 mHa, vs 146 rSCAN). The references are
    closed-shell; open-d densities are extrapolations. Adding un-diluted open-shell / transition-metal
    references is the clear lever. (History: naive all-shell refs *hurt* closed shells — must be added
