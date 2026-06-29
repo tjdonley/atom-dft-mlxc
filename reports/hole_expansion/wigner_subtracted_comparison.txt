@@ -1,0 +1,96 @@
+EXCHANGE-ENERGY COMPARISON vs WIGNER-SUBTRACTED HF -- SIMPLE_HOLE_KERNEL_FP vs PBE vs rSCAN
+================================================================================
+Target = spherically-averaged exact exchange E_sph = int rho * eps_full (the monopole of the exact
+exchange hole). This is HF with the non-spherical (Wigner, partial-shell L>=1 angular) contribution
+removed -- the best any spherically-symmetric density functional can reach; = Ehf exactly for closed
+shells. All three functionals evaluated spin-unpolarized on the HF density (isolates functional form).
+SIMPLE = production (gf06 + H-anchor refs, grad_filter=0.6, deriv_smooth adaptive, no FA).
+
+PER-ATOM error vs target (mHa):
+1    H P1 open   -0.1282   -0.2564 |    +120     +46     +53
+2   He P1 clo    -1.0019   -1.0020 |     +10     +23      +1
+3   Li P2 open   -1.4512   -1.5017 |     +49     +66     +33
+4   Be P2 clo    -1.9215   -1.9217 |      -2     +44     +17
+5    B P2 open   -0.5670   -0.5952 |     -21     -73     -63
+6    C P2 open   -0.9627   -1.1351 |     -11     -78     -52
+7    N P2 open   -1.6052   -2.1145 |    +227    +138    +171
+8    O P2 open   -2.5568   -2.8332 |     +72    -120     -95
+9    F P2 open   -3.8555   -3.9357 |     -18    -187    -194
+10  Ne P2 clo    -5.4012   -5.4012 |     +15     +78      +2
+11  Na P3 open   -5.7276   -5.7746 |     -47    +107     +19
+12  Mg P3 clo    -6.8576   -6.8577 |     -12    +105      +6
+13  Al P3 open   -0.4149   -0.4349 |     -28     -53     -46
+14  Si P3 open   -0.6635   -0.7781 |     +15     -51     -39
+15   P P3 open   -1.0561   -1.3792 |    +175     +91    +100
+16   S P3 open   -1.6112   -1.7801 |     +90     -65     -71
+17  Cl P3 open   -2.3742   -2.4225 |     -19     -97    -128
+18  Ar P3 clo    -3.3774   -3.3772 |     +19     +62      -5
+19   K P4 open   -3.8674   -3.9051 |     -19     +84     +21
+20  Ca P4 clo    -4.5679   -4.5679 |     -43     +73     +10
+21  Sc P4 open   -5.1941   -5.2103 |    -233     -61    -100
+22  Ti P4 open   -5.9286   -6.0412 |    -429    -216    -217
+23   V P4 open   -6.9275   -7.2390 |    -412    -235    -214
+24  Cr P4 open   -8.0073   -8.9795 |     +65    +222    +279
+25  Mn P4 open   -9.0886  -10.1680 |    +160    +254    +325
+26  Fe P4 open   -9.9958  -10.6963 |    -117     -81      +7
+27  Co P4 open  -11.5267  -11.9531 |    -281    -310    -243
+28  Ni P4 open  -13.2028  -13.4041 |    -352    -382    -337
+29  Cu P4 open  -16.0826  -16.1442 |     +19     +33     +50
+30  Zn P4 clo   -16.5890  -16.5886 |      -5     +18     +30
+31  Ga P4 open   -6.1721   -6.1942 |   -1693   -1684   -1103
+32  Ge P4 open   -6.4137   -6.5359 |   -1544   -1566   -1019
+33  As P4 open   -7.4628   -7.7857 |   -1427   -1534    -943
+34  Se P4 open   -8.4010   -8.5637 |   -1525   -1649   -1070
+35  Br P4 open   -2.0894   -2.1315 |      +1     -88    -117
+36  Kr P4 clo    -2.9048   -2.9046 |     +14     +35     -26
+37  Rb P5 open   -3.3016   -3.3371 |     -51     +71     +18
+38  Sr P5 clo    -3.8060   -3.8059 |     -52     +57      +6
+39   Y P5 open   -4.2568   -4.2692 |    -172     -46     -79
+40  Zr P5 open   -4.8029   -4.8858 |    -286    -153    -164
+41  Nb P5 open   -5.4628   -5.9225 |    -149     -38     -28
+42  Mo P5 open   -6.3065   -7.0743 |     +64    +193    +224
+43  Tc P5 open   -6.9186   -7.6950 |     +95    +186    +246
+44  Ru P5 open   -8.4233   -8.7916 |    -271    -212    -146
+45  Rh P5 open   -9.7442   -9.9521 |    -275    -268    -224
+46  Pd P5 clo   -11.7024  -11.7022 |      +7      -3     +19
+47  Ag P5 open  -12.4102  -12.4685 |     -15     +17     +44
+48  Cd P5 clo   -13.5857  -13.5854 |      -7     +22     +27
+49  In P5 open   -4.8749   -4.8964 |   -1284   -1273    -849
+50  Sn P5 open   -5.3456   -5.4563 |   -1180   -1239    -812
+51  Sb P5 open   -6.2523   -6.5361 |   -1153   -1229    -759
+52  Te P5 open   -7.0516   -7.1918 |   -1209   -1346    -880
+53   I P5 open   -1.7742   -1.8099 |      +6     -88    -112
+54  Xe P5 clo    -2.4284   -2.4281 |     +16     +23     -30
+55  Cs P6 open   -2.7248   -2.7571 |     -55     +18     -27
+56  Ba P6 clo    -3.1592   -3.1591 |     -65     +35      -8
+57  La P6 open   -3.4851   -3.4993 |    -168     -64     -86
+72  Hf P6 open   -4.8765   -4.9451 |    -293    -133    -136
+73  Ta P6 open   -5.4208   -5.6192 |    -305    -159    -146
+74   W P6 open   -6.0522   -6.4575 |    -199     -73     -38
+75  Re P6 open   -6.7358   -7.4305 |     +64    +138    +193
+76  Os P6 open   -7.5819   -8.0630 |    -127    -102     -33
+77  Ir P6 open   -8.5396   -8.8283 |    -251    -266    -185
+78  Pt P6 open  -10.0959  -10.2049 |    -198    -226    -156
+79  Au P6 open  -11.2933  -11.3617 |     -19     -22     +15
+80  Hg P6 clo   -12.4262  -12.4263 |      +2     -45     +10
+81  Tl P6 open   -4.4622   -4.4842 |   -1035   -1091    -735
+82  Pb P6 open   -4.9121   -5.0215 |    -952   -1056    -698
+83  Bi P6 open   -5.6860   -5.9634 |    -824    -974    -593
+
+SUMMARY (MAE / ME, mHa):
+CLOSED(14)     n=14 | SIMPLE MAE    19 ME    -7 | PBE MAE    45 ME   +38 | rSCAN MAE    14 ME    +4
+OPEN(55)       n=55 | SIMPLE MAE   361 ME  -317 | PBE MAE   368 ME  -308 | rSCAN MAE   268 ME  -203
+ALL(69)        n=69 | SIMPLE MAE   292 ME  -254 | PBE MAE   303 ME  -238 | rSCAN MAE   216 ME  -161
+CLOSED                 n=14 | SIMPLE    19/   -7 | PBE    45/  +38 | rSCAN    14/   +4
+OPEN s/p (clean)       n=18 | SIMPLE    57/  +27 | PBE    85/  -16 | rSCAN    76/  -29
+OPEN d-block (TM)      n=27 | SIMPLE   186/ -151 | PBE   152/  -74 | rSCAN   146/  -42
+ALL OPEN (clean)       n=44 | SIMPLE   137/  -82 | PBE   127/  -52 | rSCAN   120/  -38
+ALL (clean, 58)        n=58 | SIMPLE   109/  -64 | PBE   107/  -30 | rSCAN    94/  -28
+[artifact post-d p]    n=11 | SIMPLE  1257/-1257 | PBE  1331/-1331 | rSCAN   860/ -860
+
+NOTES:
+* post-d p-block (Ga,Ge,As,Se,In,Sn,Sb,Te,Tl,Pb,Bi; groups 13-16) shows ~0.7-1.7 Ha errors for ALL
+  THREE functionals alike -> a d-semicore/PSP reference inconsistency, not functional quality
+  (halogens Br/I right beside them are fine). Excluded from the 'clean' rows.
+* H: pool target is the high-spin one-electron value (-0.256); the production H anchor is RESTRICTED
+  (-0.137) -> SIMPLE +120 is a spin-convention mismatch in the pool target, not a functional error.

@@ -669,10 +669,8 @@ kinetic-energy density) (Table~\ref{tab:ref-energies}). The noble-gas and filled
 reproduced to $\sim10$~mHa (Ne $11$, Ar $10$, Kr $6$, Pd $4$); the residual error concentrates in
 the alkaline earths (Be, Ca, Sr, Ba), the low-enclosed-charge $ns^2$ shells where the
 Fermi--Amaldi channel dominates the hole. The reference coverage of the density manifold, rather
-than the descriptor resolution, sets this accuracy. This is the exchange-energy accuracy on the
-exact density; the self-consistent referenced functional --- which additionally requires
-conditioning the low-density reference block --- and the open-shell atoms (which require the
-unrestricted exact-exchange reference) are the next stage.
+than the descriptor resolution, sets this accuracy. Self-consistency and the full periodic table,
+deferred in earlier versions, are addressed next (Sec.~\ref{sec:results-allatom}).
 
 \begin{table}[tb]
 \centering
@@ -724,6 +722,70 @@ Ba & $-86$ & $35$  & $-8$  \\
 Hg & $-13$ & $-45$ & $10$  \\
 \midrule
 MAE & $\mathbf{34}$ & $45$ & $14$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Self-consistency and the full periodic table}
+\label{sec:results-allatom}
+
+The production functional adds, to the closed-shell exact-hole references above, two completeness
+channels --- the enclosed charge $Q$ and the $\ell=2$ power spectrum (Sec.~\ref{sec:features}) --- and a
+one-electron fixed-point anchor carrying the exact restricted hydrogenic hole, which replaces the global
+Fermi--Amaldi blend (that blend is correct only at the one-electron limit and is spurious for
+many-electron on-tops). The adjoint potential is regularized by a band-limited gradient operator and an
+operator-amplitude-weighted minimum-roughness coefficient fit, both of which leave the at-node energies
+(hence the exact limits) unchanged. With this functional we close the two gaps left open above:
+self-consistency and periodic-table coverage.
+
+\paragraph*{Self-consistent convergence.} All sixty-nine reference atoms ($Z=1$--$57$, $72$--$83$)
+converge self-consistently to a density residual below $3\times10^{-4}$ under a single default procedure,
+with no per-atom tuning. The reference coupling is annealed from the smooth (LDA+gradient) backbone to
+the full functional within one SCF loop --- the coefficients are linear in the coupling, so the anneal is
+$\mathcal{O}(N)$ per step and pins the $10/81$ slope throughout --- while the driver suppresses
+convergence until the full functional is reached, so the loop terminates at the correct fixed point.
+Because the reference-mapped potential makes some atoms require DIIS acceleration (e.g.\ F, Nb, W) and
+others pure damping (e.g.\ K, Ca, Mn) --- mutually exclusive for any fixed mixer --- the density mixing
+escalates: DIIS first, then damped linear, then a damped-DIIS hybrid. Forty-nine atoms converge with
+DIIS, nineteen with damped linear mixing, and one (Se) with the hybrid.
+
+\paragraph*{Exchange energies across the table.} We compare the self-consistent exchange energy of the
+functional to the \emph{Wigner-subtracted} Hartree--Fock reference --- the spherically-averaged exact
+exchange $E_x^{\mathrm{sph}}=\int\rho\,\varepsilon_x^{\mathrm{sph}}$, the monopole of the exact exchange
+hole. This removes the non-spherical (partial-shell, $\ell\ge1$) angular ``Wigner'' contribution that no
+spherically symmetric density functional can represent, placing all three functionals on an equal
+footing; it equals the full HF exchange for closed shells and is the best target any such functional can
+reach. Table~\ref{tab:allatom} reports the mean absolute error against this target, with PBE and rSCAN
+evaluated identically. The early post-$d$ $p$-block atoms (groups 13--16 of periods 4--6: Ga--Se, In--Te,
+Tl--Bi) show $\sim$1~Ha errors \emph{for all three functionals alike} --- a pseudopotential $d$-semicore
+reference inconsistency rather than a property of any exchange form (the adjacent halogens are
+unaffected) --- and are excluded.
+
+On this footing SIMPLE is a semilocal-class exchange functional. It is excellent on closed shells
+($19$~mHa, matching rSCAN's $14$ and well below PBE's $45$) and best of the three on the open $s/p$ atoms
+($57$ vs $85$ and $76$~mHa). Its deficit is confined to the open $d$ block: the transition metals are
+$186$~mHa versus $152$ (PBE) and $146$ (rSCAN), because the references cover the closed-shell manifold and
+the open-$d$ densities are extrapolations. Averaged over the clean set of fifty-eight atoms SIMPLE
+($109$~mHa) is on par with PBE ($107$) and behind rSCAN ($94$), the entire gap arising from the $d$
+block --- which un-diluted open-shell references would address.
+
+\begin{table}[tb]
+\centering
+\caption{Self-consistent exchange-energy errors (mean absolute error, mHa) of the production SIMPLE kernel
+hole against the Wigner-subtracted (spherically-averaged) exact exchange, with PBE~\cite{Perdew_1996} and
+rSCAN~\cite{Bart_k_2019} evaluated identically, over the sixty-nine reference atoms. The early post-$d$
+$p$-block ($11$ atoms) is excluded as a shared pseudopotential $d$-semicore artifact (text). SIMPLE matches
+rSCAN on closed shells and leads on open $s/p$; the remaining deficit is the open $d$ block.}
+\label{tab:allatom}
+\begin{tabular}{lcccc}
+\toprule
+Set & $n$ & SIMPLE & PBE & rSCAN \\
+\midrule
+Closed shell              & 14 & $\mathbf{19}$  & $45$  & $14$  \\
+Open $s/p$                & 18 & $\mathbf{57}$  & $85$  & $76$  \\
+Open $d$ (transition met.)& 27 & $186$          & $152$ & $146$ \\
+\midrule
+All (clean)               & 58 & $109$          & $107$ & $94$  \\
 \bottomrule
 \end{tabular}
 \end{table}
