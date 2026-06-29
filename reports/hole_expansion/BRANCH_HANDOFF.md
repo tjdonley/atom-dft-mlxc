@@ -100,12 +100,15 @@ Report: `reports/hole_expansion/wigner_subtracted_comparison.txt` (full per-atom
 
 ## 5. Open items / next steps
 
-1. **Methods section of the writeup is stale.** `writeup/main.tex` §"Exchange-hole functional"
-   (sec:hole) still describes the *old* construction (global Fermi–Amaldi blend, no Q / l2-power
-   channels, no gradient/coefficient smoothing, no one-electron anchor). A full construction-section
-   rewrite was drafted in the session log (the "draft of the modified section") and should be merged
-   so the methods match the new Results subsection. The C5 stability paragraph also still cites the
-   FA channel and "H to ~2 mHa" (now the anchor, ~8 mHa).
+1. **Methods section — DONE** (rewritten to match production: on-top $-\rho/2$ + one-electron anchor
+   replacing the global Fermi–Amaldi blend; kernel features cn+$s^2$+$\ell$=2 power+$Q$; band-limited
+   gradient operator; operator-weighted coefficient smoothing; single annealing loop + escalating-damping
+   mixing). **Remaining results-table inconsistency:** the older Results tables still predate production
+   and now sit alongside the new self-consistent §results-allatom — Table~\ref{tab:energies} (reference-free
+   LDA+FA numbers, e.g. He $-1.0054$) and Table~\ref{tab:ref-energies} (closed-shell, *on the exact
+   density*, MAE 34 mHa). Production's self-consistent closed-shell MAE is 19. Decide whether to refresh
+   these to the production construction (needs re-running those configs) or relabel them as construction-
+   stage illustrations.
 2. **d-block accuracy** is SIMPLE's only real weakness (186 mHa, vs 146 rSCAN). The references are
    closed-shell; open-d densities are extrapolations. Adding un-diluted open-shell / transition-metal
    references is the clear lever. (History: naive all-shell refs *hurt* closed shells — must be added

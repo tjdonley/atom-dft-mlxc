@@ -330,23 +330,22 @@ $F_x\le1.804$, where $F_x=\varepsilon_x/\varepsilon_x^{\mathrm{unif}}$ is the en
 $\varepsilon_x^{\mathrm{unif}}=-\tfrac34(3/\pi)^{1/3}\rho^{1/3}$. We produce $\tilde{\bm\varrho}$ by
 a parameter-free map that meets (C1)--(C6) by construction and respects (C7).
 
-\paragraph*{LDA and Fermi--Amaldi limits.}
+\paragraph*{LDA limit, on-top, and the one-electron anchor.}
 At uniform density $\tilde{\bm\varrho}$ is the homogeneous-gas hole $S(x)=[3j_1(x)/x]^2$ projected
 onto the basis. Because the practical window is finite ($\Rc=6$~bohr) the projection alone slightly
 misses $F_x=1$; we therefore \emph{moment-match} it to the hole's exact charge, on-top, and Coulomb
-moments, which restores $F_x=1$ exactly despite the truncation (the matching is needed only at finite
-$\Rc$ --- it becomes automatic as $\Rc\to\infty$; App.~\ref{app:hole}). This LDA hole
-$\tilde{\bm\varrho}_{\mathrm{LDA}}$ anchors the map. Where the window cannot enclose a spin pair --- a
-one-electron core or density tail, per-spin charge $Q_\sigma<1$ --- no screened scale exists and the
-hole shape becomes the density-following $-\bm\varrho_0/Q_\sigma$ (the negative neighboring density,
-with dimensionless monopole coefficients $\bm\varrho_0=\{\varrho_{n00}\}$ normalized to the per-spin
-enclosed charge $Q_\sigma$; App.~\ref{app:hole}), the exact one-electron self-interaction correction (C5). A smooth charge gate blends the two,
-$(1-W_{\mathrm{FA}})\,\tilde{\bm\varrho}_{\mathrm{bulk}}+W_{\mathrm{FA}}\,\tilde{\bm\varrho}_{\mathrm{FA}}$,
-with $W_{\mathrm{FA}}(Q_\sigma)=1$ for $Q_\sigma\le1$ (pure Fermi--Amaldi), $0$ for $Q_\sigma\ge2$
-(the screened bulk hole), and the quintic smoothstep $W_{\mathrm{FA}}=1-t^3(6t^2-15t+10)$,
-$t=Q_\sigma-1$, in between ($C^2$ at both joins); it reproduces H and spin-paired He to $\sim2$~mHa. Forming
-$\tilde{\bm\varrho}$ on the adaptive radius makes uniform scaling (C3) exact as $\Rc\to\infty$ and
-close within the data window (Fig.~\ref{fig:hole-scale}).
+moments, which restores $F_x=1$ exactly despite the truncation (automatic as $\Rc\to\infty$;
+App.~\ref{app:hole}). This LDA hole $\tilde{\bm\varrho}_{\mathrm{LDA}}$ anchors the map (C4). The
+on-top amplitude is held at the exact spin-paired value $-\tfrac12\rho$ everywhere: for a spin-paired
+density the coincidence hole is $-\tfrac12\rho$ independent of the local charge, so no density-following
+on-top model is used. The one-electron (Fermi--Amaldi) limit (C5), where exchange must cancel the
+self-Hartree, is imposed by a dedicated \emph{fixed-point anchor} rather than a global blend: the exact
+restricted one-electron hole, entered as kernel nodes at its own feature signature (enclosed charge
+$Q_\sigma\!\to\!1$). Localized in the charge coordinate, the anchor recovers the one-electron limit
+(H to $\sim10$~mHa, in family with the heavier atoms) while its kernel influence decays before reaching
+the many-electron cores ($Q_\sigma\gtrsim2$), which it leaves unchanged --- the property a global gate
+lacked. Forming $\tilde{\bm\varrho}$ on the adaptive radius makes uniform scaling (C3) exact as
+$\Rc\to\infty$ and close within the data window (Fig.~\ref{fig:hole-scale}).
 
 \paragraph*{Gradient expansion from the kernel.}
 Inhomogeneity enters through every SIMPLE channel --- the per-$\ell$ squared distances of the
@@ -359,8 +358,11 @@ fixed points with a kernel,
 \label{eq:kernel-map}
 \tilde{\bm\varrho}(\mathbf x)=\tilde{\bm\varrho}_{\mathrm{LDA}}+\sum_k \mathcal K(\mathbf x,\mathbf x_k)\,\mathbf c_k ,
 \end{equation}
-where $\mathbf x$ collects the per-$\ell$ SIMPLE distances ($\ell=0$: the monopole power vector;
-$\ell=1$: $s^2$) and the HEG node $\mathbf x=0$ pins $\tilde{\bm\varrho}=\tilde{\bm\varrho}_{\mathrm{LDA}}$.
+where $\mathbf x$ collects the SIMPLE invariants used as kernel coordinates --- the $\ell=0$ monopole
+power vector, the $\ell=1$ reduced gradient $s^2$, the $\ell=2$ power spectrum
+(Sec.~\ref{sec:operators}), and the enclosed charge $Q$ --- the kernel $\mathcal K$ is a
+squared-exponential with a separate fixed length scale per channel, and the HEG node $\mathbf x=0$ pins
+$\tilde{\bm\varrho}=\tilde{\bm\varrho}_{\mathrm{LDA}}$.
 Because the energy is linear in $\tilde{\bm\varrho}$ [Eq.~\eqref{eq:eps-direct}], the enhancement is a
 linear functional of a single moment of the shape deviation
 $\delta\tilde{\bm\varrho}=\tilde{\bm\varrho}-\tilde{\bm\varrho}_{\mathrm{LDA}}$,
@@ -378,18 +380,21 @@ F_x\;\xrightarrow[\,s\to0\,]{}\;1+\tfrac{10}{81}\,s^2 ,
 \end{equation}
 with no separate gradient term and no fitted number; parity ($F_x$ even in $\nabla\rho$) is
 automatic because the kernel coordinate is $s^2$, and the fourth-order term is left unconstrained
-(App.~\ref{app:kernel}). Fixing the slope leaves a single open length scale --- the width of the
-$\ell=1$ kernel node --- a free parameter held at a moderate value. The resulting slowly-varying
+(App.~\ref{app:kernel}). Fixing the slope leaves the $\ell=1$ node width as the one length scale it does not
+determine; like the other channel widths it is held at a moderate fixed value, not fitted. The resulting slowly-varying
 enhancement peaks just above LDA and stays well below the Lieb--Oxford ceiling $F_x\le1.804$
 (C7~\cite{Lieb_1981,Perdew_1996}, respected not saturated; Fig.~\ref{fig:fx}), the node amplitude
-holding the $10/81$ slope. Along
-the $\ell=0$ (power-spectrum) axis the kernel still interpolates a deviation that decays away from
-the HEG signature, so on real atoms --- whose local power spectra depart from the homogeneous gas ---
-the enhancement remains a \emph{bounded deformation about} LDA. Reference-free this leaves the
-functional close to LDA on atoms; strongly inhomogeneous (open-shell) atoms are
-improved by adding exact atomic holes as further kernel fixed points, each carrying only the
-deviation beyond LDA and vanishing far from its reference, so the LDA, Fermi--Amaldi, and gradient
-limits are untouched (App.~\ref{app:kernel}).
+holding the $10/81$ slope. Away from the HEG and gradient signatures the kernel deformation decays,
+so reference-free the functional stays close to LDA on atoms --- accurate in the slowly-varying limit
+but, the gradient term being a small correction, insufficient to bind. \emph{Atomic binding} comes from
+populating the kernel with exact atomic exchange holes as further fixed points. For each closed-shell
+atom and radial shell the exact spherically-averaged hole is windowed at $\Rc$ and moment-matched to
+charge $-1$, on-top $-\tfrac12\rho$, and Coulomb moment equal to the exact $\varepsilon_x$, giving a node
+deviation $\delta\tilde{\bm\varrho}=\tilde{\bm\varrho}_{\mathrm{ref}}-\tilde{\bm\varrho}_{\mathrm{LDA}}$;
+the production set covers the closed-shell density manifold wherever the windowed hole is well defined
+($\rho\gtrsim10^{-2}$). Each reference carries only the deviation beyond LDA and decays from its own
+feature signature, so it sharpens the strongly inhomogeneous region while leaving the LDA, gradient,
+and one-electron limits intact (App.~\ref{app:kernel}).
 
 \begin{figure}[tbp]
 \centering
@@ -398,14 +403,15 @@ limits are untouched (App.~\ref{app:kernel}).
 hole. \emph{Crimson:} the reference-free backbone on the homogeneous gas at reduced gradient $s$ (the
 pure-GEA-axis feature point). The single $\ell=1$ kernel node fixes the small-$s$ slope to the exact
 second-order value $\mu=10/81$ [Eq.~\eqref{eq:fx}]; the bounded deformation peaks just above LDA
-($\approx1.05$) and relaxes back, so reference-free the hole is essentially LDA+Fermi--Amaldi.
+($\approx1.05$) and relaxes back, so reference-free the backbone is essentially LDA plus the
+second-order gradient term.
 \emph{Blue:} the realized enhancement of the \emph{final referenced} functional evaluated pointwise on
 real closed-shell atoms (Ne, Ar, Kr; energy-relevant region $\rho>0.05$). The exact-hole references
 lift the enhancement from the reference-free $\approx1.05$ to PBE-like values ($\approx1.4$) at the
 gradients atoms actually carry --- the origin of the atomic binding (Table~\ref{tab:ref-energies}). Raw
 pointwise GEA (grey dashed) diverges and PBE~\cite{Perdew_1996} (black) saturates; the dotted line is
 the Lieb--Oxford ceiling $F_x=1.804$. The on-top value is preserved for any amplitude, so the
-Fermi--Amaldi limit is untouched.}
+one-electron limit is untouched.}
 \label{fig:fx}
 \end{figure}
 
@@ -428,8 +434,8 @@ $E_x[\rho_\uparrow,\rho_\downarrow]=\tfrac12(E_x[2\rho_\uparrow]+E_x[2\rho_\down
 spin-paired functional follows from the total-density expressions with the on-top count of $2$, and
 the open-shell case from applying the spin-scaling relation to each channel (App.~\ref{app:spin}).
 Constraints (C1)--(C6) are thus satisfied by construction rather than by fitting, and the
-Lieb--Oxford bound (C7) is respected (the enhancement stays below $1.804$; Fig.~\ref{fig:fx}); the one
-remaining length scale, the $\ell=1$ kernel width, is a free parameter. Those constraints requiring
+Lieb--Oxford bound (C7) is respected (the enhancement stays below $1.804$; Fig.~\ref{fig:fx}); the
+per-channel kernel widths are held at fixed moderate values, not fitted to energies. Those constraints requiring
 the kinetic-energy density --- the single-orbital Lieb--Oxford bound $F_x(s,\alpha{=}0)\le1.174$ and
 one-electron self-correlation freedom --- lie outside this orbital-free, exchange-only construction.
 The hole is spherically symmetric and uses no multipoles beyond the monopole; carrying explicit
@@ -445,23 +451,30 @@ the $\ell=1$ slope-at-origin sum $\rho'(r_0)=\sum_n a^{(1)}_n R'_{n1}(0)$ (with 
 constant-annihilation correction enforcing the uniform-density limit; $a^{(1)}_n$ the
 $\ell=1$ channel coefficients), a fixed linear stencil on the gridded density. So
 formed, $|\nabla\rho|$ is recovered to $\sim1\%$ in the core/valence of smooth
-(pseudopotential) atoms (App.~\ref{app:gea}).
+(pseudopotential) atoms (App.~\ref{app:gea}). Its high-wavevector channels lie outside the
+gradient-expansion regime and, through the potential adjoint below, amplify reference-induced
+roughness in the core; the gradient feature therefore carries a fixed spectral resolution --- a
+Gaussian roll-off of the high-$n$ channel weights --- which is energy-neutral because the forward
+gradient on smooth densities is dominated by the low-$n$ channels.
 
-\paragraph*{Self-consistent potential.}
-The exchange potential is the explicit variational derivative
-$v_x=\delta E_x/\delta\rho$, which for convolutional descriptors is itself a
-convolution over the kernel [Eq.~\eqref{eq:adjoint}], following
-Ref.~\cite{Sahoo2024}; in the radial implementation it is the transpose of the
-forward stencils. The on-top scale $\zeta(r_0)$ is obtained without an inner
-self-consistency loop: $Q_S(\zeta)=\mathbf B(\zeta)\cdot\bm\varrho_0$ is monotonic in
-$\zeta$, so inverting $Q_S=2$ pointwise on the precomputed envelope table is the
-same fixed-stencil enclosed-charge solve used for the adaptive radius $\Rad$
-(Sec.~\ref{sec:features}), vectorized over all grid points (App.~\ref{app:hole-numerics}).
-The asymptotic $-1/r$ exchange tail is recovered by an energy-neutral gauge fix plus a
-low-density damping (App.~\ref{app:hole-numerics}). The $\ell=1$ gradient channel
-[Eq.~\eqref{eq:fx}] enters the potential through its own adjoint, which --- growing
-only as $k_n^1$ --- is well-conditioned, so the second-order functional is
-self-consistent and stable without any auxiliary loop (App.~\ref{app:hole-numerics}).
+\paragraph*{Self-consistent potential and solution.}
+The exchange potential is the explicit variational derivative $v_x=\delta E_x/\delta\rho$, which for the
+convolutional descriptors is the transpose of the forward stencils [Eq.~\eqref{eq:adjoint}], following
+Ref.~\cite{Sahoo2024}; the adaptive radius $\Rad$ and the enclosed charge use a fixed-stencil,
+monotone enclosed-charge solve (Sec.~\ref{sec:features}), vectorized over the grid. Because the energy
+fixes only one moment of the hole [Eq.~\eqref{eq:eps-direct}], the reference coefficients are
+under-determined for the \emph{potential}; among coefficients matching the references at the nodes (hence
+the energy) we take the smoothest, minimizing the feature-derivative roughness weighted by each
+channel's adjoint (spatial-operator) amplification, with the $10/81$ slope re-pinned afterward and the
+asymptotic $-1/r$ tail set by an energy-neutral gauge fix --- giving a smooth $v_x$ at no cost to the
+at-node energies (App.~\ref{app:hole-numerics}). The functional is then solved by a single annealing
+loop: the reference coupling is ramped from the smooth (LDA+gradient) backbone to the full functional
+within one SCF sequence --- the coefficients are linear in the coupling, so each step is
+$\mathcal{O}(N)$ and preserves the slope --- and convergence is withheld until the full functional is
+reached, so the loop terminates at the correct fixed point. Because the reference-mapped potential makes
+some atoms require DIIS acceleration and others pure damping, mutually exclusive for a fixed mixer, the
+density mixing escalates from DIIS to damped linear to a damped-DIIS hybrid; under this single default
+all 69 reference atoms reach a self-consistent solution (Sec.~\ref{sec:results-allatom}).
 
 \paragraph*{Code and tests.}
 The functional is implemented in the \texttt{atom-dft} finite-element radial
@@ -639,11 +652,12 @@ reference-free baseline, and the route to atomic binding.
 \paragraph*{Exact limits and stability.} The realized functional meets its design limits
 to the basis tolerance. The homogeneous-gas enhancement is $F_x=1$ to machine precision
 (C4); the single $\ell=1$ kernel node reproduces the second-order gradient slope
-$\mu=10/81$ to $\sim2\%$ (C6, Fig.~\ref{fig:fx}); and the one-electron Fermi--Amaldi
-channel reproduces H and spin-paired He to $\sim2$~mHa (C5). The discrete adjoint
+$\mu=10/81$ to $\sim2\%$ (C6, Fig.~\ref{fig:fx}); and the one-electron anchor reproduces the
+H exchange to $\sim10$~mHa, in family with the heavier atoms (C5). The discrete adjoint
 potential [Eq.~\eqref{eq:adjoint}] matches a finite-difference derivative of the energy
 to a relative error $\lesssim10^{-4}$, and the functional is self-consistently stable:
-SCF converges for every atom tested.
+under a single default procedure SCF converges for all 69 reference atoms
+(Sec.~\ref{sec:results-allatom}).
 
 \paragraph*{Reference-free baseline.} With no atomic references the kernel reduces, by
 construction, to the LDA hole plus the Fermi--Amaldi correction. The gradient enhancement
