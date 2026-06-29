@@ -1,0 +1,77 @@
+SELF-CONSISTENT SWEEP OVER ALL 69 REFERENCE ATOMS (iteration 1 -- diagnostic)
+=============================================================================
+Production functional, ONE fixed default config for every atom (no per-atom tuning):
+grad_filter=0.6, deriv_smooth=1 (adaptive), use_l2_power, use_Q, no FA, refs=
+rf001_l2power_Q_gf06_Hanchor, auto_continuation, scf_tolerance=3e-4, max_scf=500.
+
+RESULT: 54/69 converged, 15 failed.
+
+FAILURES (conv=False; residual at max_scf=500):
+  Z  atom  config         residual
+  19 K     [Ar]4s1        8.3e-02
+  20 Ca    [Ar]4s2        6.8e-02
+  21 Sc    [Ar]3d1 4s2    7.5e-02
+  22 Ti    [Ar]3d2 4s2    3.4e-01
+  25 Mn    [Ar]3d5 4s2    2.6e-01
+  28 Ni    [Ar]3d8 4s2    3.1e-01
+  30 Zn    [Ar]3d10 4s2   5.0e-03   (close -- ~15x tol)
+  34 Se    [Ar]3d10 4p4   4.6e-03   (close)
+  38 Sr    [Kr]5s2        9.4e-02
+  39 Y     [Kr]4d1 5s2    2.7e-02
+  49 In    [Kr]4d10 5p1   6.4e-01
+  50 Sn    [Kr]4d10 5p2   4.8e-01
+  51 Sb    [Kr]4d10 5p3   4.1e-01
+  72 Hf    [Xe]4f14 5d2 6s2  8.0e-02
+  73 Ta    [Xe]4f14 5d3 6s2  1.4e-01
+
+CONVERGED (54): H,He,Li,Be,B,C,N,O,F,Ne,Na,Mg,Al,Si,P,S,Cl,Ar,V,Cr,Fe,Co,Cu,Ga,Ge,As,
+Br,Kr,Rb,Zr,Nb,Mo,Tc,Ru,Rh,Pd,Ag,Cd,Te,I,Xe,Cs,Ba,La,W,Re,Os,Ir,Pt,Au,Hg,Tl,Pb,Bi.
+(H converges tightly, res 9.8e-7 -- the one-electron anchor is self-consistent.)
+
+OBSERVATIONS
+------------
+* NOT a "heavy = hard" effect: the entire 5d row Hf,Ta aside (W..Bi all converge), and the 4d
+  row Sr,Y aside (Zr..Cd all converge). Failures are scattered, not monotone in Z.
+* NOT simply open- vs closed-shell: many open shells converge (V,Cr,Fe,Co,Cu; W,Re,Os,Ir; etc.).
+* No clean configuration rule: Cr(3d5 4s1) converges but Mn(3d5 4s2) fails; Cu(3d10 4s1)
+  converges but Zn(3d10 4s2) fails; V/Fe/Co (3dn 4s2) converge but Sc/Ti/Ni (3dn 4s2) fail.
+* The failures OSCILLATE at HIGH residual (1e-2 to 6e-1), not slightly-above-tolerance -- the SCF
+  is not settling, not merely under-converged. (Zn, Se are the exceptions, ~5e-3, nearly there.)
+* Several CONVERGED atoms were SLOW/fragile (Na 636s, Cl 578s, Co 527s, As 695s, Cu 673s, Mo 468s,
+  Te 598s, Te) -- near the edge of the same difficulty.
+* All failures ran the full max_scf=500 (~750-800s) -- consistent with the auto_continuation gate
+  never releasing (lambda likely never reaches 1 because the density never stabilizes enough to
+  advance), so the loop iterates to the cap at high residual.
+
+NEXT: diagnose one failure (lambda/residual trace) to confirm whether it is (a) the continuation
+getting lambda-stuck under oscillation, or (b) the full functional oscillating at lambda=1 -- then
+harden the default (SCF mixing robustness and/or continuation stuck-handling) and re-sweep the 15,
+verifying the 54 still converge.
+
+
+HARDENING OUTCOME (iterations 2-3) -- 69/69 CONVERGE
+====================================================
+Diagnosis (lambda/residual trace, K & Ca): the failures OSCILLATE -- the Pulay/DIIS mixer
+over-extrapolates on these ill-conditioned (mostly open-shell) densities. Not a continuation
+problem (lambda reaches 1 for K; the density just won't settle).
+
+Mixer probe (representative failures + atoms that linear fixed): NO single fixed mixer converges all.
+The atoms split into MUTUALLY EXCLUSIVE regimes:
+  * need ACCELERATION (Pulay): F, Nb, W  -- linear mixing too slow / oscillates.
+  * need pure DAMPING:        K, Ca, Mn  -- any Pulay extrapolation diverges (Ca -> res 4e3).
+  * intermediate:             Se         -- only a damped-Pulay hybrid converges it.
+Pure linear-0.2: fixes the 14 damping atoms but breaks F/Nb/W (65/69). Damped-Pulay(0.4/0.5): fixes
+F/Nb/W/Se/Ni/Sr/In but breaks K/Ca/Mn. Incompatible for any fixed setting.
+
+ROBUST DEFAULT = ESCALATING-DAMPING LADDER (atom/xc/robust_solve.py, robust_scf_solve):
+try Pulay -> if not converged, linear-0.2 -> if not, damped-Pulay(0.4/0.5). Each atom converges on
+whichever rung fits; nothing tuned per atom. The exchange functional is unchanged -- this only governs
+SCF density mixing.
+
+VERIFIED 69/69 CONVERGE (scf_tol=3e-4):
+  49 via Pulay   (well-conditioned majority)
+  19 via lin0.2  (Na,Cl,K,Ca,Sc,Ti,Mn,Ni,Cu,Zn,As,Sr,Y,In,Sn,Sb,Te,Hf,Ta)
+   1 via dpulayA (Se)
+All residuals < 3e-4. Cost: easy atoms converge on rung 1; the 20 hard atoms spend 1-2 wasted rungs
+(~600s; Se ~1160s). EFFICIENCY REFINEMENT (future): early oscillation detection to bail rung 1 sooner,
+or an in-loop adaptive mixer (alpha reduced on residual increase) to replace the discrete ladder.
