@@ -851,8 +851,8 @@ class HartreeFockExchange:
         """
         Compute HF exchange energy density using differential equation method.
         
-        TODO: Implement using Green's function method.
-        Currently returns direct integration result as placeholder.
+        Uses the radial Green's-function method on the dense physical grid,
+        then interpolates the resulting nodal density to quadrature points.
         
         Parameters
         ----------
@@ -880,7 +880,6 @@ class HartreeFockExchange:
         occupations = self.occupations # Occupation numbers
         
         # Get necessary matrices from ops_builder
-        interpolation_matrix       = self.ops_builder.global_interpolation_matrix
         interpolation_matrix_dense = self.ops_builder_dense.global_interpolation_matrix
         
         # Initialize/cache radial Green's function G^(L)
@@ -942,13 +941,17 @@ class HartreeFockExchange:
                                 optimize=True
                             )
         
-        # Interpolate from dense grid to quadrature points
-        exchange_energy_density = self.ops_builder.evaluate_single_field_on_grid(
-            given_grid = self.quadrature_nodes,
-            field_values = exchange_energy_density_dense_grid,
+        # ``exchange_energy_density_dense_grid`` is already expressed in the
+        # dense builder's physical-node basis.  Map those nodal coefficients
+        # directly to the shared quadrature grid.
+        exchange_energy_density = (
+            interpolation_matrix_dense @ exchange_energy_density_dense_grid
         )
 
         # Remove the denominator of the quadrature weights
         exchange_energy_density /= (4 * np.pi * self.quadrature_nodes**2 * self.quadrature_weights)
+
+        assert exchange_energy_density.shape == (self.n_grid,), \
+            EXCHANGE_ENERGY_DENSITY_OUTPUT_SHAPE_ERROR.format(exchange_energy_density.shape, self.n_grid)
 
         return exchange_energy_density

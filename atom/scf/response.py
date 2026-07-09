@@ -70,6 +70,7 @@ class ResponseCalculator:
         # Extract occupation information
         self.occ_l_values = occupation_info.l_values
         self.occ_n_values = occupation_info.n_values
+        self.occ_l_channel_ordinals = occupation_info.l_channel_ordinals
         self.occupations  = occupation_info.occupations
         self.n_quad       = len(self.quadrature_nodes)
         self.n_interior   = len(ops_builder.physical_nodes) - 2
@@ -109,12 +110,17 @@ class ResponseCalculator:
         # Initialize chi_0_kernel
         chi_0_kernel = np.zeros((self.n_quad, self.n_quad))
         
-        # Get l channel indices for all orbitals
-        l_max = np.max(self.occ_l_values)
-        l_channel_orbital_indices = np.zeros((l_max + 1, self.n_interior), dtype=np.int32)
-
-        for l in range(l_max + 1):
-            l_channel_orbital_indices[l, :] = np.argwhere(full_l_terms == l)[:, 0]
+        # Build only the occupied l channels.  Sparse spectra such as [0, 2]
+        # are valid and must not require a fabricated l=1 block.
+        l_channel_orbital_indices = {}
+        for l_value in self.occupation_info.unique_l_values:
+            indices = np.flatnonzero(full_l_terms == l_value)
+            if indices.size != self.n_interior:
+                raise ValueError(
+                    f"l={int(l_value)} contains {indices.size} states; "
+                    f"expected {self.n_interior}"
+                )
+            l_channel_orbital_indices[int(l_value)] = indices
         
         # Get occupied orbitals
         occ_orbitals = full_orbitals[:, :len(self.occ_l_values)]
@@ -123,13 +129,14 @@ class ResponseCalculator:
         for idx in range(len(self.occ_l_values)):
             # Get l and n index
             l_value = self.occ_l_values[idx]
-            n_value = self.occ_n_values[idx] - l_value - 1
+            n_value = self.occ_l_channel_ordinals[idx]
             
             # Get all orbitals with indices of the same l value (occupied + unoccupied)
-            all_orbitals_in_l_channel = full_orbitals[:, l_channel_orbital_indices[l_value, :]]
+            channel_indices = l_channel_orbital_indices[int(l_value)]
+            all_orbitals_in_l_channel = full_orbitals[:, channel_indices]
             
             # Get the difference of eigenvalues
-            l_channel_eigenvalues = full_eigenvalues[l_channel_orbital_indices[l_value, :]]
+            l_channel_eigenvalues = full_eigenvalues[channel_indices]
             diff_eigenvalues = l_channel_eigenvalues.reshape(-1, 1) - l_channel_eigenvalues.reshape(1, -1)
             #   Only compute where |ε_i - ε_j| > threshold, set to 0 otherwise (handles diagonal and degenerate cases)
             threshold = 1e-12

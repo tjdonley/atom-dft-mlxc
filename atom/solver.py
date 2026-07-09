@@ -825,6 +825,8 @@ class AtomicDFTSolver:
 
             # Self-consistent field (SCF) convergence parameters
             "scf_tolerance"                     : "scf_tolerance",
+            "max_scf_iterations"                : "max_scf_iterations",
+            "max_scf_iterations_outer"          : "max_scf_iterations_outer",
             "use_pulay_mixing"                  : "use_pulay_mixing",
             "use_preconditioner"                : "use_preconditioner",
             "pulay_mixing_parameter"            : "pulay_mixing_parameter",
@@ -1422,7 +1424,7 @@ class AtomicDFTSolver:
         print("===========================================================================")
         print("*                       ATOM  (version Feb 12, 2026)                      *")
         print("*   Copyright (c) 2026 Material Physics & Mechanics Group, Georgia Tech   *")
-        print("*           Distributed under GNU General Public License 3 (GPL)          *")
+        print("*                    Distributed under the MIT License                    *")
         print("*                   Start time: {}                  *".format(get_sparc_time_string())) # Do not change the length for this line
         print("===========================================================================")
         print("                              INPUT PARAMETERS                             ")
@@ -1447,6 +1449,8 @@ class AtomicDFTSolver:
 
         # Self-consistent field (SCF) convergence parameters
         print("\t scf_tolerance                     : {}".format(self.scf_tolerance))
+        print("\t max_scf_iterations                : {}".format(self.max_scf_iterations))
+        print("\t max_scf_iterations_outer          : {}".format(self.max_scf_iterations_outer))
         print("\t use_pulay_mixing                  : {}".format(self.use_pulay_mixing))
         print("\t use_preconditioner                : {}".format(self.use_preconditioner))
         print("\t pulay_mixing_parameter            : {}".format(self.pulay_mixing_parameter))
@@ -2098,6 +2102,12 @@ class AtomicDFTSolver:
             assert actual_length == expected_length, \
                 RHO_INITIAL_LENGTH_MISMATCH_ERROR.format(expected_length, actual_length)
 
+        if save_energy_density and self.xc_functional == "RPA":
+            raise NotImplementedError(
+                "RPA correlation energy density is not implemented; "
+                "call solve(save_energy_density=False)"
+            )
+
         # Phase 1: Initial density guess
         # Note: Grids and SCF components are already initialized in __init__
         if rho_initial is None:
@@ -2377,7 +2387,7 @@ if __name__ == "__main__":
     
     For comprehensive tests including comparison with reference values from
     the featom paper (Čertík et al., Comput. Phys. Commun. 297, 109051, 2024),
-    see: delta/atom/testcase/solver_uranium_lda_testcase.py
+    see: scripts/manual_tests/solver_uranium_lda.py
     """
 
     import time

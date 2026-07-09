@@ -4,9 +4,9 @@ Complete API documentation for Atom.
 
 ## Generalized Multipole Descriptors
 
-For the branch-specific usage and extension guide for the generalized descriptor framework, see [`tutorials/03_generalized_multipole_api.md`](../tutorials/03_generalized_multipole_api.md).
+For the usage and extension guide for the generalized descriptor framework, see [`tutorials/03_generalized_multipole_api.md`](../tutorials/03_generalized_multipole_api.md).
 
-Public descriptor-facing classes on this branch:
+Public descriptor-facing classes:
 
 - `atom.descriptors.MultipoleCalculator`
 - `atom.descriptors.MultipoleResult`
@@ -28,9 +28,8 @@ The main solver class for atomic DFT calculations.
 from atom import AtomicDFTSolver
 
 solver = AtomicDFTSolver(
-    atomic_number: int,
-    xc_functional: str,
-    **kwargs
+    atomic_number=8,
+    xc_functional="GGA_PBE",
 )
 ```
 
@@ -38,23 +37,26 @@ solver = AtomicDFTSolver(
 
 - `atomic_number` (int): Atomic number of the element
 - `xc_functional` (str): Exchange-correlation functional name
-  - Valid options: `"LDA_PZ"`, `"LDA_PW"`, `"GGA_PBE"`, `"SCAN"`, `"RSCAN"`, `"R2SCAN"`, `"HF"`, `"PBE0"`, `"EXX"`, `"RPA"`
+  - Valid options: `"LDA_PZ"`, `"LDA_SVWN"`, `"LDA_PW"`, `"GGA_PBE"`, `"SCAN"`, `"RSCAN"`, `"R2SCAN"`, `"HF"`, `"PBE0"`, `"EXX"`, `"RPA"`
 - `domain_size` (float, optional): Size of the computational domain in Bohr
-- `finite_elements` (int, optional): Number of finite elements
+- `finite_element_number` (int, optional): Number of finite elements
 - `polynomial_order` (int, optional): Polynomial order for basis functions
 - `mesh_type` (str, optional): Type of mesh (`"exponential"`, `"polynomial"`, `"uniform"`)
 
 #### Methods
 
-- `solve()`: Execute the SCF calculation and return results
+- `solve()`: Execute the SCF calculation and return results. RPA correlation
+  energy density is not implemented, so RPA requires
+  `solve(save_energy_density=False)`.
 
 #### Returns
 
-`SCFResult` object containing:
-- `total_energy`: Total energy in Ha
+Dictionary containing:
+- `energy`: Total energy in Ha
+- `energy_components`: Detailed `EnergyComponents` object
 - `converged`: Whether the calculation converged
-- `n_iterations`: Number of SCF iterations
-- `density`: Electron density array
+- `iterations`: Number of SCF iterations
+- `rho`: Electron density array
 - And more...
 
 ## Data Management
@@ -67,13 +69,14 @@ Class for managing atomic DFT datasets.
 from atom.data import AtomicDataManager
 
 manager = AtomicDataManager(
-    data_root: str,
-    scf_xc_functional: str,
-    forward_pass_xc_functionals: List[str]
+    data_root="./dataset",
+    scf_xc_functional="GGA_PBE",
+    forward_pass_xc_functionals=["LDA_PZ"],
+    auto_confirm=True,
 )
 ```
 
-See the [Data Management documentation](../atom/data/README.md) for more details.
+See the [Data Loading tutorial](../tutorials/02_data_loading.md) for a complete workflow.
 
 ## Module Structure
 

@@ -122,7 +122,7 @@ class MultipoleCalculator(DescriptorCalculator):
             r_radial=r_quad,
             rho_radial=rho,
             box_size=self.box_size,
-            spacing=self.spacing[0],
+            spacing=self.spacing,
             atom_center=center,
             rcuts=self.rcuts,
             angular_basis=self.angular_basis,

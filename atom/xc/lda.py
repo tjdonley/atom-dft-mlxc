@@ -15,6 +15,14 @@ from dataclasses import dataclass
 from .evaluator import XCEvaluator, XCParameters, GenericXCResult, DensityData
 
 
+def _nonnegative_density(rho: np.ndarray) -> np.ndarray:
+    """Return density as a float array and reject nonphysical negatives."""
+    rho = np.asarray(rho, dtype=float)
+    if np.any(rho < 0.0):
+        raise ValueError("Electron density must be non-negative.")
+    return rho
+
+
 @dataclass
 class LDAPZParameters(XCParameters):
     """
@@ -157,8 +165,10 @@ class LDA_PZ(XCEvaluator):
         """
         Compute Slater exchange in generic form.
         """
-        rho      = density_data.rho
-        rho_cbrt = rho**(1/3)
+        rho      = _nonnegative_density(density_data.rho)
+        # Preserve the established positive-density numerical path while
+        # handling rho == 0 explicitly in the correlation branch below.
+        rho_cbrt = rho ** (1 / 3)
 
         e_x_standard = -0.7385587663820224 * rho_cbrt
         v_x_standard = -0.9847450218426966 * rho_cbrt
@@ -183,8 +193,10 @@ class LDA_PZ(XCEvaluator):
 
         For LDA, the generic form IS the spherical form (no gradients involved).
         """
-        rho = density_data.rho
-        rho_cbrt = rho**(1/3)
+        rho = _nonnegative_density(density_data.rho)
+        positive_density = rho > 0.0
+        safe_rho = np.where(positive_density, rho, 1.0)
+        rho_cbrt = safe_rho ** (1 / 3)
 
         A = self.params.A
         B = self.params.B
@@ -215,8 +227,8 @@ class LDA_PZ(XCEvaluator):
             + (4.0 / 3.0) * beta2 * rs
         ) / (denominator**2)
 
-        e_c = np.where(high_density, e_c_high, e_c_low)
-        v_c = np.where(high_density, v_c_high, v_c_low)
+        e_c = np.where(positive_density, np.where(high_density, e_c_high, e_c_low), 0.0)
+        v_c = np.where(positive_density, np.where(high_density, v_c_high, v_c_low), 0.0)
 
         return GenericXCResult(
             v_generic=v_c,

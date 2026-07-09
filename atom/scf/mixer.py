@@ -579,8 +579,7 @@ class Mixer:
         rho_out_prev = self.rho_out_store[:, runs]
         Fk = rho_out_prev - rho_in_prev
 
-        # Pulay projection matrix formula
-        F_gamma = np.linalg.inv(F.T @ F) @ (F.T @ Fk)
+        F_gamma = self._solve_pulay_coefficients(F, Fk)
         Fk_orthogonal = Fk - F @ F_gamma
 
         if not self.use_preconditioner:
@@ -639,13 +638,26 @@ class Mixer:
         rho_out_prev = self.rho_out_store[:, -1]
         Fk = rho_out_prev - rho_in_prev
 
-        # Pulay projection matrix formula
-        F_gamma = np.linalg.inv(F.T @ F) @ (F.T @ Fk)
+        F_gamma = self._solve_pulay_coefficients(F, Fk)
         Fk_orthogonal = Fk - F @ F_gamma
 
         if not self.use_preconditioner:
             return rho_in_prev + self.pulay_mixing_parameter * Fk_orthogonal - rho_in_residual @ F_gamma
         else:
             return rho_in_prev + self.pulay_mixing_parameter * np.linalg.solve(preconditioner, Fk_orthogonal) - rho_in_residual @ F_gamma
+
+
+    @staticmethod
+    def _solve_pulay_coefficients(F: np.ndarray, Fk: np.ndarray) -> np.ndarray:
+        """Solve the Pulay projection, including rank-deficient histories.
+
+        Solve against the residual history directly. This avoids squaring its
+        condition number through ``F.T @ F`` and remains defined when repeated
+        residuals make the history rank deficient.
+        """
+        if F.shape[1] == 0:
+            return np.empty(0, dtype=F.dtype)
+
+        return np.linalg.lstsq(F, Fk, rcond=None)[0]
     
         

@@ -585,6 +585,10 @@ def get_fraction_occupation_states(n_electrons : float) -> Tuple[np.ndarray, np.
     assert n_electrons <= 92, \
         N_ELECTRONS_NOT_LESS_THAN_OR_EQUAL_TO_92_ERROR.format(n_electrons)
 
+    # Normalize integers before using float-specific helpers such as
+    # ``is_integer``.  The public API intentionally accepts both int and float.
+    n_electrons = float(n_electrons)
+
     # Use the smallest integer >= n_electrons as the reference configuration.
     ceil_electrons = int(np.ceil(n_electrons))
     fractional_delta = n_electrons - ceil_electrons  # <= 0 for fractional (removing charge)
@@ -801,6 +805,22 @@ class OccupationInfo:
     def unique_l_values(self) -> np.ndarray:
         """Get unique angular momentum quantum numbers present in occupied states."""
         return np.unique(self.occ_l)
+
+    @property
+    def l_channel_ordinals(self) -> np.ndarray:
+        """Return each occupied state's zero-based ordinal within its l channel.
+
+        Unlike ``n - l - 1``, these ordinals remain correct for
+        pseudopotential calculations where lower core states are absent from
+        the valence spectrum.
+        """
+        ordinals = np.empty(len(self.occ_l), dtype=np.int32)
+        counts = {}
+        for index, l_value in enumerate(self.occ_l):
+            l_value = int(l_value)
+            ordinals[index] = counts.get(l_value, 0)
+            counts[l_value] = int(ordinals[index]) + 1
+        return ordinals
     
 
     @property
@@ -864,5 +884,4 @@ if __name__ == "__main__":
             print(f"atomic_number = {atomic_number} is closed shell")
         else:
             pass
-
 

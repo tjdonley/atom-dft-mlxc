@@ -148,6 +148,7 @@ class OEPCalculator(HartreeFockExchange, RPACorrelation):
         self.occupations  : np.ndarray = self.occupation_info.occupations
         self.occ_l_values : np.ndarray = self.occupation_info.l_values
         self.occ_n_values : np.ndarray = self.occupation_info.n_values
+        self.occ_l_channel_ordinals : np.ndarray = self.occupation_info.l_channel_ordinals
 
         # Ill_conditioned warning
         self.ill_conditioned_warning_caught_times_for_exchange : int = 0
@@ -627,11 +628,17 @@ class OEPCalculator(HartreeFockExchange, RPACorrelation):
         # get occupied orbitals
         occ_orbitals = full_orbitals[:, :len(self.occ_l_values)]
 
-        # get l channel indices for all orbitals
-        l_max = np.max(self.occ_l_values)
-        l_channel_orbital_indices = np.zeros((l_max + 1, self.n_interior), dtype=np.int32)
-        for l in range(l_max + 1):
-            l_channel_orbital_indices[l, :] = np.argwhere(full_l_terms == l)[:,0]
+        # Build only occupied l channels.  Full spectra are allowed to omit
+        # intermediate angular-momentum labels.
+        l_channel_orbital_indices = {}
+        for l_value in self.occupation_info.unique_l_values:
+            indices = np.flatnonzero(full_l_terms == l_value)
+            if indices.size != self.n_interior:
+                raise ValueError(
+                    f"l={int(l_value)} contains {indices.size} states; "
+                    f"expected {self.n_interior}"
+                )
+            l_channel_orbital_indices[int(l_value)] = indices
 
         # compute chi_0_kernel and the exchange driving term
         chi_0_kernel          = np.zeros((self.n_quad, self.n_quad))
@@ -640,14 +647,15 @@ class OEPCalculator(HartreeFockExchange, RPACorrelation):
         for idx in range(len(self.occ_l_values)):
             # get l and n index
             l_value = self.occ_l_values[idx]
-            n_value = self.occ_n_values[idx] - l_value - 1
+            n_value = self.occ_l_channel_ordinals[idx]
             l_occ_num = len(np.argwhere(self.occ_l_values == l_value)[:,0])
 
             # get all orbitals with indices of the same l value
-            unocc_orbitals_in_l_channel = full_orbitals[:, l_channel_orbital_indices[l_value, :]][:, l_occ_num:]
+            channel_indices = l_channel_orbital_indices[int(l_value)]
+            unocc_orbitals_in_l_channel = full_orbitals[:, channel_indices][:, l_occ_num:]
 
             # get the difference of eigenvalues
-            l_channel_eigenvalues = full_eigen_energies[l_channel_orbital_indices[l_value, :]]
+            l_channel_eigenvalues = full_eigen_energies[channel_indices]
             diff_eigenvalues = l_channel_eigenvalues.reshape(-1, 1) - l_channel_eigenvalues.reshape(1, -1)
             #   Only compute where |ε_i - ε_j| > threshold, set to 0 otherwise (handles diagonal and degenerate cases)
             threshold = 1e-12

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=77.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,8 @@ version = "0.1.0"
 description = "Atomic Density Functional Theory solver using finite element method"
 readme = "README.md"
 requires-python = ">=3.8"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     {name = "Qihao Cheng", email = "qcheng61@gatech.edu"},
     {name = "Shubhang Trivedi", email = "strivedi44@gatech.edu"},
@@ -96,7 +97,10 @@ DOI = "https://doi.org/10.5281/zenodo.20452121"
 
 [tool.setuptools]
 [tool.setuptools.packages.find]
-include = ["atom*"]
+include = ["atom*", "psps*"]
+
+[tool.setuptools.package-data]
+psps = ["*.psp8"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

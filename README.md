@@ -173,6 +173,9 @@ End-to-end validation results for H, He, Li, Be, C, N, O are in [`docs/validatio
 * NumPy ≥ 1.20
 * SciPy ≥ 1.7
 
+Python optimization (`python -O`) is intentionally unsupported while the
+numerical core still relies on assertions for required scientific validation.
+
 ### Instructions
 
 | Use case        | Command |

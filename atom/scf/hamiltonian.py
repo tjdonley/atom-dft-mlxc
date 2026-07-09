@@ -143,8 +143,12 @@ class HamiltonianBuilder:
                 ops_builder = self.ops_builder
             )
             
+            # RPA and other full-spectrum consumers solve virtual-only angular
+            # channels.  Cache every channel represented by the PSP, not only
+            # channels occupied in the reference atom.
+            l_channels = np.arange(len(self.pseudo.n_projectors_per_l), dtype=int)
             self.H_nonlocal = nonlocal_calculator.compute_all_nonlocal_matrices(
-                l_channels = self.occupation_info.unique_l_values
+                l_channels = l_channels
             )
         else:
             self.H_nonlocal = {}

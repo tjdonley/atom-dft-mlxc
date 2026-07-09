@@ -68,17 +68,15 @@ class r2SCANParameters(XCParameters):
 
 
 def _get_rho_tau_and_sigma(density_data: DensityData) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    rho      = density_data.rho
     grad_rho = density_data.grad_rho
     tau      = density_data.tau
-    sigma    = grad_rho**2       # σ = |∇ρ|²
 
     if grad_rho is None or tau is None:
         raise ValueError("rSCAN requires 'grad_rho' and 'tau'.")
-    
-    # Avoid division by zero
-    rho[rho<1e-15] = 1e-15
-    sigma[sigma<1e-15] = 1e-15
+
+    # Avoid division by zero without mutating the caller's DensityData arrays.
+    rho = np.maximum(np.asarray(density_data.rho), 1e-15)
+    sigma = np.maximum(np.asarray(grad_rho) ** 2, 1e-15)  # σ = |∇ρ|²
 
     return rho, tau, sigma
     

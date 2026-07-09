@@ -17,8 +17,8 @@ import matplotlib.pyplot as plt
 import time
 
 # Add parent directories to path for imports
-# Get the project root directory (parent of tests directory)
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Get the project root directory (parent of scripts directory)
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 from atom.solver import AtomicDFTSolver

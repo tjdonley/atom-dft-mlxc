@@ -173,6 +173,25 @@ class XCPotentialData:
         return self.de_x_dtau + self.de_c_dtau
 
 
+def _xc_potential_data_flatten(potential: XCPotentialData):
+    """Flatten every XC potential field for optional JAX transformations."""
+    children = (
+        potential.v_x,
+        potential.v_c,
+        potential.e_x,
+        potential.e_c,
+        potential.de_x_dtau,
+        potential.de_c_dtau,
+    )
+    return children, None
+
+
+def _xc_potential_data_unflatten(aux_data, children):
+    """Reconstruct an XC potential without dropping meta-GGA fields."""
+    del aux_data
+    return XCPotentialData(*children)
+
+
 class XCEvaluator(ABC):
     """
     Abstract base class for exchange-correlation functional evaluators.
@@ -729,17 +748,6 @@ try:
     )
     
     # Register XCPotentialData as JAX pytree
-    def _xc_potential_data_flatten(potential):
-        """Flatten XCPotentialData for JAX transformations"""
-        children = (potential.v_x, potential.v_c, 
-                   potential.e_x, potential.e_c)
-        aux_data = None
-        return children, aux_data
-    
-    def _xc_potential_data_unflatten(aux_data, children):
-        """Reconstruct XCPotentialData from flattened form"""
-        return XCPotentialData(*children)
-    
     tree_util.register_pytree_node(
         XCPotentialData,
         _xc_potential_data_flatten,

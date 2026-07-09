@@ -8,7 +8,7 @@ The `AtomicDataManager` class provides utilities for loading and managing atomic
 
 ## Basic Usage
 
-```{code-cell} python
+```python
 from atom.data import AtomicDataManager
 
 # Initialize the data manager
@@ -25,7 +25,7 @@ print("Data manager initialized")
 
 Load data for a range of atomic numbers:
 
-```{code-cell} python
+```python
 # Load data for first 10 elements
 dataset = manager.load_data(
     atomic_number_list=list(range(1, 11)),
@@ -37,7 +37,7 @@ dataset = manager.load_data(
 
 ## Exploring the Dataset
 
-```{code-cell} python
+```python
 # Check dataset properties
 print(f"Number of configurations: {len(dataset.configuration_data_list)}")
 print(f"Features available: {dataset.features_list}")
@@ -49,7 +49,7 @@ if dataset.atomic_numbers_per_sample is not None:
 
 Prepare a data loader for training:
 
-```{code-cell} python
+```python
 # Prepare a potential data loader
 potential_dataloader = dataset.prepare_potential_dataloader(
     target_functional="PBE0",
@@ -69,4 +69,4 @@ This tutorial assumes you have dataset files available. If you don't have data f
 1. You can generate data using `AtomicDataManager.generate_data()`
 2. Or contact the authors for dataset access
 
-For more information, see the [Data Management documentation](../atom/data/README.md).
+For the public data APIs, see the [API Reference](../api/reference.md).
