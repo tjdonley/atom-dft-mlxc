@@ -1938,11 +1938,28 @@ class SCFDriver:
         rho            = rho_initial.copy()
         orbitals       = orbitals_initial
 
+        # The final full-spectrum solve uses a contiguous channel list.  When
+        # requested, prepare HF matrices for that same list even if neither
+        # preconditioning nor OEP needs the skipped channels during SCF.
+        hf_l_values = self._l_values_for_channel_lists(
+            self.angular_momentum_cutoff,
+            include_skipped=(
+                save_full_spectrum
+                or self.mixer.use_preconditioner
+                or self.switches.use_oep
+            ),
+        )
+
         # Compute HF exchange matrices from initial orbitals if needed
         if self.switches.use_hf_exchange and (orbitals_initial is not None):
-            H_hf_exchange_dict_by_l = self._compute_hf_exchange_matrices_dict(orbitals_initial)
+            H_hf_exchange_dict_by_l = self._compute_hf_exchange_matrices_dict(
+                orbitals_initial,
+                l_values=hf_l_values,
+            )
         else:
-            H_hf_exchange_dict_by_l = self._get_zero_hf_exchange_matrices_dict()
+            H_hf_exchange_dict_by_l = self._get_zero_hf_exchange_matrices_dict(
+                l_values=hf_l_values,
+            )
 
         # Reset outer convergence checker
         self.outer_convergence_checker.reset()
@@ -2000,7 +2017,10 @@ class SCFDriver:
 
             # update HF exchange dictionary
             if self.switches.use_hf_exchange:
-                H_hf_exchange_dict_by_l = self._compute_hf_exchange_matrices_dict(orbitals) 
+                H_hf_exchange_dict_by_l = self._compute_hf_exchange_matrices_dict(
+                    orbitals,
+                    l_values=hf_l_values,
+                )
 
             # Check outer loop convergence
             outer_converged, outer_residual = self.outer_convergence_checker.check(
