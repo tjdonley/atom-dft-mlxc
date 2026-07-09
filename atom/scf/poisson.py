@@ -79,15 +79,9 @@ class PoissonSolver:
         """
         Solve 1D Poisson equation: d²u/dx² = f(x)
         
-        This method solves the linear system L @ u = rhs_vector using the 
-        pre-configured Laplacian matrix with Dirichlet boundary conditions.
-        
-        The Laplacian matrix L has been modified during initialization:
-            - L[0, :] = [1, 0, 0, ...]      → First equation: u[0] = rhs[0]
-            - L[-1, :] = [0, 0, ..., 0, 1]  → Last equation: u[-1] = rhs[-1]
-            - Interior rows maintain original finite element discretization
-        
-        Therefore, the caller must set boundary values at the endpoints of rhs_vector:
+        This method eliminates the two boundary unknowns from the interior
+        linear system and then restores their prescribed Dirichlet values.
+        The caller must set boundary values at the endpoints of rhs_vector:
             rhs_vector[0] = left boundary value
             rhs_vector[-1] = right boundary value
         
@@ -110,7 +104,7 @@ class PoissonSolver:
         -----
         This method directly solves the linear system without coordinate 
         transformations or interpolation. Boundary condition enforcement 
-        is handled through matrix modification (done in __init__).
+        is handled by eliminating the endpoint columns from the interior RHS.
         """
         
         # Type and shape validation
@@ -122,10 +116,14 @@ class PoissonSolver:
             RHS_VECTOR_SHAPE_ERROR_MESSAGE.format(rhs_vector.shape[0], self.laplacian.shape[0])
 
         left_boundary_condition  = rhs_vector[0]
-        right_boundary_condition = rhs_vector[-1] * (-1.0)
+        right_boundary_condition = rhs_vector[-1]
 
-        # Solve linear system: L @ u = rhs
-        rhs_vector_without_boundary_conditions = rhs_vector[1:-1] - right_boundary_condition * self.laplacian[1:-1, -1]
+        # Eliminate both prescribed boundary values from the interior system.
+        rhs_vector_without_boundary_conditions = (
+            rhs_vector[1:-1]
+            - left_boundary_condition * self.laplacian[1:-1, 0]
+            - right_boundary_condition * self.laplacian[1:-1, -1]
+        )
         solution_inner = scipy.linalg.solve(self.laplacian[1:-1,1:-1], rhs_vector_without_boundary_conditions)
         # solution_inner = scipy.linalg.lstsq(self.laplacian[1:-1,1:-1], rhs_vector_without_boundary_conditions)[0]
         
@@ -174,7 +172,7 @@ class PoissonSolver:
 
         # Set the boundary values
         rhs_vector[0] = 0.0
-        rhs_vector[-1] = - self.n_free_electrons
+        rhs_vector[-1] = self.n_free_electrons
 
         # solve the 1D Poisson equation at dense physical nodes
         r_times_v_hartree_at_dense_physical_nodes = self.solve_1d(rhs_vector)  # r * v_hartree
@@ -214,6 +212,18 @@ class PoissonSolver:
         E_H : float
             Hartree energy
         """
-        integrand = rho * V_H * 4.0 * np.pi * self.r_quad**2
-        E_H = 0.5 * np.sum(integrand * self.w_quad)
-        raise NotImplementedError("This function is not tested")
+        rho = np.asarray(rho)
+        V_H = np.asarray(V_H)
+        if rho.shape != self.quadrature_nodes.shape:
+            raise ValueError(
+                f"rho shape {rho.shape} must match quadrature grid "
+                f"{self.quadrature_nodes.shape}"
+            )
+        if V_H.shape != self.quadrature_nodes.shape:
+            raise ValueError(
+                f"V_H shape {V_H.shape} must match quadrature grid "
+                f"{self.quadrature_nodes.shape}"
+            )
+
+        integrand = rho * V_H * 4.0 * np.pi * self.quadrature_nodes**2
+        return float(0.5 * np.sum(integrand * self.quadrature_weights))

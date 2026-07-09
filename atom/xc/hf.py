@@ -10,7 +10,7 @@ Reference implementation: datagen/tools/HF_EX.py
 from __future__ import annotations
 import numpy as np
 import scipy
-from typing import Dict, Optional, Tuple, List, Literal, TYPE_CHECKING
+from typing import Dict, Iterable, Optional, Tuple, List, Literal, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..utils.occupation_states import OccupationInfo
@@ -468,7 +468,8 @@ class HartreeFockExchange:
 
     def compute_exchange_matrices_dict(
         self,
-        orbitals: np.ndarray
+        orbitals: np.ndarray,
+        l_values: Optional[Iterable[int]] = None,
     ) -> Dict[int, np.ndarray]:
         """
         Compute Hartree-Fock exchange matrices for all l channels.
@@ -500,9 +501,13 @@ class HartreeFockExchange:
             ORBITALS_MUST_HAVE_N_ORBITALS_COLUMNS_ERROR.format(orbitals.shape[1])
         
 
-        # Compute HF exchange matrices for all l channels
+        if l_values is None:
+            l_values = self.occupation_info.unique_l_values
+
+        # Compute HF exchange matrices for all requested l channels
         H_hf_exchange_matrices_dict : Dict[int, np.ndarray] = {}
-        for l_value in self.occupation_info.unique_l_values:
+        for l_value in l_values:
+            l_value = int(l_value)
             H_hf_exchange_matrix = self._compute_exchange_matrix(l_value, orbitals)
             H_hf_exchange_matrices_dict[l_value] = H_hf_exchange_matrix
         
@@ -846,8 +851,8 @@ class HartreeFockExchange:
         """
         Compute HF exchange energy density using differential equation method.
         
-        TODO: Implement using Green's function method.
-        Currently returns direct integration result as placeholder.
+        Uses the radial Green's-function method on the dense physical grid,
+        then interpolates the resulting nodal density to quadrature points.
         
         Parameters
         ----------
@@ -875,7 +880,6 @@ class HartreeFockExchange:
         occupations = self.occupations # Occupation numbers
         
         # Get necessary matrices from ops_builder
-        interpolation_matrix       = self.ops_builder.global_interpolation_matrix
         interpolation_matrix_dense = self.ops_builder_dense.global_interpolation_matrix
         
         # Initialize/cache radial Green's function G^(L)
@@ -937,13 +941,17 @@ class HartreeFockExchange:
                                 optimize=True
                             )
         
-        # Interpolate from dense grid to quadrature points
-        exchange_energy_density = self.ops_builder.evaluate_single_field_on_grid(
-            given_grid = self.quadrature_nodes,
-            field_values = exchange_energy_density_dense_grid,
+        # ``exchange_energy_density_dense_grid`` is already expressed in the
+        # dense builder's physical-node basis.  Map those nodal coefficients
+        # directly to the shared quadrature grid.
+        exchange_energy_density = (
+            interpolation_matrix_dense @ exchange_energy_density_dense_grid
         )
 
         # Remove the denominator of the quadrature weights
         exchange_energy_density /= (4 * np.pi * self.quadrature_nodes**2 * self.quadrature_weights)
+
+        assert exchange_energy_density.shape == (self.n_grid,), \
+            EXCHANGE_ENERGY_DENSITY_OUTPUT_SHAPE_ERROR.format(exchange_energy_density.shape, self.n_grid)
 
         return exchange_energy_density

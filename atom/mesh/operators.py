@@ -709,8 +709,8 @@ class RadialOperatorsBuilder:
             Shape: (n_elements, n_quad_points, n_quad_points)
             D[e, i, k] maps f(x_k) → f'(x_i) within element e
         """
-        if hasattr(self, "_derivative_matrix_quad_basis"):
-            return self._derivative_matrix_quad_basis
+        if hasattr(self, "_derivative_matrix_with_quadrature_basis"):
+            return self._derivative_matrix_with_quadrature_basis
         
         # Compute Lagrange basis and derivatives where nodes = quadrature points
         _, lagrange_basis_derivatives_quad = \

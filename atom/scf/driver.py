@@ -347,7 +347,7 @@ class SwitchesFlags:
             self.use_metagga = True
         
         # LDA/GGA functionals: no special flags (default False)
-        elif xc_functional in ['LDA_PZ', 'LDA_PW', 'GGA_PBE']:
+        elif xc_functional in ['LDA_PZ', 'LDA_SVWN', 'LDA_PW', 'GGA_PBE']:
             pass
 
         # Invalid XC functional
@@ -380,7 +380,7 @@ class SwitchesFlags:
         if xc_functional in ['EXX', 'RPA']:
             assert use_oep is True, \
                 USE_OEP_NOT_TRUE_FOR_OEP_FUNCTIONAL_ERROR.format(xc_functional)
-        elif xc_functional in ['None', 'LDA_PZ', 'LDA_PW', 'GGA_PBE', 'SCAN', 'RSCAN', 'R2SCAN', 'HF']:
+        elif xc_functional in ['None', 'LDA_PZ', 'LDA_SVWN', 'LDA_PW', 'GGA_PBE', 'SCAN', 'RSCAN', 'R2SCAN', 'HF']:
             assert use_oep is False, \
                 USE_OEP_NOT_FALSE_FOR_NON_OEP_FUNCTIONAL_ERROR.format(xc_functional)
         else:
@@ -1318,7 +1318,10 @@ class SCFDriver:
         return rho_valence + self.rho_nlcc
     
     
-    def _get_zero_hf_exchange_matrices_dict(self) -> Dict[int, np.ndarray]:
+    def _get_zero_hf_exchange_matrices_dict(
+        self,
+        l_values: Optional[Iterable[int]] = None,
+    ) -> Dict[int, np.ndarray]:
         """
         Create zero HF exchange matrices dictionary for all l channels.
         
@@ -1335,14 +1338,23 @@ class SCFDriver:
         H_kinetic = self.hamiltonian_builder.H_kinetic
         matrix_size = H_kinetic.shape[0]
         
-        # Create zero matrices for all unique l values
-        for l in self.occupation_info.unique_l_values:
-            zero_matrices_dict[l] = np.zeros((matrix_size, matrix_size))
-        
-        return zero_matrices_dict
-    
+        if l_values is None:
+            l_values = self._l_values_for_channel_lists(
+                include_skipped = self.mixer.use_preconditioner or self.switches.use_oep,
+            )
 
-    def _compute_hf_exchange_matrices_dict(self, orbitals: np.ndarray) -> Dict[int, np.ndarray]:
+        # Create zero matrices for all requested l values
+        for l in l_values:
+            zero_matrices_dict[l] = np.zeros((matrix_size, matrix_size))
+
+        return zero_matrices_dict
+
+
+    def _compute_hf_exchange_matrices_dict(
+        self,
+        orbitals: np.ndarray,
+        l_values: Optional[Iterable[int]] = None,
+    ) -> Dict[int, np.ndarray]:
         """
         Compute Hartree-Fock exchange matrices for all l channels.
         
@@ -1362,10 +1374,17 @@ class SCFDriver:
         if self.hf_calculator is None:
             # Return zero matrices for all l channels
             print(HF_CALCULATOR_NOT_AVAILABLE_WARNING)
-            return self._get_zero_hf_exchange_matrices_dict()
-        
+            return self._get_zero_hf_exchange_matrices_dict(l_values)
+        if l_values is None:
+            l_values = self._l_values_for_channel_lists(
+                include_skipped = self.mixer.use_preconditioner or self.switches.use_oep,
+            )
+
         # Delegate to hf_calculator
-        return self.hf_calculator.compute_exchange_matrices_dict(orbitals)
+        return self.hf_calculator.compute_exchange_matrices_dict(
+            orbitals,
+            l_values = l_values,
+        )
     
 
 
@@ -1446,10 +1465,26 @@ class SCFDriver:
             return self._inner_loop(rho_initial, settings, orbitals_initial, intermediate_info = intermediate_info, save_full_spectrum = save_full_spectrum)
 
     
+    def _l_values_for_channel_lists(
+        self,
+        angular_momentum_cutoff: Optional[int] = None,
+        include_skipped: bool = False,
+    ) -> List[int]:
+        """
+        Return the l labels corresponding to per-channel eigenvalue lists.
+        """
+        if angular_momentum_cutoff is not None:
+            return list(range(angular_momentum_cutoff + 1))
+        if include_skipped:
+            return list(range(int(np.max(self.occupation_info.unique_l_values)) + 1))
+        return [int(l) for l in self.occupation_info.unique_l_values]
+
+
     def _reorder_eigenstates_by_occupation(
-        self, 
-        eigenvalues_all : List[np.ndarray], 
-        eigenvectors_all: List[np.ndarray]
+        self,
+        eigenvalues_all : List[np.ndarray],
+        eigenvectors_all: List[np.ndarray],
+        l_values_for_lists: Optional[Iterable[int]] = None,
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Reorder eigenvalues and eigenvectors from l-channel lists to match occupation order.
@@ -1465,11 +1500,15 @@ class SCFDriver:
         Parameters
         ----------
         eigenvalues_all : List[np.ndarray]
-            List of eigenvalue arrays, one per unique l value
+            List of eigenvalue arrays, one per solved l channel.
             eigenvalues_all[i] has shape (n_states_for_l[i],)
         eigenvectors_all : List[np.ndarray]
-            List of eigenvector arrays, one per unique l value
+            List of eigenvector arrays, one per solved l channel.
             eigenvectors_all[i] has shape (n_grid_points, n_states_for_l[i])
+        l_values_for_lists : Optional[Iterable[int]]
+            Actual angular-momentum labels for each per-channel list. When an
+            angular-momentum cutoff includes unoccupied skipped channels, list
+            indices are not always the same as occupied l labels.
         
         Returns
         -------
@@ -1489,16 +1528,25 @@ class SCFDriver:
         n_grid_points = eigenvectors_all[0].shape[0]
         eigenvalues = np.zeros(n_total_states)
         eigenvectors = np.zeros((n_grid_points, n_total_states))
-        
+
+        if l_values_for_lists is None:
+            l_values_for_lists = self._l_values_for_channel_lists()
+        l_values_for_lists = [int(l) for l in l_values_for_lists]
+        l_value_to_list_index = {
+            l_value: list_index
+            for list_index, l_value in enumerate(l_values_for_lists)
+        }
+
         # Fill arrays according to occupation list order
-        for i_l, l in enumerate(self.occupation_info.unique_l_values):
+        for l in self.occupation_info.unique_l_values:
+            list_index = l_value_to_list_index[int(l)]
             # Find all indices in occupation list where l matches
             sort_index = np.where(self.occupation_info.l_values == l)[0]
             n_states = len(sort_index)
-            
+
             # Place eigenstates at correct positions
-            eigenvalues[sort_index] = eigenvalues_all[i_l][:n_states]
-            eigenvectors[:, sort_index] = eigenvectors_all[i_l][:, :n_states]
+            eigenvalues[sort_index] = eigenvalues_all[list_index][:n_states]
+            eigenvectors[:, sort_index] = eigenvectors_all[list_index][:, :n_states]
         
         return eigenvalues, eigenvectors
 
@@ -1644,13 +1692,12 @@ class SCFDriver:
             unocc_eigenvalues_list  : List[np.ndarray] = []  # needed only for OEP
             unocc_eigenvectors_list : List[np.ndarray] = []  # needed only for OEP
 
-            # Determine which l values to iterate over
-            # If angular_momentum_cutoff is set (e.g., for RPA), iterate over all l values from 0 to cutoff
-            # Otherwise, only iterate over occupied l values
-            if self.angular_momentum_cutoff is not None:
-                unique_l_values = list(range(self.angular_momentum_cutoff + 1))
-            else:
-                unique_l_values = self.occupation_info.unique_l_values
+            # Full-spectrum consumers expect a contiguous l block through the
+            # largest occupied channel, even when no cutoff is configured.
+            unique_l_values = self._l_values_for_channel_lists(
+                self.angular_momentum_cutoff,
+                include_skipped = self.switches.use_oep or self.mixer.use_preconditioner,
+            )
 
             for l in unique_l_values:
 
@@ -1705,7 +1752,9 @@ class SCFDriver:
 
             # Reorder eigenstates to match occupation list order
             occ_eigenvalues, occ_eigenvectors = self._reorder_eigenstates_by_occupation(
-                occ_eigenvalues_list, occ_eigenvectors_list
+                occ_eigenvalues_list,
+                occ_eigenvectors_list,
+                l_values_for_lists = unique_l_values,
             )
             
 
@@ -1748,6 +1797,7 @@ class SCFDriver:
                         unocc_eigenvectors_list = unocc_eigenvectors_list,
                         symmetrize              = False,
                         angular_momentum_cutoff = self.angular_momentum_cutoff,
+                        l_values_for_lists      = unique_l_values,
                     )
                 dielectric_matrix = self.response_calculator.compute_dielectric_matrix(
                     full_eigenvalues,
@@ -1888,11 +1938,28 @@ class SCFDriver:
         rho            = rho_initial.copy()
         orbitals       = orbitals_initial
 
+        # The final full-spectrum solve uses a contiguous channel list.  When
+        # requested, prepare HF matrices for that same list even if neither
+        # preconditioning nor OEP needs the skipped channels during SCF.
+        hf_l_values = self._l_values_for_channel_lists(
+            self.angular_momentum_cutoff,
+            include_skipped=(
+                save_full_spectrum
+                or self.mixer.use_preconditioner
+                or self.switches.use_oep
+            ),
+        )
+
         # Compute HF exchange matrices from initial orbitals if needed
         if self.switches.use_hf_exchange and (orbitals_initial is not None):
-            H_hf_exchange_dict_by_l = self._compute_hf_exchange_matrices_dict(orbitals_initial)
+            H_hf_exchange_dict_by_l = self._compute_hf_exchange_matrices_dict(
+                orbitals_initial,
+                l_values=hf_l_values,
+            )
         else:
-            H_hf_exchange_dict_by_l = self._get_zero_hf_exchange_matrices_dict()
+            H_hf_exchange_dict_by_l = self._get_zero_hf_exchange_matrices_dict(
+                l_values=hf_l_values,
+            )
 
         # Reset outer convergence checker
         self.outer_convergence_checker.reset()
@@ -1950,7 +2017,10 @@ class SCFDriver:
 
             # update HF exchange dictionary
             if self.switches.use_hf_exchange:
-                H_hf_exchange_dict_by_l = self._compute_hf_exchange_matrices_dict(orbitals) 
+                H_hf_exchange_dict_by_l = self._compute_hf_exchange_matrices_dict(
+                    orbitals,
+                    l_values=hf_l_values,
+                )
 
             # Check outer loop convergence
             outer_converged, outer_residual = self.outer_convergence_checker.check(
@@ -2109,10 +2179,10 @@ class SCFDriver:
         unocc_eigenvectors_list : List[np.ndarray] = []  # needed only for OEP
 
 
-        if self.angular_momentum_cutoff is not None:
-            unique_l_values = list(range(self.angular_momentum_cutoff + 1))
-        else:
-            unique_l_values = self.occupation_info.unique_l_values
+        unique_l_values = self._l_values_for_channel_lists(
+            self.angular_momentum_cutoff,
+            include_skipped = True,
+        )
         
 
         for l in unique_l_values:
@@ -2149,7 +2219,8 @@ class SCFDriver:
             occ_eigenvectors_list   = occ_eigenvectors_list,
             unocc_eigenvalues_list  = unocc_eigenvalues_list,
             unocc_eigenvectors_list = unocc_eigenvectors_list,
-            angular_momentum_cutoff = self.angular_momentum_cutoff
+            angular_momentum_cutoff = self.angular_momentum_cutoff,
+            l_values_for_lists      = unique_l_values,
         )
 
 
@@ -2217,6 +2288,7 @@ class SCFDriver:
         unocc_eigenvalues_list  : List[np.ndarray],
         unocc_eigenvectors_list : List[np.ndarray],
         angular_momentum_cutoff : Optional[int] = None,
+        l_values_for_lists      : Optional[Iterable[int]] = None,
     ) -> None:
         """
         Check occ and unocc eigenvalues and eigenvectors lists.
@@ -2235,7 +2307,11 @@ class SCFDriver:
             ANGULAR_MOMENTUM_CUTOFF_TYPE_ERROR_MESSAGE.format(type(angular_momentum_cutoff))
         
         # length checks
-        unique_l_values_number = len(self.occupation_info.unique_l_values) if angular_momentum_cutoff is None else angular_momentum_cutoff + 1
+        unique_l_values_number = (
+            len([int(l) for l in l_values_for_lists])
+            if l_values_for_lists is not None
+            else len(self._l_values_for_channel_lists(angular_momentum_cutoff))
+        )
         assert len(occ_eigenvalues_list) == unique_l_values_number, \
             OCC_EIGENVALUES_LIST_LENGTH_ERROR_MESSAGE.format(len(occ_eigenvalues_list))
         assert len(occ_eigenvectors_list) == unique_l_values_number, \
@@ -2287,25 +2363,34 @@ class SCFDriver:
         unocc_eigenvectors_list : List[np.ndarray],
         angular_momentum_cutoff : Optional[int] = None,
         eigenvectors_pad_width  : Optional[int] = 0, # number of points to pad on each side of the eigenvectors
+        l_values_for_lists      : Optional[Iterable[int]] = None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Construct full eigenvalues, eigenvectors and l terms for OEP, only needed for OEP and at final readout
         """
         # type check for required fields
+        if l_values_for_lists is None:
+            l_values_for_lists = self._l_values_for_channel_lists(angular_momentum_cutoff)
+        l_values_for_lists = [int(l) for l in l_values_for_lists]
+
         self._check_occ_and_unocc_eigenvalues_and_eigenvectors_lists(
             occ_eigenvalues_list    = occ_eigenvalues_list,
             occ_eigenvectors_list   = occ_eigenvectors_list,
             unocc_eigenvalues_list  = unocc_eigenvalues_list,
             unocc_eigenvectors_list = unocc_eigenvectors_list,
-            angular_momentum_cutoff = angular_momentum_cutoff
+            angular_momentum_cutoff = angular_momentum_cutoff,
+            l_values_for_lists      = l_values_for_lists,
         )
 
-        unique_l_values_number = len(self.occupation_info.unique_l_values) if angular_momentum_cutoff is None else angular_momentum_cutoff + 1
+        assert len(l_values_for_lists) == len(unocc_eigenvalues_list), \
+            "l_values_for_lists length must match per-channel eigenvalue lists"
 
 
         # Reorder eigenstates to match occupation list order
         occ_eigenvalues, occ_eigenvectors = self._reorder_eigenstates_by_occupation(
-            occ_eigenvalues_list, occ_eigenvectors_list
+            occ_eigenvalues_list,
+            occ_eigenvectors_list,
+            l_values_for_lists = l_values_for_lists,
         )
         
         full_eigenvalues  = np.concatenate([occ_eigenvalues,  *unocc_eigenvalues_list],  axis = 0)
@@ -2320,7 +2405,7 @@ class SCFDriver:
         # Compute angular momentum index for each entry in full_eigen_energies
         unocc_l_terms = np.concatenate([
             np.full(vals.shape[0], l, dtype=int)
-            for l, vals in zip(range(unique_l_values_number), unocc_eigenvalues_list)
+            for l, vals in zip(l_values_for_lists, unocc_eigenvalues_list)
             if vals.size > 0
         ]) if len(unocc_eigenvalues_list) > 0 else np.empty(0, dtype=int)
 
@@ -2337,6 +2422,7 @@ class SCFDriver:
         unocc_eigenvectors_list : List[np.ndarray],
         symmetrize              : bool = True,
         angular_momentum_cutoff : Optional[int] = None,
+        l_values_for_lists      : Optional[Iterable[int]] = None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Construct full eigenvalues, orbitals and l terms for OEP, only needed for OEP and at final readout
@@ -2349,6 +2435,7 @@ class SCFDriver:
                 unocc_eigenvalues_list  = unocc_eigenvalues_list,
                 unocc_eigenvectors_list = unocc_eigenvectors_list,
                 angular_momentum_cutoff = angular_momentum_cutoff,
+                l_values_for_lists      = l_values_for_lists,
                 eigenvectors_pad_width  = 0, # No need to pad eigenvectors here, because potentially, they will be padded in the next step.
             )
 
@@ -2513,7 +2600,9 @@ class SCFDriver:
         
         # Reorder eigenstates to match occupation list order
         occ_eigenvalues, occ_eigenvectors = self._reorder_eigenstates_by_occupation(
-            occ_eigenvalues_list, occ_eigenvectors_list
+            occ_eigenvalues_list,
+            occ_eigenvectors_list,
+            l_values_for_lists = self.occupation_info.unique_l_values,
         )
         
         # Interpolate eigenvectors to quadrature points, also symmetrize the eigenvectors

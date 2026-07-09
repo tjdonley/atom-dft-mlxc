@@ -220,7 +220,7 @@ def compute_descriptors_from_radial(
     r_radial: np.ndarray,
     rho_radial: np.ndarray,
     box_size: float,
-    spacing: float,
+    spacing: float | tuple[float, float, float],
     atom_center: tuple[float, float, float],
     rcuts: Sequence[float],
     angular_basis: str = "mcsh",
@@ -231,16 +231,30 @@ def compute_descriptors_from_radial(
     radial_order: int = 0,
 ) -> MultipoleResult:
     """Project a radial density onto a 3D grid and compute multipole descriptors."""
-    from .grid3d import grid_radial_distances, make_cartesian_grid, project_radial_to_3d
+    from .grid3d import grid_radial_distances, project_radial_to_3d
 
-    x_1d, X, Y, Z = make_cartesian_grid(box_size, spacing)
-    h_actual = float(x_1d[1] - x_1d[0]) if len(x_1d) > 1 else float(spacing)
+    if box_size <= 0.0:
+        raise ValueError(f"box_size must be positive, got {box_size}")
+    hx, hy, hz = normalize_spacing(spacing)
+
+    def _axis(requested_spacing: float) -> tuple[np.ndarray, float]:
+        n_points = int(round(box_size / requested_spacing)) + 1
+        axis = np.linspace(0.0, box_size, n_points)
+        actual_spacing = (
+            float(axis[1] - axis[0]) if axis.size > 1 else requested_spacing
+        )
+        return axis, actual_spacing
+
+    x_1d, hx_actual = _axis(hx)
+    y_1d, hy_actual = _axis(hy)
+    z_1d, hz_actual = _axis(hz)
+    X, Y, Z = np.meshgrid(x_1d, y_1d, z_1d, indexing="ij")
     R_3d = grid_radial_distances(X, Y, Z, atom_center)
     rho_3d = project_radial_to_3d(r_radial, rho_radial, R_3d)
 
     return compute_descriptors(
         rho_3d=rho_3d,
-        spacing=(h_actual, h_actual, h_actual),
+        spacing=(hx_actual, hy_actual, hz_actual),
         rcuts=rcuts,
         angular_basis=angular_basis,
         l_max=l_max,

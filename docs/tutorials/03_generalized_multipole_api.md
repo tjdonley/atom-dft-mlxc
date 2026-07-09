@@ -1,8 +1,8 @@
 # Generalized Multipole API
 
-This guide applies to the `experiment/multipole-generalization` branch.
+This guide describes the current generalized multipole implementation.
 
-On this branch, the descriptor API is organized around a generalized multipole framework:
+The descriptor API is organized around a generalized multipole framework:
 
 - `MultipoleCalculator(...)` is the public entry point.
 - MCSH is one angular basis inside that framework, not the framework itself.
@@ -47,9 +47,11 @@ Important current limits:
 
 - `max(rcuts)` must be less than or equal to `box_size / 2`.
 - `name` must be a unique, non-empty string when used with the solver.
-- The radial-to-3D projection path currently builds a cubic uniform grid.
+- The radial-to-3D projection path builds a Cartesian box and supports a
+  distinct uniform spacing along each axis.
 - `compute_from_3d(...)` defaults to sampling a line along `x` through the selected center unless you pass `eval_indices` explicitly.
 
+(quick-start-inline-with-the-solver)=
 ## Quick Start: Inline With the Solver
 
 The most common workflow is to attach a multipole calculator directly to the solver.
@@ -372,7 +374,8 @@ If two calculators use the same name, solver initialization raises an error.
 
 ### Radial projection is still cubic
 
-- `compute_from_radial(...)` currently projects onto a cubic uniform 3D grid.
+- `compute_from_radial(...)` projects onto a Cartesian 3D grid with optional
+  anisotropic spacing.
 - The direct 3D path supports a 3-tuple spacing input.
 - The radial projection path is still effectively isotropic.
 
@@ -399,6 +402,7 @@ Relevant files in this repository:
 - `tests/test_mcsh_e2e_hydrogen.py`
 - `tests/test_multipole_master_parity.py`
 
+(adding-new-implementations-and-options)=
 ## Adding New Implementations and Options
 
 This section is the bridge between the current code and the theory in the thesis.

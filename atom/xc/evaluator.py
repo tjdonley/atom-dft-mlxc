@@ -173,6 +173,25 @@ class XCPotentialData:
         return self.de_x_dtau + self.de_c_dtau
 
 
+def _xc_potential_data_flatten(potential: XCPotentialData):
+    """Flatten every XC potential field for optional JAX transformations."""
+    children = (
+        potential.v_x,
+        potential.v_c,
+        potential.e_x,
+        potential.e_c,
+        potential.de_x_dtau,
+        potential.de_c_dtau,
+    )
+    return children, None
+
+
+def _xc_potential_data_unflatten(aux_data, children):
+    """Reconstruct an XC potential without dropping meta-GGA fields."""
+    del aux_data
+    return XCPotentialData(*children)
+
+
 class XCEvaluator(ABC):
     """
     Abstract base class for exchange-correlation functional evaluators.
@@ -651,14 +670,15 @@ def create_xc_evaluator(
     >>> pot_data = evaluator.compute_xc(density_data)
     """
     # Import functional implementations
-    from .lda import LDA_SVWN, LDA_SPW
+    from .lda import LDA_PZ, LDA_SVWN, LDA_SPW
     from .gga_pbe import GGA_PBE
     from .meta_scan import SCAN, rSCAN, r2SCAN
     
     # Simple mapping: functional name → class
     FUNCTIONAL_MAP = {
         # LDA functionals
-        'LDA_PZ': LDA_SVWN,  # Note: LDA_PZ uses VWN correlation in current implementation
+        'LDA_PZ': LDA_PZ,
+        'LDA_SVWN': LDA_SVWN,
         'LDA_PW': LDA_SPW,
         
         # GGA functionals
@@ -728,17 +748,6 @@ try:
     )
     
     # Register XCPotentialData as JAX pytree
-    def _xc_potential_data_flatten(potential):
-        """Flatten XCPotentialData for JAX transformations"""
-        children = (potential.v_x, potential.v_c, 
-                   potential.e_x, potential.e_c)
-        aux_data = None
-        return children, aux_data
-    
-    def _xc_potential_data_unflatten(aux_data, children):
-        """Reconstruct XCPotentialData from flattened form"""
-        return XCPotentialData(*children)
-    
     tree_util.register_pytree_node(
         XCPotentialData,
         _xc_potential_data_flatten,

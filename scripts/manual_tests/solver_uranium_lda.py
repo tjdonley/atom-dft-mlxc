@@ -31,8 +31,10 @@ import sys
 import numpy as np
 import time
 
-# Add parent directories to path for imports
-sys.path.insert(0, '../')  # Add parent directory to path
+# Add the repository root to the import path.
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 from atom.solver import AtomicDFTSolver
 

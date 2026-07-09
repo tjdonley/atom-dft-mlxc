@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -85,6 +87,45 @@ def test_save_full_spectrum_is_forwarded_through_outer_loop(
     assert result["full_l_terms"].ndim == 1
     assert result["full_orbitals"].shape[1] == result["full_eigen_energies"].shape[0]
     assert result["full_l_terms"].shape == result["full_eigen_energies"].shape
+
+
+def test_hf_full_spectrum_populates_skipped_valence_channels(tmp_path):
+    """HF must have an exchange matrix for virtual-only l channels."""
+    source_psp = Path(__file__).resolve().parents[1] / "psps" / "26.psp8"
+    psp_text = source_psp.read_text(encoding="utf-8")
+    sparse_psp_text = psp_text.replace(
+        "26.0000     16.0000",
+        "26.0000      8.0000",
+        1,
+    )
+    assert sparse_psp_text != psp_text
+    sparse_psp = tmp_path / "Fe_sparse.psp8"
+    sparse_psp.write_text(sparse_psp_text, encoding="utf-8")
+
+    solver = AtomicDFTSolver(
+        atomic_number=26,
+        xc_functional="HF",
+        all_electron_flag=False,
+        psp_dir_path=str(tmp_path),
+        psp_file_name=sparse_psp.name,
+        domain_size=8.0,
+        finite_element_number=2,
+        polynomial_order=4,
+        quadrature_point_number=11,
+        mesh_type="polynomial",
+        mesh_concentration=2.0,
+        max_scf_iterations=1,
+        max_scf_iterations_outer=2,
+        use_pulay_mixing=False,
+        use_preconditioner=False,
+        verbose=False,
+    )
+    assert solver.occupation_info.unique_l_values.tolist() == [0, 2]
+
+    result = solver.solve(save_full_spectrum=True)
+
+    assert set(result["full_l_terms"]) == {0, 1, 2}
+    assert set(solver.hamiltonian_builder.H_hf_exchange_dict) == {0, 1, 2}
 
 
 def test_pbe0_end_to_end():

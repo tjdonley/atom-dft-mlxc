@@ -238,4 +238,4 @@ if __name__ == "__main__":
     print("All tests passed")
 
     # Terminal command:
-    #   python atom/testcase/mesh_builder_testcase.py
+    #   python scripts/manual_tests/mesh_builder.py

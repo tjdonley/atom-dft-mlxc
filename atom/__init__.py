@@ -13,6 +13,15 @@ Example:
     >>> results = solver.solve()
 """
 
+# Input and shape checks in the current numerical core still rely on Python
+# assertions.  Fail closed in optimized mode instead of silently disabling
+# those checks and allowing invalid scientific state to propagate.
+if not __debug__:
+    raise RuntimeError(
+        "atom-dft cannot run with Python optimization (-O) because required "
+        "scientific validation would be disabled"
+    )
+
 __version__ = "0.1.0"
 
 

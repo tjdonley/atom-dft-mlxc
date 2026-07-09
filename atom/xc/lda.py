@@ -2,7 +2,7 @@
 LDA (Local Density Approximation) Functionals
 
 Implements LDA exchange-correlation functionals:
-- LDA_PZ: Slater exchange + Perdew-Zunger correlation (uses VWN in current implementation)
+- LDA_PZ: Slater exchange + Perdew-Zunger correlation
 - LDA_PW: Slater exchange + Perdew-Wang correlation
 
 LDA functionals only depend on local density ρ(r), not on gradients or tau.
@@ -15,10 +15,43 @@ from dataclasses import dataclass
 from .evaluator import XCEvaluator, XCParameters, GenericXCResult, DensityData
 
 
+def _nonnegative_density(rho: np.ndarray) -> np.ndarray:
+    """Return density as a float array and reject nonphysical negatives."""
+    rho = np.asarray(rho, dtype=float)
+    if np.any(rho < 0.0):
+        raise ValueError("Electron density must be non-negative.")
+    return rho
+
+
+@dataclass
+class LDAPZParameters(XCParameters):
+    """
+    Parameters for LDA_PZ functional (Slater + Perdew-Zunger correlation).
+
+    Perdew-Zunger constants are for the spin-unpolarized Ceperley-Alder
+    parametrization from Perdew and Zunger, Phys. Rev. B 23, 5048 (1981).
+    """
+    functional_name: str = 'LDA_PZ'
+
+    # Slater exchange multiplier
+    C_x: float = 1.0
+
+    # Perdew-Zunger high-density branch, rs < 1
+    A: float = 0.0311
+    B: float = -0.048
+    C: float = 0.0020
+    D: float = -0.0116
+
+    # Perdew-Zunger low-density branch, rs >= 1
+    gamma: float = -0.1423
+    beta1: float = 1.0529
+    beta2: float = 0.3334
+
+
 @dataclass
 class LDASVWNParameters(XCParameters):
     """
-    Parameters for LDA_PZ functional (Slater + VWN correlation, matching SPARC's LDA_PZ name).
+    Parameters for LDA_SVWN functional (Slater + VWN correlation).
     
     All parameters can be optimized using autodiff for delta learning.
     
@@ -45,7 +78,7 @@ class LDASVWNParameters(XCParameters):
         VWN parameter 'y'
         Standard: -0.10498
     """
-    functional_name: str = 'LDA_PZ'  # Fixed for this functional (matches SPARC naming)
+    functional_name: str = 'LDA_SVWN'
     
     # Slater exchange multiplier
     C_x: float = 1.0  # Default: 1.0 (standard Slater)
@@ -103,13 +136,112 @@ class LDASPWParameters(XCParameters):
     beta4 : float = 0.49294
 
 
+class LDA_PZ(XCEvaluator):
+    """
+    LDA with Slater exchange and Perdew-Zunger correlation.
+
+    Exchange: Slater (1951)
+    Correlation: Perdew-Zunger (1981)
+
+    Only requires electron density rho(r).
+    No gradient transformation needed (LDA is already local).
+    """
+
+    def _default_params(self) -> LDAPZParameters:
+        """
+        Return default LDA-PZ parameters.
+
+        Returns
+        -------
+        params : LDAPZParameters
+            Standard Slater exchange (C_x=1.0) + PZ81 correlation parameters
+        """
+        return LDAPZParameters()
+
+    def compute_exchange_generic(
+        self,
+        density_data: DensityData
+        ) -> GenericXCResult:
+        """
+        Compute Slater exchange in generic form.
+        """
+        rho      = _nonnegative_density(density_data.rho)
+        # Preserve the established positive-density numerical path while
+        # handling rho == 0 explicitly in the correlation branch below.
+        rho_cbrt = rho ** (1 / 3)
+
+        e_x_standard = -0.7385587663820224 * rho_cbrt
+        v_x_standard = -0.9847450218426966 * rho_cbrt
+
+        C_x = self.params.C_x
+        e_x = C_x * e_x_standard
+        v_x = C_x * v_x_standard
+
+        return GenericXCResult(
+            v_generic=v_x,
+            e_generic=e_x,
+            de_dsigma=None,
+            de_dtau=None
+        )
+
+    def compute_correlation_generic(
+        self,
+        density_data: DensityData
+        ) -> GenericXCResult:
+        """
+        Compute Perdew-Zunger correlation in generic form.
+
+        For LDA, the generic form IS the spherical form (no gradients involved).
+        """
+        rho = _nonnegative_density(density_data.rho)
+        positive_density = rho > 0.0
+        safe_rho = np.where(positive_density, rho, 1.0)
+        rho_cbrt = safe_rho ** (1 / 3)
+
+        A = self.params.A
+        B = self.params.B
+        C = self.params.C
+        D = self.params.D
+        gamma = self.params.gamma
+        beta1 = self.params.beta1
+        beta2 = self.params.beta2
+
+        rs = (3 / (4 * np.pi))**(1/3) / rho_cbrt
+        sqrt_rs = np.sqrt(rs)
+        log_rs = np.log(rs)
+
+        high_density = rs < 1.0
+        e_c_high = A * log_rs + B + C * rs * log_rs + D * rs
+        v_c_high = (
+            A * log_rs
+            + (B - A / 3.0)
+            + (2.0 / 3.0) * C * rs * log_rs
+            + ((2.0 * D - C) / 3.0) * rs
+        )
+
+        denominator = 1.0 + beta1 * sqrt_rs + beta2 * rs
+        e_c_low = gamma / denominator
+        v_c_low = gamma * (
+            1.0
+            + (7.0 / 6.0) * beta1 * sqrt_rs
+            + (4.0 / 3.0) * beta2 * rs
+        ) / (denominator**2)
+
+        e_c = np.where(positive_density, np.where(high_density, e_c_high, e_c_low), 0.0)
+        v_c = np.where(positive_density, np.where(high_density, v_c_high, v_c_low), 0.0)
+
+        return GenericXCResult(
+            v_generic=v_c,
+            e_generic=e_c,
+            de_dsigma=None,
+            de_dtau=None
+        )
+
+
 class LDA_SVWN(XCEvaluator):
     """
     LDA with Slater exchange and Vosko-Wilk-Nusair correlation.
-    
-    Note: This is mapped to 'LDA_PZ' to match SPARC naming convention,
-    though SPARC's LDA_PZ uses Perdew-Zunger correlation instead.
-    
+
     Exchange: Slater (1951)
     Correlation: Vosko, Wilk, Nusair (1980)
     
@@ -407,5 +539,3 @@ def lda_correlation_generic(rho: np.ndarray) -> np.ndarray:
     """
     density_data = DensityData(rho=rho)
     return LDA_SPW().compute_correlation_generic(density_data).v_generic
-
-    

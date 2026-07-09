@@ -145,7 +145,10 @@ class DataProcessor:
             b, a = butter(order, cutoff, btype='low', analog=False)
             
             # Apply filter (filtfilt applies forward and backward for zero phase distortion)
-            vxc_smoothed_large_r = filtfilt(b, a, vxc_large_r)
+            padlen = min(3 * max(len(a), len(b)), len(vxc_large_r) - 1)
+            vxc_smoothed_large_r = filtfilt(
+                b, a, vxc_large_r, padlen=padlen
+            )
         
         elif method == 'savgol':
             from scipy.signal import savgol_filter
@@ -155,10 +158,10 @@ class DataProcessor:
             default_window = max(default_window, 21)  # At least 21
             window_length = kwargs.get('window_length', default_window)
             polyorder = kwargs.get('polyorder', 2)  # Lower order for stronger smoothing
-            # Ensure window_length is odd and <= len(data)
-            if window_length % 2 == 0:
-                window_length += 1
+            # Ensure window_length is odd and <= len(data).
             window_length = min(window_length, len(vxc_large_r))
+            if window_length % 2 == 0:
+                window_length -= 1
             if window_length < polyorder + 2:
                 polyorder = max(1, window_length - 2)
             
@@ -185,7 +188,12 @@ class DataProcessor:
             data_variance = np.var(vxc_large_r)
             # Default: use 80% of variance (much stronger smoothing)
             s = kwargs.get('s', len(vxc_large_r) * data_variance * 0.8)
-            spline = UnivariateSpline(r_large_r, vxc_large_r, s=s, k=3)
+            spline = UnivariateSpline(
+                r_large_r,
+                vxc_large_r,
+                s=s,
+                k=min(3, len(vxc_large_r) - 1),
+            )
             vxc_smoothed_large_r = spline(r_large_r)
         
         elif method == 'gaussian':
@@ -213,6 +221,8 @@ class DataProcessor:
                 {'cutoff': 0.05, 'order': 6},  # Strong lowpass
                 {'window_size': default_window}  # Large moving average
             ])
+            if len(methods_list) != len(kwargs_list):
+                raise ValueError("cascade methods and kwargs_list must have equal length")
             
             vxc_smoothed_large_r = vxc_large_r.copy()
             for m, kws in zip(methods_list, kwargs_list):
@@ -222,7 +232,13 @@ class DataProcessor:
                     cutoff = kws.get('cutoff', 0.05)
                     order = kws.get('order', 6)
                     b, a = butter(order, cutoff, btype='low', analog=False)
-                    vxc_smoothed_large_r = filtfilt(b, a, vxc_smoothed_large_r)
+                    padlen = min(
+                        3 * max(len(a), len(b)),
+                        len(vxc_smoothed_large_r) - 1,
+                    )
+                    vxc_smoothed_large_r = filtfilt(
+                        b, a, vxc_smoothed_large_r, padlen=padlen
+                    )
                 elif m == 'moving_avg':
                     window_size = kws.get('window_size', default_window)
                     window_size = min(window_size, len(vxc_smoothed_large_r))
@@ -232,12 +248,52 @@ class DataProcessor:
                     from scipy.ndimage import gaussian_filter1d
                     sigma = kws.get('sigma', max(2.0, len(vxc_smoothed_large_r) * 0.01))
                     vxc_smoothed_large_r = gaussian_filter1d(vxc_smoothed_large_r, sigma=sigma)
+                elif m == 'savgol':
+                    from scipy.signal import savgol_filter
+                    window_length = kws.get(
+                        'window_length',
+                        min(21, len(vxc_smoothed_large_r)),
+                    )
+                    window_length = min(window_length, len(vxc_smoothed_large_r))
+                    if window_length % 2 == 0:
+                        window_length -= 1
+                    polyorder = min(
+                        kws.get('polyorder', 2),
+                        window_length - 1,
+                    )
+                    vxc_smoothed_large_r = savgol_filter(
+                        vxc_smoothed_large_r,
+                        window_length,
+                        polyorder,
+                    )
+                elif m == 'spline':
+                    from scipy.interpolate import UnivariateSpline
+                    smoothing = kws.get(
+                        's',
+                        len(vxc_smoothed_large_r)
+                        * np.var(vxc_smoothed_large_r)
+                        * 0.8,
+                    )
+                    spline = UnivariateSpline(
+                        r_large_r,
+                        vxc_smoothed_large_r,
+                        s=smoothing,
+                        k=min(3, len(vxc_smoothed_large_r) - 1),
+                    )
+                    vxc_smoothed_large_r = spline(r_large_r)
+                elif m == 'exp_weighted':
+                    alpha = kws.get('alpha', 0.15)
+                    smoothed = np.empty_like(vxc_smoothed_large_r)
+                    smoothed[0] = vxc_smoothed_large_r[0]
+                    for i in range(1, len(smoothed)):
+                        smoothed[i] = (
+                            alpha * vxc_smoothed_large_r[i]
+                            + (1 - alpha) * smoothed[i - 1]
+                        )
+                    vxc_smoothed_large_r = smoothed
                 else:
-                    # For other methods, use recursive call (but with r_threshold=0 to smooth all)
-                    vxc_smoothed_large_r = DataProcessor.smooth_vxc_large_r(
-                        vxc_smoothed_large_r, r_large_r, 
-                        r_threshold=-1.0,  # Negative threshold to smooth all points
-                        method=m, **kws
+                    raise ValueError(
+                        UNKNOWN_SMOOTH_METHOD_ERROR.format(m, VALID_SMOOTH_METHODS)
                     )
         
         else:
