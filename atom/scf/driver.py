@@ -658,7 +658,8 @@ class SCFSettings:
     outer_max_iter : int
         Maximum number of outer SCF iterations (for HF/OEP/RPA)
     outer_rho_tol : float
-        Convergence tolerance for outer loop density residual
+        Convergence tolerance for outer density and, for HF/nonlocal hybrids,
+        the normalized change in exchange acting on occupied orbitals.
     verbose : bool
         Whether to output the information during SCF
     """
@@ -1388,6 +1389,46 @@ class SCFDriver:
     
 
 
+    def _hf_exchange_residual(
+        self,
+        consumed: Dict[int, np.ndarray],
+        rebuilt: Dict[int, np.ndarray],
+        orbitals: np.ndarray,
+    ) -> float:
+        """Bound the exchange change acting on the returned occupied orbitals.
+
+        Use the overlap-orthonormal interior basis and the hybrid fraction
+        actually used in the Hamiltonian. Normalize each channel's action by
+        its new exchange action or one Hartree times its orbital norm. Changes
+        solely within virtual directions need not delay occupied stationarity.
+        """
+        if any(not np.all(np.isfinite(matrix))
+               for matrices in (consumed, rebuilt) for matrix in matrices.values()):
+            return np.inf
+        fraction = self.switches.hybrid_mixing_parameter
+        if fraction == 0.0:
+            return 0.0
+        ops = self.hamiltonian_builder.ops_builder
+        inverse_sqrt = ops.get_S_inv_sqrt(exclude_boundary=True)
+        basis = ops.get_global_interpolation_matrix()[:, 1:-1]
+        # B.T W B = S: project quadrature orbitals back to FE coefficients,
+        # with y = S^(1/2)c and c = S^(-1/2)y.
+        y = inverse_sqrt @ (basis.T @ (ops.quadrature_weights[:, None] * orbitals))
+        coefficients = inverse_sqrt @ y
+        residual = 0.0
+        for l in self.occupation_info.unique_l_values:
+            occupied = self.occupation_info.l_values == l
+            c = coefficients[:, occupied]
+            new = fraction * inverse_sqrt @ rebuilt[l][1:-1, 1:-1] @ c
+            delta = fraction * inverse_sqrt @ (rebuilt[l] - consumed[l])[1:-1, 1:-1] @ c
+            change = np.linalg.norm(delta, ord="fro")
+            scale = max(np.linalg.norm(y[:, occupied]), np.linalg.norm(new))
+            if not (np.isfinite(change) and np.isfinite(scale)) or scale <= 0:
+                return np.inf
+            residual = max(residual, change / scale)
+        return float(residual)
+
+
     def run(
         self,
         rho_initial        : np.ndarray,
@@ -1433,11 +1474,20 @@ class SCFDriver:
         intermediate_info = IntermediateInfo() if save_intermediate else None
 
         # Determine if outer loop is needed
-        needs_outer_loop = (settings.outer_max_iter > 1)
+        # HF/nonlocal PBE0 require exchange updates even when the outer budget
+        # is one: that bootstrap pass must be returned as unconverged.
+        needs_outer_loop = self.switches.use_hf_exchange or settings.outer_max_iter > 1
+
+        # The fixed-exchange inner solve must be more accurate than the outer
+        # orbital-dependent update, or its stopping error can prevent exchange
+        # stationarity even when successive densities satisfy the same limit.
+        inner_tolerance = settings.rho_tol
+        if self.switches.use_hf_exchange and self.switches.hybrid_mixing_parameter > 0.0:
+            inner_tolerance = min(inner_tolerance, 0.1 * settings.outer_rho_tol)
 
         # Configure convergence checkers
         self.inner_convergence_checker = ConvergenceChecker(
-            tolerance     = settings.rho_tol,
+            tolerance     = inner_tolerance,
             n_consecutive = settings.n_consecutive,
             loop_type     = "Inner"
         )
@@ -1979,6 +2029,8 @@ class SCFDriver:
 
         # Track outer convergence status
         outer_converged = False
+        exchange_consecutive = 0
+        exchange_initialized = orbitals_initial is not None
         
         for outer_iter in range(max_outer_iter):
             # Update current outer iteration in intermediate_info
@@ -2015,12 +2067,30 @@ class SCFDriver:
             rho_new  = inner_result.density_data.rho
             orbitals = inner_result.orbitals
 
-            # update HF exchange dictionary
+            # Check the operator consumed by this solve against exchange from
+            # its returned orbitals. Keep the consumed operator installed until
+            # the next inner solve, so reported eigenpairs retain their meaning.
             if self.switches.use_hf_exchange:
-                H_hf_exchange_dict_by_l = self._compute_hf_exchange_matrices_dict(
+                rebuilt_exchange = self._compute_hf_exchange_matrices_dict(
                     orbitals,
                     l_values=hf_l_values,
                 )
+                exchange_residual = self._hf_exchange_residual(
+                    H_hf_exchange_dict_by_l, rebuilt_exchange, orbitals
+                )
+                if verbose:
+                    print(f"\t Occupied exchange residual: {exchange_residual:.6e}")
+                exchange_ready = (
+                    exchange_initialized
+                    or self.switches.hybrid_mixing_parameter == 0.0
+                )
+                if (exchange_ready and inner_result.converged
+                        and exchange_residual < settings.outer_rho_tol):
+                    exchange_consecutive += 1
+                else:
+                    exchange_consecutive = 0
+                exchange_initialized = True
+                H_hf_exchange_dict_by_l = rebuilt_exchange
 
             # Check outer loop convergence
             outer_converged, outer_residual = self.outer_convergence_checker.check(
@@ -2028,6 +2098,15 @@ class SCFDriver:
                 print_status = verbose
             )
             
+            # A density fixed point of the bootstrap/local Hamiltonian is
+            # not yet a fixed point of HF or nonlocal PBE0 exchange.
+            outer_converged = bool(outer_converged and inner_result.converged)
+            if self.switches.use_hf_exchange:
+                outer_converged = bool(
+                    outer_converged
+                    and exchange_consecutive >= settings.n_consecutive
+                )
+
             # Save intermediate information if requested
             if intermediate_info is not None:
                 intermediate_info.add_outer_iteration(
