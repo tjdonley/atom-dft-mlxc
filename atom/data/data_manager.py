@@ -2104,7 +2104,9 @@ class AtomicDataManager:
         `save_intermediate` : bool
             Whether to save intermediate information during SCF. Defaults to False.
         `save_full_spectrum` : bool
-            Whether to save full spectrum information. Defaults to False.
+            Whether to save optional full-spectrum outputs. Defaults to False.
+            Source spectra required by OEP forward targets are always computed
+            and saved, including intermediate states, regardless of this option.
         `save_derivative_matrix` : bool
             Whether to save derivative matrix. Most systems have the same derivative matrix when using
             the same grid/basis/mesh parameters, so a shared derivative matrix is saved at the dataset root.

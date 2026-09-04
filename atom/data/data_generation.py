@@ -78,10 +78,10 @@ SAVE_INTERMEDIATE_INFO_IS_NONE_ERROR = \
     Remark: This error should never be raised, otherwise you should check the output of atomic_dft_solver.solve()."
 
 
-# Warning messages
-# Note: Use f-string or .format() with keyword arguments to avoid KeyError
-OEP_IS_ENABLED_BUT_FULL_SPECTRUM_DATA_FILES_NOT_FOUND_WARNING = \
-    "Warning: OEP is enabled but full spectrum data files not found in '{}'. Disabling OEP."
+# Source files required by orbital-dependent OEP forward targets.
+FULL_SPECTRUM_FILES = (
+    "full_eigen_energies.txt", "full_orbitals.txt", "full_l_terms.txt",
+)
 
 # Type aliases
 # (v_x_local, v_c_local, e_x_local, e_c_local), where e_x_local and e_c_local are only available if compute_energy_density is True
@@ -152,6 +152,21 @@ XC_FUNCTIONAL_OEP_DEFAULT = {
     "EXX"     : True,   # Exact Exchange, using OEP method
     "RPA"     : True,   # Random Phase Approximation, with exact exchange
 }
+
+
+def _require_forward_spectrum(folder_path: str, xc_functional: str) -> None:
+    """Reject missing OEP prerequisites instead of changing the target physics."""
+    if not XC_FUNCTIONAL_OEP_DEFAULT.get(xc_functional, False):
+        return
+    missing = [name for name in FULL_SPECTRUM_FILES
+               if not os.path.isfile(os.path.join(folder_path, name))]
+    if missing:
+        raise ValueError(
+            f"{xc_functional} forward targets require the full source spectrum in "
+            f"'{folder_path}'; missing {', '.join(missing)}. Regenerate the source "
+            "with save_full_spectrum=True, or generate source and targets together. "
+            "The requested OEP target has not been replaced with a non-OEP target."
+        )
 
 
 class DataGenerator:
@@ -762,12 +777,12 @@ class DataGenerator:
             # Forward pass always uses default OEP value
             use_oep = XC_FUNCTIONAL_OEP_DEFAULT.get(xc_functional, False)
             
-            # Load full_eigen_energies, full_orbitals, full_l_terms if they exist (only needed for RPA)
-            # If files don't exist and use_oep=True, we need to disable OEP to avoid errors
+            # Spectrum availability must not select a different target functional mode.
+            _require_forward_spectrum(read_folder_path, xc_functional)
+            # Load the source spectrum required by OEP targets.
             full_eigen_energies = None
             full_orbitals = None
             full_l_terms = None
-            actual_use_oep = use_oep
             
             # Try to load full spectrum data if available (optional, only for RPA)
             full_eigen_energies_file = os.path.join(read_folder_path, "full_eigen_energies.txt")
@@ -776,31 +791,24 @@ class DataGenerator:
             
             # Try to load full spectrum data if available (optional, only for RPA)
             if os.path.exists(full_eigen_energies_file):
-                full_eigen_energies = np.loadtxt(full_eigen_energies_file)
+                full_eigen_energies = np.atleast_1d(np.loadtxt(full_eigen_energies_file))
             if os.path.exists(full_orbitals_file):
                 full_orbitals = np.loadtxt(full_orbitals_file)
                 if full_orbitals.ndim == 1:
                     full_orbitals = full_orbitals.reshape(-1, 1)
             if os.path.exists(full_l_terms_file):
-                full_l_terms = np.loadtxt(full_l_terms_file)
-                if full_l_terms.ndim == 1:
-                    full_l_terms = full_l_terms.reshape(-1, 1)
-                    
-            # If OEP is enabled but files don't exist, disable OEP to avoid errors
-            if actual_use_oep and (full_eigen_energies is None or full_orbitals is None or full_l_terms is None):
-                actual_use_oep = False
-                # Use position-based format to avoid KeyError issues
-                print(OEP_IS_ENABLED_BUT_FULL_SPECTRUM_DATA_FILES_NOT_FOUND_WARNING.format(read_folder_path))
+                # Angular momenta are a vector, including a single-state spectrum.
+                full_l_terms = np.atleast_1d(np.loadtxt(full_l_terms_file))
                 
             # Create new solver instance if not provided
-            if atomic_dft_solver is None or (atomic_dft_solver.use_oep != actual_use_oep):
+            if atomic_dft_solver is None or (atomic_dft_solver.use_oep != use_oep):
                 from ..solver import AtomicDFTSolver
                 atomic_dft_solver = AtomicDFTSolver(
                     atomic_number             = atomic_number,
                     n_electrons               = n_electrons,
                     all_electron_flag         = True,
                     xc_functional             = xc_functional,
-                    use_oep                   = actual_use_oep,
+                    use_oep                   = use_oep,
 
                     domain_size               = domain_size,
                     finite_element_number     = finite_elements_number,
@@ -869,6 +877,14 @@ class DataGenerator:
                 # Save local XC energy density on uniform grid
                 np.savetxt(os.path.join(write_folder_path, "e_x_uniform.txt"), e_x_local_uniform)
                 np.savetxt(os.path.join(write_folder_path, "e_c_uniform.txt"), e_c_local_uniform)
+
+            # Persist the actual target mode for both main and intermediate targets.
+            with open(os.path.join(write_folder_path, "provenance.json"), "w") as f:
+                json.dump({
+                    "xc_functional": xc_functional,
+                    "use_oep": bool(atomic_dft_solver.use_oep),
+                    "source_folder": os.path.relpath(read_folder_path, write_folder_path),
+                }, f, indent=2, sort_keys=True)
 
             # Save output log for this folder (only if requested)
             # For nested calls, we save a snapshot of the current buffer content
@@ -1084,6 +1100,18 @@ class DataGenerator:
         sys.stdout = tee_output
 
         try:
+            outer_iter_folders = []
+            if process_intermediate and os.path.exists(read_folder_path):
+                outer_iter_folders = sorted(
+                    name for name in os.listdir(read_folder_path)
+                    if name.startswith("outer_iter_")
+                    and os.path.isdir(os.path.join(read_folder_path, name))
+                )
+            for source_folder in [read_folder_path] + [
+                os.path.join(read_folder_path, name) for name in outer_iter_folders
+            ]:
+                _require_forward_spectrum(source_folder, forward_pass_xc_functional)
+
             # Perform forward pass for main folder
             print(f"Performing forward pass for main folder: {read_folder_path}")
             # Always use verbose=True in _forward_pass_single_folder to ensure detailed output is captured
@@ -1126,11 +1154,6 @@ class DataGenerator:
 
             # check for outer iteration subfolders
             if process_intermediate and os.path.exists(read_folder_path):
-                outer_iter_folders = [f for f in os.listdir(read_folder_path) 
-                                      if os.path.isdir(os.path.join(read_folder_path, f)) 
-                                      and f.startswith("outer_iter_")]
-                outer_iter_folders.sort()
-                
                 if len(outer_iter_folders) > 0:
                     print(f"Found {len(outer_iter_folders)} outer iteration folders, processing...")
                     
@@ -1282,7 +1305,9 @@ class DataGenerator:
         `save_intermediate` : bool
             Whether to save intermediate information.
         `save_full_spectrum` : bool
-            Whether to save full spectrum.
+            Whether to save optional full-spectrum outputs. Source spectra needed
+            by OEP forward targets are always computed and saved, including in
+            intermediate folders, independently of this option.
         `save_derivative_matrix` : bool
             Whether to save derivative matrix. Most systems have the same derivative matrix when using
             the same grid/basis/mesh parameters, so a shared derivative matrix is saved at the dataset root.
@@ -1398,6 +1423,16 @@ class DataGenerator:
             # default to charge neutral
             n_electrons_list = atomic_number_list 
 
+        # An OEP target needs the source spectrum even when optional output storage
+        # is disabled. Keep these prerequisites in the source (including intermediate
+        # folders), while leaving target spectrum output controlled by the caller.
+        if not isinstance(save_full_spectrum, bool):
+            raise TypeError(SAVE_FULL_SPECTRUM_NOT_BOOL_ERROR.format(save_full_spectrum))
+        source_save_full_spectrum = save_full_spectrum or any(
+            XC_FUNCTIONAL_OEP_DEFAULT.get(functional, False)
+            for functional in forward_pass_xc_functional_list
+        )
+
         # Initialize shared derivative matrix for the dataset (if save_derivative_matrix is True)
         shared_derivative_matrix_path = None
         if save_derivative_matrix:
@@ -1425,7 +1460,7 @@ class DataGenerator:
                     # Arguments controlling the contents of the dataset
                     save_energy_density      = save_energy_density,
                     save_intermediate        = save_intermediate,
-                    save_full_spectrum       = save_full_spectrum,
+                    save_full_spectrum       = source_save_full_spectrum,
                     save_derivative_matrix   = save_derivative_matrix,
 
                     # Arguments controlling the generation process
